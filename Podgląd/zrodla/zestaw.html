@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Zestaw poglądowy</title>
+<!-- Składa klatki w jeden obrazek zbiorczy. Otwórz: zestaw.html?zestaw=03&klatki=<adres folderu z klatkami> -->
+<style>
+  body { margin: 0; padding: 36px 40px 44px; background: #121318; color: #ebe5d5; font: 15px/1.4 Georgia, serif; width: 1580px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font: italic 700 32px Georgia, serif; }
+  .opis { margin: 0 0 30px; color: #9b947f; font-style: italic; }
+  figure { margin: 0 0 34px; }
+  figcaption { display: flex; gap: 12px; align-items: baseline; margin-bottom: 10px; font: italic 600 19px Georgia, serif; }
+  figcaption b { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 2px solid #93423a; border-radius: 50%; font: 700 15px Bahnschrift, sans-serif; font-style: normal; color: #ff6b56; }
+  figcaption span { color: #9b947f; font-size: 15px; font-weight: 400; }
+  img { display: block; width: 1500px; border: 1px solid #2f333c; border-radius: 6px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); }
+</style>
+</head>
+<body>
+<script>
+  const ZESTAWY = {
+    '03': {
+      tytul: 'Mikropłatności - stany i działania',
+      opis: 'Co widać podczas pracy: wykreślanie, przesuwanie wierszy, brak internetu i błędy odczytu.',
+      klatki: [
+        ['03a.png', 'Wykreślanie', 'najechanie na „×” przekreśla wiersz, kliknięcie pyta „Na pewno wykreślić…?”'],
+        ['03b.png', 'Przesuwanie i błędna kwota', 'wiersz przeciągany za numer Lp. (podświetlony); niepoprawny koszt podkreślony na czerwono'],
+        ['03c.png', 'Bez internetu', 'kurs zapamiętany z dopiskiem w nagłówku, „sprawdzam stronę…”, nieudany odczyt ceny - wpis ręczny'],
+      ],
+    },
+    '04': {
+      tytul: 'Mikropłatności - sytuacje szczególne',
+      opis: 'Pierwsze uruchomienie, uszkodzony plik danych i próba otwarcia drugiej kopii aplikacji.',
+      klatki: [
+        ['04a.png', 'Pierwsze uruchomienie', 'pusty zeszyt, spokojna miarka, zerowy paragon'],
+        ['04b.png', 'Uszkodzony plik danych', 'aplikacja ostrzega i niczego nie zapisuje, żeby nie nadpisać danych'],
+        ['04c.png', 'Druga kopia aplikacji', 'komunikat i samoczynne zamknięcie - dane edytuje tylko jedno okno'],
+      ],
+    },
+  };
+  const p = new URLSearchParams(location.search);
+  const z = ZESTAWY[p.get('zestaw')];
+  const folder = p.get('klatki') || '';
+  const el = (tag, tekst) => { const e = document.createElement(tag); if (tekst) e.textContent = tekst; return e; };
+  document.body.append(el('h1', z.tytul), Object.assign(el('p', z.opis), { className: 'opis' }));
+  z.klatki.forEach(([plik, nazwa, opis], i) => {
+    const fig = el('figure');
+    const cap = el('figcaption');
+    cap.append(el('b', String(i + 1)), el('div', nazwa), el('span', '- ' + opis));
+    const img = el('img');
+    img.src = folder + plik;
+    fig.append(cap, img);
+    document.body.append(fig);
+  });
+</script>
+</body>
+</html>

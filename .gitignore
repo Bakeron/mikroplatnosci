@@ -1,0 +1,16 @@
+# Pliki JSON nie trafiają do gita (dane aplikacji, kopie) - poza konfiguracją potrzebną do budowania
+*.json
+!/package.json
+!/package-lock.json
+!/neutralino.config.json
+
+# Zależności i pliki generowane (odtwarzane przez npm install / neu update / neu build)
+node_modules/
+bin/
+dist/
+
+# Lokalne ustawienia Claude Code
+.claude/settings.local.json
+
+# Rzeczy spoza aplikacji
+Vibersi/
