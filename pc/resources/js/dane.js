@@ -51,3 +51,12 @@ export function odczytajUsuniete(lista) {
     .filter((u) => u && typeof u.id === 'string' && u.id && czasIso(u.kiedy))
     .map((u) => ({ id: u.id.slice(0, 64), kiedy: u.kiedy }));
 }
+
+// Wpisy i lista usuniętych z pliku danych (PC, telefon, Dysk) - null, gdy plik ma nieznany format.
+export function odczytajDane(dane) {
+  if (!dane || !Array.isArray(dane.wpisy)) return null;
+  return { wpisy: dane.wpisy.filter((w) => w && typeof w === 'object').map(normalizuj), usuniete: odczytajUsuniete(dane.usuniete) };
+}
+
+// Treść pliku danych w formacie wersja 2; PC dokłada w dodatkach swoje ustawienia (sortowanie, motyw).
+export const doZapisu = (stan, dodatki = {}) => ({ wersja: 2, zapisano: new Date().toISOString(), ...dodatki, wpisy: stan.wpisy, usuniete: stan.usuniete });

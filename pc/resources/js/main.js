@@ -5,7 +5,7 @@ import { renderujPodsumowanie } from './podsumowanie.js';
 import { utworzWiersz, odswiezWiersze, bezpiecznyLink, numeruj } from './tabela.js';
 import { odczytajCene, stanCen } from './ceny.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
-import { nowyWpis, normalizuj, odczytajUsuniete } from './dane.js';
+import { nowyWpis, odczytajDane, doZapisu } from './dane.js';
 import { wypelnijListe } from './spisy.js';
 import { przygotujDysk } from './dysk.js';
 import { polaczSynchronizacje } from './synchronizacja.js';
@@ -90,15 +90,16 @@ async function wczytaj() {
   const tresc = await Neutralino.filesystem.readFile(stan.plik);
   if (!tresc.trim()) return [];
   const dane = JSON.parse(tresc);
-  if (!dane || !Array.isArray(dane.wpisy)) throw new Error('nieprawidłowy format pliku');
+  const odczytane = odczytajDane(dane);
+  if (!odczytane) throw new Error('nieprawidłowy format pliku');
   // Zapamiętana kolejność: kolumna sortowania albo „reczna” (wiersze przesuwane przez użytkownika).
   const s = dane.sort;
   if (s && typeof s.klucz === 'string' && /^[a-z]{1,20}$/.test(s.klucz) && (s.kierunek === 1 || s.kierunek === -1)) {
     stan.sort = { klucz: s.klucz, kierunek: s.kierunek };
   }
   if (dane.motyw === 'ciemny' || dane.motyw === 'jasny') stan.motyw = dane.motyw;
-  stan.usuniete = odczytajUsuniete(dane.usuniete);
-  return dane.wpisy.filter((w) => w && typeof w === 'object').map(normalizuj);
+  stan.usuniete = odczytane.usuniete;
+  return odczytane.wpisy;
 }
 
 // Kopia przy każdym uruchomieniu, zostaje ILE_KOPII najnowszych.
@@ -119,7 +120,7 @@ async function zapiszTeraz() {
   stan.timer = null;
   if (stan.zablokowany || !stan.plik) return;
   try {
-    const dane = { wersja: 2, zapisano: new Date().toISOString(), sort: stan.sort, motyw: stan.motyw, wpisy: stan.wpisy, usuniete: stan.usuniete };
+    const dane = doZapisu(stan, { sort: stan.sort, motyw: stan.motyw });
     await Neutralino.filesystem.writeFile(stan.plik, JSON.stringify(dane, null, 2));
     pokazStatus('zapisano ✓ ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {

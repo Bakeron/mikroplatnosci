@@ -36,7 +36,7 @@
   text-underline-offset: 4px;
 }
 .t-dysk__przycisk:disabled, .t-dysk__wlacz:has(input:disabled) { opacity: 0.45; }
-.t-dysk__stan { margin-left: auto; font: 12.5px var(--f-liczby); font-style: normal; letter-spacing: 0.03em; }
+.t-dysk__stan { margin-left: auto; font: 12.5px var(--f-liczby); letter-spacing: 0.03em; }
 .t-dysk__stan--blad { color: var(--czerwony); font-weight: 700; }
 
 .t-blad { margin: 8px 16px 0; }

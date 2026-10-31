@@ -1,8 +1,27 @@
 // Sprawdzanie danych z pliku i z Dysku (dane.js) oraz paragon (podsumowanie.js) - bez DOM.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizuj, odczytajUsuniete, nowyWpis } from '../resources/js/dane.js';
+import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu } from '../resources/js/dane.js';
 import { policz } from '../resources/js/podsumowanie.js';
+
+test('plik danych: nieznany format odrzucony', () => {
+  for (const zly of [null, {}, { wpisy: 'x' }, 'tekst', 5]) assert.equal(odczytajDane(zly), null);
+});
+
+test('plik danych: odczyt pomija śmieci i sprawdza pola', () => {
+  const d = odczytajDane({ wpisy: [{ id: 'a', nazwa: 'Netflix', koszt: 43 }, null, 'x', 7], usuniete: [{ id: 'b', kiedy: '2026-10-30T10:00:00.000Z' }, { id: 'c' }] });
+  assert.deepEqual(d.wpisy.map((w) => [w.id, w.nazwa, w.koszt]), [['a', 'Netflix', 43]]);
+  assert.deepEqual(d.usuniete, [{ id: 'b', kiedy: '2026-10-30T10:00:00.000Z' }]);
+});
+
+test('plik danych: zapis i ponowny odczyt dają to samo, dodatki PC przed wpisami', () => {
+  const stan = { wpisy: [normalizuj({ id: 'a', nazwa: 'X', koszt: 1 })], usuniete: [{ id: 'b', kiedy: '2026-10-30T10:00:00.000Z' }] };
+  const plik = doZapisu(stan, { sort: { klucz: 'reczna', kierunek: 1 }, motyw: 'jasny' });
+  assert.deepEqual(Object.keys(plik), ['wersja', 'zapisano', 'sort', 'motyw', 'wpisy', 'usuniete']);
+  assert.equal(plik.wersja, 2);
+  assert.deepEqual(odczytajDane(JSON.parse(JSON.stringify(plik))), stan);
+  assert.deepEqual(Object.keys(doZapisu(stan)), ['wersja', 'zapisano', 'wpisy', 'usuniete']);
+});
 
 test('śmieci z pliku zamieniane na bezpieczne wartości', () => {
   const w = normalizuj({ id: 5, od: '2026-13', okres: 'X', nazwa: 7, koszt: -3, waluta: 'GBP', przedluzac: 'może', prognoza: Infinity, prognozaCennik: 'javascript:alert(1)', zmieniono: 'wczoraj' });

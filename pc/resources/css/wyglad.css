@@ -742,6 +742,6 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 }
 .stopka__przycisk:hover:not(:disabled) { color: var(--atrament); }
 .stopka__przycisk:disabled, .stopka__wlacz:has(input:disabled) { opacity: 0.45; cursor: progress; }
-.stopka__stan { margin-left: auto; font: 13px var(--f-liczby); font-style: normal; letter-spacing: 0.04em; }
+.stopka__stan { margin-left: auto; font: 13px var(--f-liczby); letter-spacing: 0.04em; }
 .stopka__stan--blad { color: var(--czerwony); font-weight: 700; }
-.stopka__wersja { font: 11.5px var(--f-liczby); font-style: normal; letter-spacing: 0.04em; opacity: 0.6; }
+.stopka__wersja { font: 11.5px var(--f-liczby); letter-spacing: 0.04em; opacity: 0.6; }

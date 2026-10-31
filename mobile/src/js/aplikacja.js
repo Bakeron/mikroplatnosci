@@ -5,7 +5,7 @@ import { termin, doPlatnosci, dniTekst, formatujDate, zbierzAlarmy, czyZakonczon
 import { WALUTY, waluta, naPln, formatujKwote, wczytajZapamietane, odswiezZNbp } from './waluty.js';
 import { renderujPodsumowanie, policz } from './podsumowanie.js';
 import { wypelnijListe } from './spisy.js';
-import { nowyWpis, normalizuj, odczytajUsuniete } from './dane.js';
+import { nowyWpis, normalizuj, odczytajDane, doZapisu } from './dane.js';
 import { przygotujDysk, czyPolaczony } from './dysk.js';
 import { polaczSynchronizacje } from './synchronizacja.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
@@ -56,16 +56,16 @@ async function wczytaj() {
   if (!(await istnieje(PLIK))) return;
   const tresc = await Neutralino.filesystem.readFile(PLIK);
   if (!tresc.trim()) return;
-  const dane = JSON.parse(tresc);
-  if (!dane || !Array.isArray(dane.wpisy)) throw new Error('nieprawidłowy format pliku');
-  stan.wpisy = dane.wpisy.filter((w) => w && typeof w === 'object').map(normalizuj);
-  stan.usuniete = odczytajUsuniete(dane.usuniete);
+  const odczytane = odczytajDane(JSON.parse(tresc));
+  if (!odczytane) throw new Error('nieprawidłowy format pliku');
+  stan.wpisy = odczytane.wpisy;
+  stan.usuniete = odczytane.usuniete;
 }
 
 async function zapisz() {
   if (stan.zablokowany) return;
   try {
-    await Neutralino.filesystem.writeFile(PLIK, JSON.stringify({ wersja: 2, zapisano: new Date().toISOString(), wpisy: stan.wpisy, usuniete: stan.usuniete }, null, 2));
+    await Neutralino.filesystem.writeFile(PLIK, JSON.stringify(doZapisu(stan), null, 2));
   } catch (e) {
     pokazBlad('Błąd zapisu na telefonie - ostatnia zmiana może zniknąć.');
     console.error(e);

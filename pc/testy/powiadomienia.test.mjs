@@ -29,7 +29,7 @@ test('dzień progu po 9:00 - pokazuje raz, drugi raz już nie', () => {
   const r1 = P.rozplanuj(w, p, po9);
   assert.deepEqual(r1.teraz.map((x) => x.napis), ['za tydzień']);
   assert.equal(P.rozplanuj(w, p, po9).teraz.length, 0);
-  assert.equal(P.tresc(r1.teraz[0], dzis()).startsWith('Odnowienie za tydzień'), true);
+  assert.match(P.tresc(r1.teraz[0], dzis()), /^Odnowienie za tydzień/);
 });
 
 test('przed 9:00 w dniu progu - jeszcze nie (czeka na 9:00, na telefonie zaplanowane)', () => {

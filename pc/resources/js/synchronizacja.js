@@ -3,7 +3,7 @@
 // zmian z drugiego urządzenia. Obie aplikacje mają te same id elementów (dysk-*, okno-dysk*, okno-google*).
 
 import { scal } from './scalanie.js';
-import { normalizuj, odczytajUsuniete } from './dane.js';
+import { odczytajDane, doZapisu } from './dane.js';
 import { czyPolaczony, czySkonfigurowany, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, STRONA_KODU } from './dysk.js';
 
 const $ = (id) => document.getElementById(id);
@@ -45,16 +45,18 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
         } catch {
           throw new Error('plik na Dysku jest uszkodzony');
         }
-        if (!dane || !Array.isArray(dane.wpisy)) throw new Error('plik na Dysku ma nieznany format');
-        const zdalne = { wpisy: dane.wpisy.filter((w) => w && typeof w === 'object').map(normalizuj), usuniete: odczytajUsuniete(dane.usuniete) };
+        const zdalne = odczytajDane(dane);
+        if (!zdalne) throw new Error('plik na Dysku ma nieznany format');
+        const przed = JSON.stringify([stan.wpisy, stan.usuniete]);
         const wynik = scal({ wpisy: stan.wpisy, usuniete: stan.usuniete }, zdalne);
         stan.wpisy = wynik.wpisy;
         stan.usuniete = wynik.usuniete;
-        await poScaleniu();
+        // Zapis i odświeżenie widoku tylko, gdy Dysk coś zmienił (zwykle nic - pobranie przy każdym starcie telefonu).
+        if (JSON.stringify([stan.wpisy, stan.usuniete]) !== przed) await poScaleniu();
       }
       if (wyslij) {
         pokaz('wysyłam na Dysk…');
-        await wyslijNaDysk(JSON.stringify({ wersja: 2, zapisano: new Date().toISOString(), wpisy: stan.wpisy, usuniete: stan.usuniete }));
+        await wyslijNaDysk(JSON.stringify(doZapisu(stan)));
       }
       pokaz((wyslij ? 'wysłano na Dysk ✓ ' : tekst === null ? 'na Dysku jeszcze nic nie ma · ' : 'pobrano z Dysku ✓ ') + godzina());
     } catch (e) {

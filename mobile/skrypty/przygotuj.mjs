@@ -3,9 +3,9 @@
 // Użycie: npm run przygotuj (w folderze mobile/)
 
 import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { zmienna } from './zmienna.mjs';
 
 const mobile = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pc = join(mobile, '..', 'pc', 'resources');
@@ -25,17 +25,6 @@ function kopiujFolder(z, doCelu) {
   }
 }
 
-// Zmienna z bieżącego procesu albo zapisana przez setx (widoczna dopiero w nowych oknach).
-function zmienna(nazwa) {
-  if (process.env[nazwa]) return process.env[nazwa].trim();
-  try {
-    const wynik = execFileSync('reg', ['query', 'HKCU\\Environment', '/v', nazwa], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    return (wynik.match(/REG_(?:EXPAND_)?SZ\s+(.*)/)?.[1] ?? '').trim();
-  } catch {
-    return '';
-  }
-}
-
 rmSync(www, { recursive: true, force: true });
 kopiujFolder(join(mobile, 'src'), www);
 for (const plik of WSPOLNE) kopiuj(join(pc, 'js', plik), join(www, 'js', plik));
@@ -50,6 +39,7 @@ writeFileSync(join(www, 'js', 'google.js'), `window.GOOGLE_KLUCZE = ${JSON.strin
 
 // Numer wersji = data i godzina budowania; kod (minuty od 2026 r.) rośnie z każdym APK -
 // Android instaluje aktualizację tylko z kodem nie mniejszym niż zainstalowany. apk.mjs czyta wersja.json.
+// Format nazwy taki sam jak w pc/instalacja/instaluj.ps1 (rrrr.MM.dd.GGmm).
 const teraz = new Date();
 const dwa = (n) => String(n).padStart(2, '0');
 const wersja = {

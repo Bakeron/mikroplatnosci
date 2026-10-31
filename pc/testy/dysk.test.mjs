@@ -100,7 +100,6 @@ test('zgoda - dostęp zapisany obok identyfikatora; wyłączenie zostawia identy
   odpowiedzi = {
     'device/code': [200, { device_code: 'd', user_code: 'ABCD-EFGH', interval: 0.01, expires_in: 5 }],
     token: [200, { access_token: 'a', refresh_token: 'r', expires_in: 3600 }],
-    revoke: [200, {}],
   };
   await (await D.zacznijLogowanie()).czekaj();
   assert.equal(D.czyPolaczony(), true);
@@ -116,7 +115,6 @@ test('identyfikator ze zmiennych nie trafia do pliku; po wyłączeniu plik znika
   odpowiedzi = {
     'device/code': [200, { device_code: 'd', user_code: 'K', interval: 0.01, expires_in: 5 }],
     token: [200, { access_token: 'a', refresh_token: 'r' }],
-    revoke: [200, {}],
   };
   await (await D.zacznijLogowanie()).czekaj();
   assert.deepEqual(plik(), { odswiezajacy: 'r' });
