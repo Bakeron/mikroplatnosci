@@ -1,10 +1,11 @@
 // Powiadomienia o pozycjach, których nie przedłużamy (przedłużać = „nie”), przed terminem odnowienia.
 // Roczne: 3, 2, 1 miesiąc i 3, 2, 1 tydzień przed; miesięczne: 14, 7, 5, 4, 3, 2, 1 dzień przed.
-// Znikają same, gdy pozycja zostanie usunięta albo przestawiona na „tak - odnawiam”.
+// Nie przychodzą, gdy pozycja zostanie usunięta albo przestawiona na „tak - odnawiam”.
 // Wspólne dla PC (pokazuje, gdy aplikacja jest otwarta) i telefonu (planuje z wyprzedzeniem).
 
-import { termin, dodajMiesiace, dzis, roznicaDni, formatujDate } from './alarmy.js';
+import { termin, dodajMiesiace, dzis, roznicaDni, formatujDate, isoDnia } from './alarmy.js';
 import { waluta, formatujKwote } from './waluty.js';
+import { nazwaWpisu } from './dane.js';
 
 const GODZINA = 9; // o tej godzinie przychodzi powiadomienie w swoim dniu
 
@@ -18,8 +19,6 @@ const PROGI = {
     { dni: 3, napis: 'za 3 dni' }, { dni: 2, napis: 'za 2 dni' }, { dni: 1, napis: 'jutro' },
   ],
 };
-
-const isoDnia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 // Wszystkie powiadomienia pozycji „do wycofania”: { klucz, wpis, termin, dzien, godzina, napis }.
 // Klucz zawiera termin - po zmianie daty zakupu powiadomienia liczą się od nowa.
@@ -56,14 +55,17 @@ export function rozplanuj(wpisy, pamiec, teraz = new Date()) {
     // Zaplanowane wcześniej już przyszło samo (telefon) - nie powtarzamy.
     if (!pamiec.zaplanowane.has(p.klucz)) terazPokaz.push(p);
   }
-  const klucze = new Set(wszystkie.map((p) => p.klucz));
-  for (const k of pamiec.pokazane) if (!klucze.has(k)) pamiec.pokazane.delete(k);
+  // Pokazane zostają w pamięci do swojego terminu - zmiana daty tam i z powrotem albo „nie → tak → nie”
+  // nie powtarza powiadomienia (klucz: id|termin|próg).
+  const dzisIso = isoDnia(dzisiaj);
+  // Termin liczony od końca klucza - id z ręcznie poprawionego pliku może zawierać „|”.
+  for (const k of pamiec.pokazane) if (!(k.split('|').at(-2) > dzisIso)) pamiec.pokazane.delete(k);
   przyszle.sort((a, b) => a.godzina - b.godzina);
   return { teraz: terazPokaz, przyszle };
 }
 
 export function tytul(p) {
-  return `Wycofaj: ${p.wpis.nazwa.trim() || '(bez nazwy)'}`;
+  return `Wycofaj: ${nazwaWpisu(p.wpis)}`;
 }
 
 // Dzień powiadomienia - napis progu („za tydzień”), zaległe - prawdziwa liczba dni.
@@ -85,11 +87,14 @@ export async function wczytajPamiec(plik) {
   } catch {
     // brak pliku - nic jeszcze nie pokazano
   }
+  pamiec.ostatni = tekstPamieci(pamiec); // bez zbędnego zapisu przy starcie
   return pamiec;
 }
 
+const tekstPamieci = (pamiec) => JSON.stringify({ pokazane: [...pamiec.pokazane], zaplanowane: [...pamiec.zaplanowane] });
+
 export async function zapiszPamiec(pamiec) {
-  const tekst = JSON.stringify({ pokazane: [...pamiec.pokazane], zaplanowane: [...pamiec.zaplanowane] });
+  const tekst = tekstPamieci(pamiec);
   if (tekst === pamiec.ostatni) return;
   await Neutralino.filesystem.writeFile(pamiec.plik, tekst);
   pamiec.ostatni = tekst;

@@ -1,9 +1,9 @@
 // Daty, terminy i alarmy (alarmy.js). Daty liczone od dziś.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsujDate, dzis, dodajMiesiace, okresZDat, termin, czyZakonczona, dniTekst, zbierzAlarmy, doPlatnosci } from '../resources/js/alarmy.js';
+import { parsujDate, dzis, dodajMiesiace, okresZDat, termin, czyZakonczona, dniTekst, zbierzAlarmy, doPlatnosci, zakupBiezacegoOkresu, isoDnia } from '../resources/js/alarmy.js';
 
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const iso = isoDnia;
 const za = (dni) => { const d = dzis(); d.setDate(d.getDate() + dni); return d; };
 
 test('parsujDate: tylko prawdziwe daty RRRR-MM-DD', () => {
@@ -75,4 +75,28 @@ test('zbierzAlarmy: progi rocznych i miesięcznych, przedłużane miesięczne be
   ]);
   assert.deepEqual(roczne.map((a) => a.poziom), ['czerwony', 'pomaranczowy', 'zolty']);
   assert.deepEqual(jednorazowe.map((a) => a.poziom), ['czerwony', 'pomaranczowy', null, 'brak']);
+});
+
+test('parsujDate: lata spoza 1900-2200 odrzucone (new Date zamienia 0099 na 1999)', () => {
+  assert.equal(parsujDate('0099-05-05'), null);
+  assert.equal(parsujDate('1500-01-15'), null);
+  assert.equal(parsujDate('2300-01-01'), null);
+  assert.equal(isoDnia(parsujDate('1900-01-01')), '1900-01-01');
+});
+
+test('zakupBiezacegoOkresu: „nie” po kilku okresach - termin to najbliższe odnowienie', () => {
+  const zakup = iso(dodajMiesiace(za(10), -15)); // 15 miesięcy temu + 10 dni
+  const wpis = { od: zakup, okres: 'M', przedluzac: 'tak' };
+  const najblizsze = termin(wpis).data;
+  const nowy = { ...wpis, od: zakupBiezacegoOkresu(wpis), przedluzac: 'nie' };
+  assert.equal(iso(termin(nowy).data), iso(najblizsze));
+  assert.equal(czyZakonczona(nowy), false);
+  // Zakup w bieżącym okresie albo w przyszłości - bez zmian; bez daty - bez zmian.
+  const swiezy = { od: iso(za(-3)), okres: 'R' };
+  assert.equal(zakupBiezacegoOkresu(swiezy), swiezy.od);
+  assert.equal(zakupBiezacegoOkresu({ od: iso(za(5)), okres: 'M' }), iso(za(5)));
+  assert.equal(zakupBiezacegoOkresu({ od: '', okres: 'M' }), '');
+  // 31. dzień miesiąca nie dryfuje: liczone od pierwotnej daty.
+  const r = parsujDate(zakupBiezacegoOkresu({ od: '2020-01-31', okres: 'M' }));
+  assert.equal(r.getDate(), Math.min(31, new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate()));
 });

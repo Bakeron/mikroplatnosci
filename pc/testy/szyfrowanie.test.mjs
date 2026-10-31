@@ -7,7 +7,8 @@ test('zapis i odczyt (duży plik, polskie znaki)', async () => {
   const dane = JSON.stringify({ wpisy: [{ nazwa: 'ząb żółć ' + 'x'.repeat(300000) }] });
   const s = await zaszyfruj(dane, 'hasło-ćma 1');
   assert.equal(await odszyfruj(s, 'hasło-ćma 1'), dane);
-  assert.ok(!s.includes('ząb') && !s.includes('xxxx'));
+  // 16 znaków - krótkie „xxxx” trafia się w losowym szyfrogramie (ok. 2% uruchomień).
+  assert.ok(!s.includes('ząb') && !s.includes('x'.repeat(16)));
 });
 
 test('złe hasło', async () => {

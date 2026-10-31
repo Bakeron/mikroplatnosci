@@ -3,20 +3,35 @@
 
 // Strony pobiera okno aplikacji (fetch, certyfikaty z Windows); CORS jest wyłączony w
 // neutralino.config.json (webviewArgs), a CSP pozwala tylko na https.
+import { isoDnia, dzis } from './alarmy.js';
+
 const LIMIT_CZASU = 12000;
 const MAKS_ROZMIAR = 3000000;
 
-// Stan sprawdzania w tej sesji (nie trafia do pliku danych): id wpisu → { stan, tekst }.
-export const stanCen = new Map();
-
-// Nie łączymy się z komputerem użytkownika ani z siecią domową.
-function adresLokalny(url) {
-  const h = new URL(url).hostname.toLowerCase();
-  return h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.startsWith('[') || h === '0.0.0.0'
-    || /^(127|10)\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h);
+// Nie łączymy się z komputerem użytkownika ani z siecią domową (także nazwy bez kropki, „localhost.”,
+// domeny sieci domowej i 100.64.0.0/10 - Tailscale, sieć operatora).
+export function adresLokalny(url) {
+  const h = new URL(url).hostname.toLowerCase().replace(/\.+$/, '');
+  return !h.includes('.') || h.endsWith('.localhost') || h.endsWith('.local') || h.startsWith('[') || h === '0.0.0.0'
+    || /\.(home\.arpa|lan|internal|home|box)$/.test(h)
+    || /^(127|10)\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)
+    || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h);
 }
 
-async function pobierzStrone(adres) {
+// Błąd, po którym nie ma sensu próbować innych adresów w tym serwisie (serwer nie odpowiada,
+// brak połączenia, odczyt przerwany) - inaczej martwa strona blokowałaby odczyt na ponad minutę.
+function bladKoncowy(tekst) {
+  const blad = new Error(tekst);
+  blad.koniec = true;
+  return blad;
+}
+
+// Odczyt przerwany (odznaczona zgoda, zmieniony link) - bez komunikatu o błędzie dla użytkownika.
+const przerwano = () => Object.assign(bladKoncowy('przerwano'), { przerwane: true });
+
+// czyWolno: sprawdzane przed każdym pobraniem - odznaczona zgoda albo zmieniony link przerywają odczyt.
+async function pobierzStrone(adres, czyWolno) {
+  if (!czyWolno()) throw przerwano();
   if (new URL(adres).protocol !== 'https:') throw new Error('tylko strony https');
   if (adresLokalny(adres)) throw new Error('niedozwolony adres');
   let odp;
@@ -29,14 +44,40 @@ async function pobierzStrone(adres) {
       signal: AbortSignal.timeout(LIMIT_CZASU),
     });
   } catch (e) {
-    throw new Error(e.name === 'TimeoutError' ? 'strona nie odpowiada' : 'brak połączenia ze stroną');
+    throw bladKoncowy(e.name === 'TimeoutError' ? 'strona nie odpowiada' : 'brak połączenia ze stroną');
   }
   if (adresLokalny(odp.url)) throw new Error('niedozwolony adres');
   if (!odp.ok) throw new Error('strona odpowiedziała kodem ' + odp.status);
   if (Number(odp.headers.get('content-length')) > MAKS_ROZMIAR) throw new Error('strona za duża');
-  const html = await odp.text();
-  if (html.length > MAKS_ROZMIAR) throw new Error('strona za duża');
-  return html;
+  return czytajZLimitem(odp);
+}
+
+// Treść strony czytana kawałkami - bez nagłówka długości (albo przy spakowanej „bombie”) nie
+// trafia do pamięci więcej niż MAKS_ROZMIAR bajtów. Dekodowanie UTF-8, jak w odp.text().
+export async function czytajZLimitem(odp) {
+  if (!odp.body) return ''; // odpowiedź bez treści (np. 204)
+  const czytnik = odp.body.getReader();
+  const dekoder = new TextDecoder();
+  let rozmiar = 0;
+  let html = '';
+  for (;;) {
+    let kawalek;
+    try {
+      kawalek = await czytnik.read();
+    } catch {
+      // Serwer zamilkł w trakcie wysyłania (limit czasu) albo zerwał połączenie.
+      throw bladKoncowy('strona nie odpowiada');
+    }
+    const { done, value } = kawalek;
+    if (done) break;
+    rozmiar += value.length;
+    if (rozmiar > MAKS_ROZMIAR) {
+      czytnik.cancel().catch(() => {});
+      throw new Error('strona za duża');
+    }
+    html += dekoder.decode(value, { stream: true });
+  }
+  return html + dekoder.decode();
 }
 
 // „1 234,56”, „1,234.56”, „12,99”, „12.99”, „12” → liczba.
@@ -48,12 +89,16 @@ export function liczbaZTekstu(tekst) {
     s = przecinek > kropka ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
   } else if (przecinek > -1) {
     s = /,\d{1,2}$/.test(s) ? s.replace(',', '.') : s.replace(/,/g, '');
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, ''); // „1.299” - kropka jako separator tysięcy (ceny mają najwyżej 2 miejsca po przecinku)
   }
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : null;
 }
 
-const KWOTA = '(\\d{1,3}(?:[\\s\\u00a0.,]\\d{3})*(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)(?!\\d)';
+// Powtórzenia z górną granicą - bez niej długi ciąg cyfr na stronie („1111…”) wymuszał sprawdzanie
+// z kwadratem długości (40 tys. znaków = kilka sekund zawieszonego okna, 3 MB = godziny).
+const KWOTA = '(\\d{1,3}(?:[\\s\\u00a0.,]\\d{3}){0,3}(?:[.,]\\d{1,2})?|\\d{1,9}(?:[.,]\\d{1,2})?)(?!\\d)';
 const WZORY_TEKSTU = {
   PLN: [new RegExp(KWOTA + '\\s*(?:zł|PLN)', 'gi'), new RegExp('(?:zł|PLN)\\s*' + KWOTA, 'gi')], // „97,99 zł” i „zł 97,99”
   USD: [new RegExp('(?:US)?\\$\\s*' + KWOTA, 'g'), new RegExp(KWOTA + '\\s*(?:USD|\\$)', 'g'), new RegExp('USD\\s*' + KWOTA, 'g')],
@@ -88,17 +133,13 @@ function cenyStrukturalne(doc, kod) {
   return ceny;
 }
 
+// Kwoty z tekstu wg wzorów waluty wpisu („97,99 zł”, „$20”…).
+const cenyWzorami = (tekst, kod) => (WZORY_TEKSTU[kod] || [])
+  .flatMap((wzor) => [...tekst.matchAll(wzor)].map((t) => liczbaZTekstu(t[1])).filter((n) => n !== null));
+
 function cenyZTekstu(doc, kod) {
   doc.querySelectorAll('script, style, noscript, template').forEach((el) => el.remove());
-  const tekst = (doc.body?.textContent || '').replace(/\s+/g, ' ');
-  const ceny = [];
-  for (const wzor of WZORY_TEKSTU[kod] || []) {
-    for (const trafienie of tekst.matchAll(wzor)) {
-      const n = liczbaZTekstu(trafienie[1]);
-      if (n !== null) ceny.push(n);
-    }
-  }
-  return ceny;
+  return cenyWzorami((doc.body?.textContent || '').replace(/\s+/g, ' '), kod);
 }
 
 // Strony rysujące ceny skryptem (Google One, Proton…) zwykle mają je już w HTML - w danych dla
@@ -119,12 +160,7 @@ function cenyZDanychStrony(doc, kod) {
     const tekst = kawalek
       .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
       .replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
-    for (const wzor of WZORY_TEKSTU[kod] || []) {
-      for (const trafienie of tekst.matchAll(wzor)) {
-        const n = liczbaZTekstu(trafienie[1]);
-        if (n !== null) ceny.push(n);
-      }
-    }
+    ceny.push(...cenyWzorami(tekst, kod));
     if (tekst.includes('"' + kod + '"')) {
       for (const trafienie of tekst.matchAll(POLA_CENY)) ceny.push(parseFloat(trafienie[1]));
     }
@@ -145,7 +181,7 @@ function wybierz(ceny, koszt, zVat) {
   const kandydaci = sensowne.map((n) => ({ cena: n, vat: false }));
   if (zVat) kandydaci.push(...sensowne.map((n) => ({ cena: Math.round(n * VAT * 100) / 100, vat: true })));
   // Przy remisie wygrywa cena bez VAT (jest wcześniej na liście).
-  const najblizsza = kandydaci.reduce((a, b) => (Math.abs(b.cena - koszt) < Math.abs(a.cena - koszt) ? b : a));
+  const najblizsza = kandydaci.reduce((a, b) => blizsza(a, b, koszt));
   return najblizsza.cena >= koszt * 0.4 && najblizsza.cena <= koszt * 2.5 ? najblizsza : null;
 }
 
@@ -191,9 +227,9 @@ function adresyCennika(doc, adres) {
   return [...new Set(adresy)].filter((u) => u !== baza.href).slice(0, MAKS_PROB);
 }
 
-async function cenaZAdresu(adres, kod, koszt) {
-  // DOMParser nie uruchamia skryptów ani nie ładuje zasobów - służy tylko do czytania.
-  return cenaZDokumentu(new DOMParser().parseFromString(await pobierzStrone(adres), 'text/html'), kod, koszt);
+// Pobrana strona jako dokument - DOMParser nie uruchamia skryptów ani nie ładuje zasobów, służy tylko do czytania.
+async function dokument(adres, czyWolno) {
+  return new DOMParser().parseFromString(await pobierzStrone(adres, czyWolno), 'text/html');
 }
 
 // Cena różna od zapłaconej najwyżej o 1% - to na pewno ten plan, dalej nie szukamy.
@@ -208,13 +244,13 @@ function blizsza(a, b, koszt) {
 
 // Zwraca { cena, vat, cennik } albo rzuca błąd z opisem dla użytkownika. Kolejność: zapamiętany
 // cennik, strona z linku, a gdy na niej nie ma ceny zgodnej z zapłaconą - strony z cennikiem
-// znalezione na niej; wygrywa cena najbliższa zapłaconej.
-export async function odczytajCene(adres, kod, koszt, zapamietanyCennik = '') {
+// znalezione na niej; wygrywa cena najbliższa zapłaconej. czyWolno: zob. pobierzStrone.
+export async function odczytajCene(adres, kod, koszt, zapamietanyCennik = '', czyWolno = () => true) {
   const gotowy = (wynik) => ({ ...wynik, cena: Math.round(wynik.cena * 100) / 100 });
   let najlepszy = null;
   if (zapamietanyCennik && zapamietanyCennik !== adres) {
     try {
-      const wynik = await cenaZAdresu(zapamietanyCennik, kod, koszt);
+      const wynik = cenaZDokumentu(await dokument(zapamietanyCennik, czyWolno), kod, koszt);
       if (wynik) najlepszy = { ...wynik, cennik: zapamietanyCennik };
       if (trafiona(wynik, koszt)) return gotowy(najlepszy);
     } catch { /* cennik zniknął albo się zmienił - szukamy od nowa */ }
@@ -222,24 +258,42 @@ export async function odczytajCene(adres, kod, koszt, zapamietanyCennik = '') {
   let kandydaci;
   let bladStrony = null;
   try {
-    const doc = new DOMParser().parseFromString(await pobierzStrone(adres), 'text/html');
+    const doc = await dokument(adres, czyWolno);
     kandydaci = adresyCennika(doc, adres); // przed cenaZDokumentu, która usuwa część strony
     const wynik = cenaZDokumentu(doc, kod, koszt);
     if (wynik) najlepszy = blizsza(najlepszy, { ...wynik, cennik: adres }, koszt);
   } catch (e) {
-    // Strona z linku nie odpowiada - zostają typowe adresy cennika w tym serwisie.
-    if (new URL(adres).protocol !== 'https:') throw e;
+    // Strona z linku odpowiada błędem (np. 404) - zostają typowe adresy cennika w tym serwisie.
+    // Serwer, który w ogóle nie odpowiada, nie odpowie też pod innymi adresami.
+    if (new URL(adres).protocol !== 'https:' || e.koniec) throw e;
     bladStrony = e;
     kandydaci = TYPOWE_ADRESY.map((sciezka) => new URL(sciezka, new URL(adres).origin).href);
   }
   // Po kolei, żeby nie obciążać łącza ani serwisu.
   for (const kandydat of kandydaci.filter((u) => u !== zapamietanyCennik)) { // zapamiętany już sprawdzony
-    if (trafiona(najlepszy, koszt)) break;
+    if (trafiona(najlepszy, koszt) || !czyWolno()) break;
     try {
-      const wynik = await cenaZAdresu(kandydat, kod, koszt);
+      const wynik = cenaZDokumentu(await dokument(kandydat, czyWolno), kod, koszt);
       if (wynik) najlepszy = blizsza(najlepszy, { ...wynik, cennik: kandydat }, koszt);
-    } catch { /* brak takiej strony - następny adres */ }
+    } catch (e) {
+      if (e.koniec) break; // serwer przestał odpowiadać albo odczyt przerwany - dalsze adresy bez sensu
+      // inaczej brak takiej strony - następny adres
+    }
   }
+  if (!czyWolno()) throw przerwano();
   if (!najlepszy) throw bladStrony || new Error('Nie znaleziono');
   return gotowy(najlepszy);
+}
+
+// Wynik odczytu wpisany do wpisu. Czas zmiany tylko przy prawdziwej zmianie - inaczej sam odczyt
+// przy starcie PC wygrałby przy scalaniu z Dyskiem ze zmianami zrobionymi na telefonie.
+// Zwraca true, gdy wpis trzeba zapisać (inna cena albo pierwszy odczyt tego dnia).
+export function przyjmijCene(wpis, { cena, vat, cennik }, adres) {
+  const nowe = { prognoza: cena, prognozaZrodlo: 'strona', prognozaVat: vat, prognozaCennik: cennik === adres ? '' : cennik };
+  const zmiana = Object.keys(nowe).some((k) => wpis[k] !== nowe[k]);
+  const dzien = isoDnia(dzis());
+  const doZapisu = zmiana || wpis.prognozaData !== dzien;
+  Object.assign(wpis, nowe, { prognozaData: dzien });
+  if (zmiana) wpis.zmieniono = new Date().toISOString();
+  return doZapisu;
 }

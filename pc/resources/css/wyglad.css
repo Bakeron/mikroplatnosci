@@ -227,6 +227,7 @@ button { cursor: pointer; }
 /* czerwony podwójny margines jak w zeszycie */
 .zeszyt .kol-akcje { width: 36px; padding: 3px 0; text-align: center; border-right: 3px double var(--margines); }
 .zeszyt .kol-lp { width: 38px; padding: 3px 2px; text-align: center; }
+.zeszyt th.kol-lp { padding-bottom: 8px; } /* „Lp.” na równi z innymi nagłówkami (jak w .zeszyt th) */
 
 /* Lp. - numer jest uchwytem do przesuwania wiersza */
 .uchwyt {
@@ -378,7 +379,10 @@ tr:hover .uchwyt::before,
 }
 .pole--waluta:hover { color: var(--atrament); }
 .pole--waluta option { background: var(--papier); color: var(--atrament); }
-.dopisek--pln { text-align: right; padding-right: 22px; }
+/* Dopiski pod polami: reguła ogólna przed szczegółowymi (ta sama waga - wygrywa późniejsza). */
+.dopisek { padding: 0 4px; color: var(--olowek); font: 11.5px var(--f-liczby); }
+.dopisek:empty { display: none; }
+.dopisek--pln { text-align: right; }
 
 /* prognoza: cena na najbliższy miesiąc + zgoda „ze strony” */
 .zeszyt .kol-prognoza { width: 140px; }
@@ -402,16 +406,14 @@ tr:hover .uchwyt::before,
 }
 .zgoda:hover { color: var(--atrament); }
 .zgoda input { width: 13px; height: 13px; margin: 0; accent-color: var(--atrament); cursor: pointer; }
-.dopisek--prognoza { text-align: right; padding-right: 0; font-size: 10px; }
+.dopisek--prognoza { text-align: right; }
 .dopisek--prognoza:not([data-ocena="blad"]) { white-space: nowrap; } /* „+0,40 · ze strony 29.10” w jednej linii */
 .koszt-ramka .zgoda { flex-shrink: 0; margin-left: 4px; padding-right: 0; }
 .dopisek--prognoza[data-ocena="drozej"] { color: var(--czerwony); }
 .dopisek--prognoza[data-ocena="taniej"] { color: #2f7d32; }
 .dopisek--prognoza[data-ocena="blad"] { color: var(--pomarancz); font-style: italic; }
-.dopisek--cennik { max-width: 160px; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.dopisek--cennik { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.dopisek { padding: 0 4px; color: var(--olowek); font: 11.5px var(--f-liczby); }
-.dopisek:empty { display: none; }
 .dopisek--uwaga { color: var(--czerwony); font: italic 12.5px var(--f-tytul); }
 .dopisek--termin { margin-top: 3px; padding: 0; font-variant-numeric: tabular-nums; }
 
@@ -624,7 +626,6 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / calc(2 * var(--zab)) 100%;
 }
 .paragon__tytul { font-weight: 700; letter-spacing: 0.3em; text-align: center; text-transform: uppercase; }
-.paragon__podtytul { margin-bottom: 4px; font-size: 11.5px; text-align: center; opacity: 0.7; }
 .paragon__kreska { margin: 8px 0; border: 0; border-top: 1px dashed currentColor; opacity: 0.55; }
 .paragon__kreska--podwojna { border-top: 3px double currentColor; opacity: 0.8; }
 .paragon__pozycja { display: flex; align-items: baseline; white-space: pre; }

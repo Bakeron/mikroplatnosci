@@ -1,14 +1,13 @@
-// Sumy kosztów w pasku na dole.
+// Paragon - sumy kosztów w złotówkach.
 
 import { okres, czyZakonczona, parsujDate, formatujDate } from './alarmy.js';
-import { naPln, przeliczNaPln, waluta, pobierzKursy } from './waluty.js';
+import { naPln, przeliczNaPln, waluta, pobierzKursy, formatujKwote } from './waluty.js';
+import { nazwaWpisu } from './dane.js';
 
-const kwota = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const kwotaKursu = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
-const zl = (n) => kwota.format(n) + ' zł'; // kwota na paragonie z „zł”
 
 export function policz(wpisy) {
-  const s = { listaMiesieczne: [], listaRoczne: [], miesieczne: 0, roczne: 0, inneNaMiesiac: 0, jednorazoweIlosc: 0, jednorazoweKoszt: 0, bezOkresu: 0, bezKursu: 0, walutyObce: false, prognozaNaMiesiac: 0, jestPrognoza: false };
+  const s = { listaMiesieczne: [], listaRoczne: [], miesieczne: 0, roczne: 0, jednorazoweIlosc: 0, jednorazoweKoszt: 0, bezKursu: 0, walutyObce: false, prognozaNaMiesiac: 0, jestPrognoza: false };
 
   for (const wpis of wpisy) {
     // Wszystkie sumy w złotówkach; waluta obca bez kursu NBP nie wchodzi do sum.
@@ -19,10 +18,9 @@ export function policz(wpisy) {
     }
     const koszt = pln ?? 0;
     const ok = okres(wpis);
-    if (!ok.typ) s.bezOkresu++;
 
     // Pozycje paragonu wg nazw; bez kursu NBP pozycja jest na liście, ale poza sumą.
-    const pozycjaParagonu = { nazwa: wpis.nazwa.trim() || '(bez nazwy)', pln };
+    const pozycjaParagonu = { nazwa: nazwaWpisu(wpis), pln, bezKwoty: typeof wpis.koszt !== 'number' };
 
     if (wpis.przedluzac === 'nie') {
       if (!czyZakonczona(wpis)) {
@@ -38,7 +36,6 @@ export function policz(wpisy) {
 
     if (ok.typ === 'M') { s.miesieczne += koszt; s.listaMiesieczne.push(pozycjaParagonu); }
     else if (ok.typ === 'R') { s.roczne += koszt; s.listaRoczne.push(pozycjaParagonu); }
-    else if (ok.typ === 'I') s.inneNaMiesiac += koszt / ok.miesiecy;
 
     // Prognoza na miesiąc: jak RAZEM / MIESIĄC, ale z prognozowaną ceną tam, gdzie jest.
     const prognozaPln = przeliczNaPln(wpis.prognoza, waluta(wpis));
@@ -47,7 +44,7 @@ export function policz(wpisy) {
     if (ok.typ) s.prognozaNaMiesiac += doPrognozy / ok.miesiecy;
   }
 
-  s.lacznieMiesiecznie = s.miesieczne + s.roczne / 12 + s.inneNaMiesiac;
+  s.lacznieMiesiecznie = s.miesieczne + s.roczne / 12;
   return s;
 }
 
@@ -70,10 +67,14 @@ function sekcja(tytul, lista, napisSumy, suma, pustyTekst) {
   const linie = [element('hr', 'paragon__kreska'), element('div', 'paragon__sekcja', tytul)];
   if (!lista.length) linie.push(element('div', 'paragon__brak', pustyTekst));
   for (const p of lista) {
-    const wartosc = p.pln === null ? 'brak kursu' : zl(p.pln);
-    linie.push(pozycja(p.nazwa, wartosc, p.wycofanie ? 'paragon__pozycja--wycofanie' : ''));
+    const wartosc = p.bezKwoty ? '-' : p.pln === null ? 'brak kursu' : formatujKwote(p.pln);
+    if (!p.wycofanie) {
+      linie.push(pozycja(p.nazwa, wartosc));
+      continue;
+    }
+    linie.push(pozycja('! ' + p.nazwa, wartosc, 'paragon__pozycja--wycofanie'), element('div', 'paragon__waluta', 'do wycofania - poza sumą'));
   }
-  linie.push(pozycja(napisSumy, zl(suma), 'paragon__pozycja--podsuma'));
+  linie.push(pozycja(napisSumy, formatujKwote(suma), 'paragon__pozycja--podsuma'));
   return linie;
 }
 
@@ -86,25 +87,24 @@ export function renderujPodsumowanie(kontener, wpisy) {
     ...sekcja('Miesięczne', s.listaMiesieczne, 'Suma / mies.', s.miesieczne, 'brak - zaznacz MIES. przy dacie zakupu'),
     ...sekcja('Roczne', s.listaRoczne, 'Suma / rok', s.roczne, 'brak - zaznacz ROK przy dacie zakupu'),
   ];
-  if (s.inneNaMiesiac > 0) linie.push(pozycja('Inny okres /mies.', zl(s.inneNaMiesiac)));
   linie.push(
     element('hr', 'paragon__kreska paragon__kreska--podwojna'),
-    pozycja('RAZEM / MIESIĄC', zl(s.lacznieMiesiecznie), 'paragon__pozycja--suma'),
-    pozycja('RAZEM / ROK', zl(s.roczne), 'paragon__pozycja--suma'),
+    pozycja('RAZEM / MIESIĄC', formatujKwote(s.lacznieMiesiecznie), 'paragon__pozycja--suma'),
+    pozycja('RAZEM / ROK', formatujKwote(s.lacznieMiesiecznie * 12), 'paragon__pozycja--suma'),
+    element('div', 'paragon__waluta', 'miesięczne × 12 + roczne'),
   );
   if (s.jestPrognoza) {
     const roznica = Math.round((s.prognozaNaMiesiac - s.lacznieMiesiecznie) * 100) / 100;
     linie.push(
-      pozycja('PROGNOZA / MIES.', zl(s.prognozaNaMiesiac), 'paragon__pozycja--suma'),
-      element('div', 'paragon__waluta', roznica === 0 ? 'bez zmian' : (roznica > 0 ? 'drożej o ' : 'taniej o ') + kwota.format(Math.abs(roznica)) + ' zł'),
+      pozycja('PROGNOZA / MIES.', formatujKwote(s.prognozaNaMiesiac), 'paragon__pozycja--suma'),
+      element('div', 'paragon__waluta', roznica === 0 ? 'bez zmian' : (roznica > 0 ? 'drożej o ' : 'taniej o ') + formatujKwote(Math.abs(roznica))),
     );
   }
   linie.push(
     element('hr', 'paragon__kreska'),
     pozycja('Do wycofania', s.jednorazoweIlosc + ' szt.', s.jednorazoweIlosc ? 'paragon__pozycja--alarm' : ''),
-    pozycja('Ich koszt', zl(s.jednorazoweKoszt), s.jednorazoweIlosc ? 'paragon__pozycja--alarm' : ''),
+    pozycja('Ich koszt', formatujKwote(s.jednorazoweKoszt), s.jednorazoweIlosc ? 'paragon__pozycja--alarm' : ''),
   );
-  if (s.bezOkresu > 0) linie.push(pozycja('Bez okresu (uzupełnij)', s.bezOkresu + ' szt.'));
 
   const kursy = pobierzKursy();
   if (kursy || s.walutyObce) linie.push(element('hr', 'paragon__kreska'));

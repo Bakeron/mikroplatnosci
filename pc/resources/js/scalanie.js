@@ -1,7 +1,7 @@
 // Scalanie danych z komputera i z Google Dysku: wiersz po wierszu po id, wygrywa nowsza zmiana,
 // usunięte pozycje nie wracają. Obie strony to { wpisy, usuniete } po sprawdzeniu (normalizuj).
 
-const czas = (iso) => (iso ? Date.parse(iso) || 0 : 0);
+const czas = (iso) => Date.parse(iso) || 0; // brak albo zły czas = 0
 
 export function scal(lokalne, zdalne) {
   // Z dwóch usunięć tej samej pozycji liczy się późniejsze.

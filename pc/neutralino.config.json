@@ -24,7 +24,7 @@
     "filesystem.createDirectory",
     "filesystem.getStats",
     "filesystem.readDirectory",
-    "filesystem.copy",
+    "filesystem.move",
     "filesystem.remove"
   ],
   "modes": {

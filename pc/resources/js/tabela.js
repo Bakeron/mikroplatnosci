@@ -1,38 +1,13 @@
-// Tabela mikropłatności: wiersze z edycją w komórkach i sortowanie.
+// Tabela mikropłatności: wiersze z edycją w komórkach i przesuwaniem.
 
-import { okres, termin, formatujDate, parsujDate, czyZakonczona, doPlatnosci, dniTekst } from './alarmy.js';
-import { WALUTY, waluta, naPln, przeliczNaPln, formatujKwote } from './waluty.js';
-import { stanCen } from './ceny.js';
+import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, zakupBiezacegoOkresu } from './alarmy.js';
+import { WALUTY, waluta, przeliczNaPln, formatujKwote } from './waluty.js';
+import { bezpiecznyLink, formatujKoszt, parsujKoszt } from './dane.js';
 
 const odswiezacze = new WeakMap();
 
-// Zwraca bezpieczny adres http(s) albo null. „example.com” → „https://example.com/”.
-export function bezpiecznyLink(tekst) {
-  let s = (tekst || '').trim();
-  if (!s) return null;
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) {
-    if (!s.includes('.') || /\s/.test(s)) return null;
-    s = 'https://' + s;
-  }
-  try {
-    const url = new URL(s);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
-export function formatujKoszt(koszt) {
-  return typeof koszt === 'number' ? koszt.toFixed(2).replace('.', ',') : '';
-}
-
-// null = puste pole, undefined = błędna wartość.
-export function parsujKoszt(tekst) {
-  const s = String(tekst).replace(/\s/g, '').replace(',', '.');
-  if (!s) return null;
-  if (!/^\d+(\.\d+)?$/.test(s)) return undefined;
-  return Math.round(parseFloat(s) * 100) / 100;
-}
+// Stan odczytu ceny ze strony w tej sesji (nie trafia do pliku danych): id wpisu → { stan, tekst }.
+export const stanCen = new Map();
 
 function element(tag, klasa, tekst) {
   const el = document.createElement(tag);
@@ -57,6 +32,25 @@ function komorka(...dzieci) {
   return td;
 }
 
+// Jednoliniowe pole, które zawija tekst w kolejne linijki zamiast go ucinać (Enter nie dodaje nowej linii).
+function poleWieloliniowe(wartosc, etykieta, klasa, max) {
+  const pole = element('textarea', 'pole ' + klasa);
+  pole.rows = 1;
+  pole.value = wartosc;
+  pole.setAttribute('aria-label', etykieta);
+  pole.spellcheck = false;
+  pole.maxLength = max;
+  pole.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+  return pole;
+}
+
+// Kwota wpisana w pole: liczba, null (puste) albo undefined (błąd - pole podkreślone na czerwono).
+function kwotaZPola(pole) {
+  const wartosc = parsujKoszt(pole.value);
+  pole.classList.toggle('pole--blad', wartosc === undefined);
+  return wartosc;
+}
+
 export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, onSprawdzCene, onPrzesun }) {
   // Każda zmiana w wierszu zapisuje jej czas - potrzebny przy scalaniu z Google Dyskiem.
   const onZmiana = () => { wpis.zmieniono = new Date().toISOString(); zglosZmiane(); };
@@ -69,14 +63,9 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   uchwyt.title = 'Przeciągnij, aby przesunąć wiersz (albo strzałki ↑ ↓)';
   uchwyt.addEventListener('pointerdown', () => { tr.draggable = true; });
   uchwyt.addEventListener('pointerup', () => { tr.draggable = false; });
-  uchwyt.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      onPrzesun(wpis, e.key === 'ArrowUp' ? -1 : 1, uchwyt);
-    }
-  });
+  // Strzałki na uchwycie albo Alt + strzałki w dowolnym polu wiersza.
   tr.addEventListener('keydown', (e) => {
-    if (e.target !== uchwyt && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    if ((e.target === uchwyt || e.altKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
       onPrzesun(wpis, e.key === 'ArrowUp' ? -1 : 1, document.activeElement);
     }
@@ -120,26 +109,15 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const nazwa = pole('text', wpis.nazwa, 'Nazwa', 'pole--nazwa');
   nazwa.maxLength = 200;
 
-  // Opis zawija się w kolejne linijki zamiast się ucinać.
-  const opis = element('textarea', 'pole pole--opis');
-  opis.rows = 1;
-  opis.value = wpis.opis;
-  opis.setAttribute('aria-label', 'Krótki opis');
-  opis.spellcheck = false;
-  opis.maxLength = 300;
+  const opis = poleWieloliniowe(wpis.opis, 'Krótki opis', 'pole--opis', 300);
   opis.placeholder = 'krótki opis…';
-  opis.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
 
   const koszt = pole('text', formatujKoszt(wpis.koszt), 'Koszt w złotych', 'pole--koszt');
   koszt.inputMode = 'decimal';
   koszt.placeholder = '0,00';
   const walutaWybor = element('select', 'pole pole--waluta');
   walutaWybor.setAttribute('aria-label', 'Waluta');
-  for (const kod of WALUTY) {
-    const opcja = element('option', '', kod);
-    opcja.value = kod;
-    walutaWybor.append(opcja);
-  }
+  walutaWybor.append(...WALUTY.map((kod) => new Option(kod, kod)));
   walutaWybor.value = waluta(wpis);
   const wPln = element('div', 'dopisek dopisek--pln');
   const kosztRamka = element('div', 'koszt-ramka');
@@ -163,15 +141,8 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   prognozaRamka.append(zgodaEtykieta); // ☑ tuż na prawo od ceny prognozy
   const prognozaInfo = element('div', 'dopisek dopisek--prognoza');
 
-  // Link zawija się do nowej linii, gdy się nie mieści.
-  const link = element('textarea', 'pole pole--link');
-  link.rows = 1;
-  link.value = wpis.link;
-  link.setAttribute('aria-label', 'Link');
-  link.spellcheck = false;
-  link.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+  const link = poleWieloliniowe(wpis.link, 'Link', 'pole--link', 2000);
   link.inputMode = 'url';
-  link.maxLength = 2000;
   link.placeholder = 'https://';
   const otworz = element('button', 'otworz', '↗');
   otworz.type = 'button';
@@ -179,11 +150,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
 
   const przedluzac = element('select', 'pole pole--wybor');
   przedluzac.setAttribute('aria-label', 'Chęć przedłużania');
-  for (const [wartosc, tekst] of [['', '-'], ['tak', 'tak'], ['nie', 'nie']]) {
-    const opcja = element('option', '', tekst);
-    opcja.value = wartosc;
-    przedluzac.append(opcja);
-  }
+  przedluzac.append(...[['', '-'], ['tak', 'tak'], ['nie', 'nie']].map(([wartosc, tekst]) => new Option(tekst, wartosc)));
   przedluzac.value = wpis.przedluzac;
 
   const usun = element('button', 'wykresl', '×');
@@ -217,10 +184,12 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   tr.cells[4].className = 'kol-koszt kol-prognoza';
 
   function odswiez() {
-    const ok = okres(wpis);
-    const ter = termin(wpis, ok);
+    const ter = termin(wpis);
+    const dp = doPlatnosci(wpis);
     const jednorazowa = wpis.przedluzac === 'nie';
-    const zakonczona = czyZakonczona(wpis);
+    const zakonczona = jednorazowa && !!dp?.minal; // jak czyZakonczona(), bez liczenia terminu od nowa
+    const kod = waluta(wpis);
+    const adres = bezpiecznyLink(wpis.link);
 
     tr.classList.toggle('jednorazowa', jednorazowa);
     tr.classList.toggle('zakonczona', zakonczona);
@@ -232,27 +201,27 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     for (const [wartosc, opcja] of okresOpcje) opcja.setAttribute('aria-pressed', String(wpis.okres === wartosc));
     terminData.textContent = ter.data ? formatujDate(ter.data) : '';
 
-    const dp = doPlatnosci(wpis);
     lont.hidden = !dp;
     lont.classList.toggle('lont--minal', !!dp?.minal);
     if (dp?.minal) {
       lontLiczba.textContent = 'minęło ' + dniTekst(-dp.dni);
       lont.style.setProperty('--zostalo', '0');
     } else if (dp) {
-      lontLiczba.textContent = dp.dni === 0 ? 'dziś' : dp.dni === 1 ? 'jutro' : dniTekst(dp.dni);
+      lontLiczba.textContent = kiedyTekst(dp.dni);
       lont.style.setProperty('--odcien', String(dp.odcien));
       lont.style.setProperty('--zostalo', String(Math.max(dp.zostalo, 0.03)));
     }
     uwaga.textContent = zakonczona ? 'sprawdź, czy anulowano' : '';
 
-    const pln = naPln(wpis);
-    wPln.textContent = waluta(wpis) === 'PLN' || typeof wpis.koszt !== 'number' ? ''
-      : pln === null ? 'brak kursu NBP' : '≈ ' + formatujKwote(pln);
-
-    prognozaWaluta.textContent = waluta(wpis);
-    const prognozaWPln = przeliczNaPln(wpis.prognoza, waluta(wpis));
-    prognozaPln.textContent = waluta(wpis) === 'PLN' || typeof wpis.prognoza !== 'number' ? ''
-      : prognozaWPln === null ? 'brak kursu NBP' : '≈ ' + formatujKwote(prognozaWPln);
+    // „≈ … zł” pod kwotą w walucie obcej.
+    const dopisekPln = (kwota) => {
+      if (kod === 'PLN' || typeof kwota !== 'number') return '';
+      const pln = przeliczNaPln(kwota, kod);
+      return pln === null ? 'brak kursu NBP' : '≈ ' + formatujKwote(pln);
+    };
+    wPln.textContent = dopisekPln(wpis.koszt);
+    prognozaWaluta.textContent = kod;
+    prognozaPln.textContent = dopisekPln(wpis.prognoza);
     if (document.activeElement !== prognoza) prognoza.value = formatujKoszt(wpis.prognoza);
     const stanCeny = stanCen.get(wpis.id);
     let info = '';
@@ -269,7 +238,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
       const zrodlo = wpis.prognozaZrodlo === 'strona'
         ? (wpis.prognozaVat ? '+VAT ' : 'ze strony ') + formatujDate(parsujDate(wpis.prognozaData)).slice(0, 5) : 'ręcznie'; // dłuższy tekst nie mieści się w kolumnie
       info = [zmiana, zrodlo].filter(Boolean).join(' · ');
-    } else if (wpis.prognozaZeStrony && !bezpiecznyLink(wpis.link)) {
+    } else if (wpis.prognozaZeStrony && !adres) {
       info = 'brak linku do strony';
       ocena = 'blad';
     }
@@ -282,10 +251,11 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     cennik.textContent = urlCennika ? 'cennik: ' + urlCennika.hostname.replace(/^www\./, '') + urlCennika.pathname.replace(/\/$/, '') : '';
     cennik.title = adresCennika || '';
 
-    otworz.disabled = !bezpiecznyLink(wpis.link);
+    otworz.disabled = !adres;
   }
 
-  od.addEventListener('change', () => { wpis.od = od.value; odswiez(); onZmiana(); });
+  // Stare pole „do” (sprzed daty zakupu) przestaje obowiązywać - nie ma go w tabeli, więc nie da się go poprawić.
+  od.addEventListener('change', () => { wpis.od = od.value; wpis.do = ''; odswiez(); onZmiana(); });
   odPrzycisk.addEventListener('click', () => {
     try {
       od.showPicker();
@@ -298,20 +268,32 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   opis.addEventListener('change', () => { opis.title = opis.value; });
   opis.title = wpis.opis;
   koszt.addEventListener('input', () => {
-    const wartosc = parsujKoszt(koszt.value);
-    koszt.classList.toggle('pole--blad', wartosc === undefined);
+    const wartosc = kwotaZPola(koszt);
     if (wartosc === undefined) return;
     wpis.koszt = wartosc;
     odswiez();
     onZmiana();
   });
-  walutaWybor.addEventListener('change', () => { wpis.waluta = walutaWybor.value; odswiez(); onZmiana(); });
-  koszt.addEventListener('blur', () => {
-    if (parsujKoszt(koszt.value) !== undefined) koszt.value = formatujKoszt(wpis.koszt);
+  // Prognoza ze strony szuka ceny najbliższej kosztowi w walucie wiersza - po zmianie trzeba od nowa.
+  walutaWybor.addEventListener('change', () => {
+    wpis.waluta = walutaWybor.value;
+    odswiez();
+    onZmiana();
+    if (wpis.prognozaZeStrony) onSprawdzCene(wpis);
   });
+  // Odczyt ceny od nowa tylko, gdy zmieniła się kwota (nie sam zapis, np. „9,90” → „9,9”).
+  let kosztPrzed = null;
+  koszt.addEventListener('focus', () => { kosztPrzed = wpis.koszt; });
+  koszt.addEventListener('change', () => { if (wpis.prognozaZeStrony && wpis.koszt !== kosztPrzed) onSprawdzCene(wpis); });
+  // Po wyjściu z pola widać zapisaną kwotę - także gdy wpisany tekst był błędny (np. „1.234,56”).
+  for (const [pole, klucz] of [[koszt, 'koszt'], [prognoza, 'prognoza']]) {
+    pole.addEventListener('blur', () => {
+      pole.value = formatujKoszt(wpis[klucz]);
+      pole.classList.remove('pole--blad');
+    });
+  }
   prognoza.addEventListener('input', () => {
-    const wartosc = parsujKoszt(prognoza.value);
-    prognoza.classList.toggle('pole--blad', wartosc === undefined);
+    const wartosc = kwotaZPola(prognoza);
     if (wartosc === undefined) return;
     wpis.prognoza = wartosc;
     wpis.prognozaZrodlo = wartosc === null ? '' : 'reczna';
@@ -319,9 +301,6 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     stanCen.delete(wpis.id);
     odswiez();
     onZmiana();
-  });
-  prognoza.addEventListener('blur', () => {
-    if (parsujKoszt(prognoza.value) !== undefined) prognoza.value = formatujKoszt(wpis.prognoza);
   });
   zgoda.addEventListener('change', () => {
     wpis.prognozaZeStrony = zgoda.checked;
@@ -332,11 +311,13 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   });
   link.addEventListener('input', () => { wpis.link = link.value; odswiez(); onZmiana(); });
   // Nowy link przy zaznaczonym ☑ - od razu odczyt ceny z nowej strony.
-  // Inny link = inny serwis - zapamiętany cennik przestaje obowiązywać.
+  // Inny link = inny serwis - zapamiętany cennik przestaje obowiązywać. Sam link zapisał już „input”.
   link.addEventListener('change', () => {
-    wpis.prognozaCennik = '';
-    odswiez();
-    onZmiana();
+    if (wpis.prognozaCennik) {
+      wpis.prognozaCennik = '';
+      odswiez();
+      onZmiana();
+    }
     if (wpis.prognozaZeStrony) onSprawdzCene(wpis);
   });
   // Bez fokusu link pokazuje samą domenę - pełny adres w podpowiedzi i po kliknięciu w pole.
@@ -352,7 +333,14 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     const adres = bezpiecznyLink(wpis.link);
     if (adres) onOtworz(adres);
   });
-  przedluzac.addEventListener('change', () => { wpis.przedluzac = przedluzac.value; odswiez(); onZmiana(); });
+  przedluzac.addEventListener('change', () => {
+    // „nie” po kilku okresach - termin ma być najbliższym odnowieniem, a nie pierwszym po dawnym zakupie.
+    if (przedluzac.value === 'nie') wpis.od = zakupBiezacegoOkresu(wpis);
+    wpis.przedluzac = przedluzac.value;
+    od.value = wpis.od;
+    odswiez();
+    onZmiana();
+  });
   usun.addEventListener('click', () => onUsun(wpis));
   // Podgląd: wiersz wygląda na przekreślony, zanim się go wykreśli.
   for (const [zdarzenie, wlacz] of [['mouseenter', true], ['mouseleave', false], ['focus', true], ['blur', false]]) {
@@ -367,6 +355,44 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
 // Przelicza kolory i daty we wszystkich wierszach (np. po północy), bez przebudowy pól.
 export function odswiezWiersze(tbody) {
   for (const tr of tbody.rows) odswiezacze.get(tr)?.();
+}
+
+// To samo dla jednego wiersza (np. po odczycie ceny jednego wpisu).
+export function odswiezWiersz(tbody, id) {
+  const tr = tbody.querySelector(`tr[data-id="${CSS.escape(id)}"]`);
+  if (tr) odswiezacze.get(tr)?.();
+}
+
+// Przeciąganie wiersza za numer Lp. - wiersz przesuwa się na żywo pod kursorem;
+// po upuszczeniu poUpuszczeniu() dostaje nową kolejność id.
+export function przeciaganieWierszy(tbody, poUpuszczeniu) {
+  let przeciagany = null;
+  tbody.addEventListener('dragstart', (e) => {
+    // Tylko wiersz złapany za uchwyt Lp. (draggable) - nie przeciągany tekst z pola.
+    przeciagany = e.target.closest?.('tr[draggable="true"]');
+    if (!przeciagany) return;
+    przeciagany.classList.add('przeciagany');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', przeciagany.dataset.id);
+  });
+  tbody.addEventListener('dragover', (e) => {
+    if (!przeciagany) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move'; // kursor przesuwania zamiast zwykłej strzałki
+    const tr = e.target.closest?.('tr');
+    if (!tr || tr === przeciagany) return;
+    const r = tr.getBoundingClientRect();
+    if (e.clientY > r.top + r.height / 2) tr.after(przeciagany);
+    else tr.before(przeciagany);
+  });
+  tbody.addEventListener('drop', (e) => e.preventDefault());
+  tbody.addEventListener('dragend', () => {
+    if (!przeciagany) return;
+    przeciagany.classList.remove('przeciagany');
+    przeciagany.draggable = false;
+    przeciagany = null;
+    poUpuszczeniu([...tbody.rows].map((tr) => tr.dataset.id));
+  });
 }
 
 // Lp. wg aktualnej kolejności wierszy.

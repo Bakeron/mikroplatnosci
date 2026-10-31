@@ -2,10 +2,10 @@
 
 import { zbierzAlarmy, formatujDate, parsujDate, dzis } from './alarmy.js';
 import { renderujPodsumowanie } from './podsumowanie.js';
-import { utworzWiersz, odswiezWiersze, bezpiecznyLink, numeruj } from './tabela.js';
-import { odczytajCene, stanCen } from './ceny.js';
+import { utworzWiersz, odswiezWiersze, odswiezWiersz, numeruj, przeciaganieWierszy, stanCen } from './tabela.js';
+import { odczytajCene, przyjmijCene } from './ceny.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
-import { nowyWpis, odczytajDane, doZapisu } from './dane.js';
+import { nowyWpis, odczytajTresc, doZapisu, usun, bezpiecznyLink, nazwaWpisu } from './dane.js';
 import { wypelnijListe } from './spisy.js';
 import { przygotujDysk } from './dysk.js';
 import { polaczSynchronizacje } from './synchronizacja.js';
@@ -15,8 +15,11 @@ import { waluta, wczytajZapamietane, odswiezZNbp, czyAktualne, pobierzKursy } fr
 const NAZWA_PLIKU = 'mikroplatnosci.json';
 const ILE_KOPII = 5;
 const OPOZNIENIE_ZAPISU = 400;
-const BLOKADA_CO = 5000;
-const BLOKADA_WAZNA = 20000;
+const OPOZNIENIE_DODATKOW = 150;
+// Zminimalizowane okno WebView2 spowalnia liczniki nawet do raz na minutę - stąd zapas 2 minut.
+const BLOKADA_CO = 30000;
+const BLOKADA_WAZNA = 120000;
+const CENY_NARAZ = 3; // tyle wpisów czytanych naraz; strony jednego wpisu - po kolei
 
 const stan = {
   wpisy: [],
@@ -29,10 +32,13 @@ const stan = {
   motyw: 'ciemny', // ciemny / jasny
   folderKopii: '',
   zablokowany: false,
+  wczytano: false, // do wczytania pliku nic nie zapisujemy - inaczej pusta lista nadpisałaby dane
+  timerBlokady: null,
   synchronizacja: false, // trwa logowanie albo wymiana danych z Google Dyskiem
   timer: null,
+  niezapisane: false, // są zmiany, których jeszcze nie ma w pliku
+  zapis: Promise.resolve(), // kopia zapasowa i zapisy po kolei - nigdy dwa zapisy pliku naraz
   doUsuniecia: null,
-  sort: { klucz: 'termin', kierunek: 1 },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -40,12 +46,15 @@ const tbody = $('wiersze');
 
 // --- dane -------------------------------------------------------------
 
+// Tylko „nie ma takiej ścieżki” znaczy brak pliku. Inny błąd (uprawnienia, plik zajęty przez inny
+// program) idzie dalej - inaczej aplikacja wystartowałaby z pustą listą i nadpisała dane.
 async function istnieje(sciezka) {
   try {
     await Neutralino.filesystem.getStats(sciezka);
     return true;
-  } catch {
-    return false;
+  } catch (e) {
+    if (e?.code === 'NE_FS_NOPATHE') return false;
+    throw e;
   }
 }
 
@@ -69,68 +78,102 @@ async function przygotujFolder() {
 
 // Jedna kopia aplikacji naraz: otwarta odświeża znacznik w pliku, druga go widzi i się zamyka.
 async function zajmijBlokade() {
+  const czytaj = async () => JSON.parse(await Neutralino.filesystem.readFile(stan.plikBlokady));
+  let blokada = null;
   try {
-    const blokada = JSON.parse(await Neutralino.filesystem.readFile(stan.plikBlokady));
-    if (blokada.pid !== NL_PID && Date.now() - blokada.czas < BLOKADA_WAZNA) return false;
+    blokada = await czytaj();
   } catch {
-    // brak pliku blokady albo uszkodzony - można zająć
+    // Pusty albo uszkodzony plik - może akurat zapisuje go druga kopia; drugie podejście po chwili.
+    if (await istnieje(stan.plikBlokady).catch(() => false)) {
+      await new Promise((r) => setTimeout(r, 300));
+      blokada = await czytaj().catch(() => null);
+    }
   }
+  // Math.abs: czas „z przyszłości” (cofnięty zegar) nie blokuje startu na godziny.
+  if (blokada && blokada.pid !== NL_PID && Math.abs(Date.now() - blokada.czas) < BLOKADA_WAZNA) return false;
   const odswiez = () => Neutralino.filesystem.writeFile(stan.plikBlokady, JSON.stringify({ pid: NL_PID, czas: Date.now() }));
   await odswiez();
-  setInterval(() => odswiez().catch(console.error), BLOKADA_CO);
+  stan.timerBlokady = setInterval(() => odswiez().catch(console.error), BLOKADA_CO);
   return true;
 }
 
+// Tylko kopia, która zajęła blokadę; licznik stop, żeby nie odtworzył pliku tuż po usunięciu.
 async function zwolnijBlokade() {
-  if (stan.plikBlokady) await Neutralino.filesystem.remove(stan.plikBlokady).catch(() => {});
+  if (!stan.timerBlokady) return;
+  clearInterval(stan.timerBlokady);
+  await Neutralino.filesystem.remove(stan.plikBlokady).catch(() => {});
 }
 
+// Zwraca treść pliku (do kopii zapasowej) albo null, gdy pliku jeszcze nie ma (pierwsze uruchomienie).
 async function wczytaj() {
-  if (!(await istnieje(stan.plik))) return [];
-  const tresc = await Neutralino.filesystem.readFile(stan.plik);
-  if (!tresc.trim()) return [];
-  const dane = JSON.parse(tresc);
-  const odczytane = odczytajDane(dane);
-  if (!odczytane) throw new Error('nieprawidłowy format pliku');
-  // Zapamiętana kolejność: kolumna sortowania albo „reczna” (wiersze przesuwane przez użytkownika).
-  const s = dane.sort;
-  if (s && typeof s.klucz === 'string' && /^[a-z]{1,20}$/.test(s.klucz) && (s.kierunek === 1 || s.kierunek === -1)) {
-    stan.sort = { klucz: s.klucz, kierunek: s.kierunek };
+  if (!(await istnieje(stan.plik))) {
+    stan.wpisy = [];
+    return null;
   }
-  if (dane.motyw === 'ciemny' || dane.motyw === 'jasny') stan.motyw = dane.motyw;
+  const tresc = await Neutralino.filesystem.readFile(stan.plik);
+  const odczytane = odczytajTresc(tresc);
+  if (odczytane.motyw === 'ciemny' || odczytane.motyw === 'jasny') stan.motyw = odczytane.motyw;
+  stan.wpisy = odczytane.wpisy;
   stan.usuniete = odczytane.usuniete;
-  return odczytane.wpisy;
+  return tresc;
 }
 
-// Kopia przy każdym uruchomieniu, zostaje ILE_KOPII najnowszych.
-async function zrobKopie() {
-  if (!(await istnieje(stan.plik))) return;
-  await Neutralino.filesystem.copy(stan.plik, `${stan.folderKopii}/mikroplatnosci-${znacznikCzasu()}.json`);
-  const pliki = (await Neutralino.filesystem.readDirectory(stan.folderKopii))
-    .filter((e) => e.type === 'FILE' && /^mikroplatnosci-\d{8}-\d{6}\.json$/.test(e.entry))
-    .map((e) => e.entry)
-    .sort();
-  for (const nazwa of pliki.slice(0, Math.max(0, pliki.length - ILE_KOPII))) {
+const nazwyKopii = async () => (await Neutralino.filesystem.readDirectory(stan.folderKopii))
+  .filter((e) => e.type === 'FILE' && /^mikroplatnosci-\d{8}-\d{6}\.json$/.test(e.entry))
+  .map((e) => e.entry)
+  .sort();
+
+// Kopia przy uruchomieniu, zostaje ILE_KOPII najnowszych. Plik taki sam jak w najnowszej kopii -
+// bez nowej kopii, żeby starty „tylko popatrzeć” nie wypierały starszych wersji.
+async function zrobKopie(tresc) {
+  const pliki = await nazwyKopii();
+  const najnowsza = pliki.at(-1);
+  if (najnowsza && (await Neutralino.filesystem.readFile(`${stan.folderKopii}/${najnowsza}`).catch(() => null)) === tresc) return;
+  // Kopia z treści wczytanej przy starcie - nawet gdyby plik zdążył się już zmienić.
+  await Neutralino.filesystem.writeFile(`${stan.folderKopii}/mikroplatnosci-${znacznikCzasu()}.json`, tresc);
+  for (const nazwa of (await nazwyKopii()).slice(0, -ILE_KOPII)) {
     await Neutralino.filesystem.remove(`${stan.folderKopii}/${nazwa}`);
   }
 }
 
-async function zapiszTeraz() {
-  clearTimeout(stan.timer);
-  stan.timer = null;
-  if (stan.zablokowany || !stan.plik) return;
+// Zapis do pliku tymczasowego i podmiana - zanik prądu w trakcie zapisu nie zostawia uciętego pliku danych.
+async function zapiszPlik(tresc) {
+  const tymczasowy = stan.plik + '.tmp';
+  await Neutralino.filesystem.writeFile(tymczasowy, tresc);
   try {
-    const dane = doZapisu(stan, { sort: stan.sort, motyw: stan.motyw });
-    await Neutralino.filesystem.writeFile(stan.plik, JSON.stringify(dane, null, 2));
+    await Neutralino.filesystem.move(tymczasowy, stan.plik);
+  } catch (e) {
+    // Podmiana się nie udała - zapis wprost, jak dawniej (zapisane dane ważniejsze niż sposób zapisu).
+    console.error(e);
+    await Neutralino.filesystem.writeFile(stan.plik, tresc);
+    await Neutralino.filesystem.remove(tymczasowy).catch(() => {});
+  }
+}
+
+async function zapiszZmiany() {
+  if (stan.zablokowany || !stan.wczytano || !stan.plik || !stan.niezapisane) return;
+  stan.niezapisane = false; // zmiany zrobione w trakcie zapisu ustawią to od nowa
+  try {
+    await zapiszPlik(JSON.stringify(doZapisu(stan, { motyw: stan.motyw }), null, 2));
     pokazStatus('zapisano ✓ ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {
+    stan.niezapisane = true;
     pokazStatus('Błąd zapisu!', true);
     console.error(e);
   }
 }
 
+// Zapis od razu (po kolei za wcześniejszymi), tylko gdy są niezapisane zmiany.
+function zapiszTeraz() {
+  clearTimeout(stan.timer);
+  stan.timer = null;
+  stan.zapis = stan.zapis.then(zapiszZmiany);
+  return stan.zapis;
+}
+
 function zaplanujZapis() {
   if (stan.zablokowany) return;
+  stan.niezapisane = true;
   clearTimeout(stan.timer);
   pokazStatus('zapisuję…');
   stan.timer = setTimeout(zapiszTeraz, OPOZNIENIE_ZAPISU);
@@ -143,6 +186,7 @@ const dysk = polaczSynchronizacje({
   poScaleniu: async () => {
     renderujTabele();
     odswiezDodatki();
+    stan.niezapisane = true;
     await zapiszTeraz();
   },
   klasaBledu: 'stopka__stan--blad',
@@ -169,18 +213,18 @@ function pokazBlad(tekst) {
 const akcjeWiersza = {
   onZmiana() {
     zaplanujZapis();
-    odswiezDodatki();
+    zaplanujDodatki();
   },
   onUsun(wpis) {
     // Pusty, niewypełniony wiersz znika od razu - nie ma czego tracić.
-    const pusty = !wpis.nazwa.trim() && !wpis.opis.trim() && !wpis.link.trim() && !wpis.od && !wpis.przedluzac
+    const pusty = !wpis.nazwa.trim() && !wpis.opis.trim() && !wpis.link.trim() && !wpis.od && wpis.przedluzac !== 'nie'
       && wpis.koszt === null && wpis.prognoza === null;
     if (pusty) {
       usunWpis(wpis);
       return;
     }
     stan.doUsuniecia = wpis;
-    $('okno-usun-tekst').textContent = `Na pewno wykreślić „${wpis.nazwa.trim() || 'bez nazwy'}”? Tego nie da się cofnąć.`;
+    $('okno-usun-tekst').textContent = `Na pewno wykreślić „${nazwaWpisu(wpis)}”? Tego nie da się cofnąć.`;
     $('okno-usun').showModal();
   },
   onOtworz(adres) {
@@ -203,82 +247,75 @@ const akcjeWiersza = {
   },
 };
 
-// Po ręcznym przesunięciu obowiązuje kolejność użytkownika (zapamiętana w pliku).
+// Po ręcznym przesunięciu obowiązuje kolejność użytkownika (zapamiętana w pliku) - także na paragonie.
 function kolejnoscReczna() {
-  stan.sort = { klucz: 'reczna', kierunek: 1 };
   numeruj(tbody);
-  zaplanujZapis();
+  akcjeWiersza.onZmiana();
 }
 
-// Przeciąganie za numer Lp. - wiersz przesuwa się na żywo pod kursorem.
-let przeciagany = null;
-tbody.addEventListener('dragstart', (e) => {
-  przeciagany = e.target.closest?.('tr');
-  if (!przeciagany) return;
-  przeciagany.classList.add('przeciagany');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', przeciagany.dataset.id);
-});
-tbody.addEventListener('dragover', (e) => {
-  if (!przeciagany) return;
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move'; // kursor przesuwania zamiast zwykłej strzałki
-  const tr = e.target.closest?.('tr');
-  if (!tr || tr === przeciagany) return;
-  const r = tr.getBoundingClientRect();
-  if (e.clientY > r.top + r.height / 2) tr.after(przeciagany);
-  else tr.before(przeciagany);
-});
-tbody.addEventListener('drop', (e) => e.preventDefault());
-tbody.addEventListener('dragend', () => {
-  if (!przeciagany) return;
-  przeciagany.classList.remove('przeciagany');
-  przeciagany.draggable = false;
-  przeciagany = null;
-  const pozycja = new Map([...tbody.rows].map((tr, i) => [tr.dataset.id, i]));
+przeciaganieWierszy(tbody, (kolejnosc) => {
+  if (kolejnosc.every((id, i) => id === stan.wpisy[i]?.id)) return; // upuszczony w tym samym miejscu
+  const pozycja = new Map(kolejnosc.map((id, i) => [id, i]));
   stan.wpisy.sort((a, b) => pozycja.get(a.id) - pozycja.get(b.id));
   kolejnoscReczna();
 });
 
-function dzisIso() {
-  const t = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`;
+// Upuszczony link albo plik poza polem tekstowym nie przenosi okna aplikacji na inną stronę
+// (przeglądarka domyślnie otwiera wtedy upuszczony adres w miejscu aplikacji).
+for (const typ of ['dragover', 'drop']) {
+  document.addEventListener(typ, (e) => {
+    const doPola = e.target.closest?.('input, textarea') && !e.dataTransfer?.types.includes('Files');
+    if (!doPola) e.preventDefault();
+  });
 }
+
+// Numer ostatniego odczytu każdego wpisu - wynik starszego odczytu (np. z innym kosztem albo walutą) jest pomijany.
+const numerOdczytu = new Map();
 
 // Odczyt ceny ze strony - tylko wpisy ze zgodą „ze strony”. Błąd zostawia poprzednią
 // prognozę bez zmian i prosi o wpis ręczny.
 async function sprawdzCene(wpis) {
+  const nr = (numerOdczytu.get(wpis.id) ?? 0) + 1;
+  numerOdczytu.set(wpis.id, nr);
   const adres = bezpiecznyLink(wpis.link);
   if (!wpis.prognozaZeStrony || !adres) {
-    odswiezWiersze(tbody);
+    stanCen.delete(wpis.id);
+    odswiezWiersz(tbody, wpis.id);
     return;
   }
   stanCen.set(wpis.id, { stan: 'sprawdzam' });
-  odswiezWiersze(tbody);
+  odswiezWiersz(tbody, wpis.id);
+  const aktualny = () => numerOdczytu.get(wpis.id) === nr;
+  // Zgoda, link i sam wpis sprawdzane przed każdą pobieraną stroną i po odczycie.
+  const czyWolno = () => aktualny() && wpis.prognozaZeStrony && bezpiecznyLink(wpis.link) === adres && stan.wpisy.includes(wpis);
   try {
-    const { cena, vat, cennik } = await odczytajCene(adres, waluta(wpis), wpis.koszt, wpis.prognozaCennik);
-    // W międzyczasie mogła zniknąć zgoda, zmienić się link albo zniknąć cały wpis.
-    if (!wpis.prognozaZeStrony || bezpiecznyLink(wpis.link) !== adres || !stan.wpisy.includes(wpis)) return;
-    Object.assign(wpis, {
-      prognoza: cena, prognozaZrodlo: 'strona', prognozaData: dzisIso(), prognozaVat: vat,
-      prognozaCennik: cennik === adres ? '' : cennik, // znaleziony cennik - następnym razem od niego
-      zmieniono: new Date().toISOString(),
-    });
+    const wynik = await odczytajCene(adres, waluta(wpis), wpis.koszt, wpis.prognozaCennik, czyWolno);
+    if (!czyWolno()) return;
     stanCen.delete(wpis.id);
-    zaplanujZapis();
+    // Paragon, spisy i miarka od nowa tylko, gdy wynik trafił do wpisu.
+    if (przyjmijCene(wpis, wynik, adres)) {
+      zaplanujZapis();
+      zaplanujDodatki();
+    }
   } catch (e) {
-    stanCen.set(wpis.id, { stan: 'blad', tekst: e.message || 'nie udało się odczytać strony' });
+    // Odczyt przerwany (odznaczona zgoda, zmieniony link) - bez komunikatu o błędzie.
+    if (czyWolno() && !e.przerwane) stanCen.set(wpis.id, { stan: 'blad', tekst: e.message || 'nie udało się odczytać strony' });
   } finally {
-    if (stanCen.get(wpis.id)?.stan === 'sprawdzam') stanCen.delete(wpis.id);
-    odswiezWiersze(tbody);
-    odswiezDodatki();
+    if (aktualny()) {
+      if (stanCen.get(wpis.id)?.stan === 'sprawdzam') stanCen.delete(wpis.id);
+      odswiezWiersz(tbody, wpis.id);
+    }
   }
 }
 
-// Przy każdym uruchomieniu i przyciskiem „odśwież” - po kolei, żeby nie obciążać łącza.
+// Przy każdym uruchomieniu i przyciskiem „odśwież” - kilka wpisów naraz,
+// strony jednego wpisu po kolei, żeby nie obciążać serwisu.
 async function sprawdzCeny() {
-  for (const wpis of stan.wpisy.filter((w) => w.prognozaZeStrony)) await sprawdzCene(wpis);
+  const kolejka = stan.wpisy.filter((w) => w.prognozaZeStrony);
+  const watek = async () => {
+    while (kolejka.length) await sprawdzCene(kolejka.shift());
+  };
+  await Promise.all(Array.from({ length: CENY_NARAZ }, watek));
 }
 
 // Kursy NBP i ceny ze stron od nowa - przy starcie i przyciskiem „odśwież” (bez restartu aplikacji).
@@ -321,6 +358,13 @@ function odswiezDodatki() {
   $('dzisiaj').textContent = new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// Przy pisaniu dodatki (paragon, spisy, miarka) liczą się raz po krótkiej przerwie, a nie przy każdym znaku.
+let timerDodatkow = null;
+function zaplanujDodatki() {
+  clearTimeout(timerDodatkow);
+  timerDodatkow = setTimeout(odswiezDodatki, OPOZNIENIE_DODATKOW);
+}
+
 // --- zdarzenia --------------------------------------------------------
 
 $('dodaj').addEventListener('click', () => {
@@ -355,8 +399,7 @@ $('okno-potwierdz').addEventListener('click', () => {
 });
 
 function usunWpis(wpis) {
-  stan.wpisy = stan.wpisy.filter((w) => w !== wpis);
-  stan.usuniete.push({ id: wpis.id, kiedy: new Date().toISOString() });
+  usun(stan, wpis);
   tbody.querySelector(`tr[data-id="${CSS.escape(wpis.id)}"]`)?.remove();
   $('pusto').hidden = stan.wpisy.length > 0;
   numeruj(tbody);
@@ -424,10 +467,13 @@ async function odswiezKursy(wymus = false) {
   stan.kursyStatus = 'pobieram';
   renderujKursy();
   try {
-    await odswiezZNbp(stan.plikKursow);
+    const zmiana = await odswiezZNbp(stan.plikKursow);
     stan.kursyStatus = 'ok';
-    odswiezWiersze(tbody);
-    odswiezDodatki();
+    // Kwoty w złotych przeliczane tylko, gdy kursy są inne niż dotąd.
+    if (zmiana) {
+      odswiezWiersze(tbody);
+      odswiezDodatki();
+    }
   } catch (e) {
     stan.kursyStatus = 'offline';
     console.error(e);
@@ -442,15 +488,12 @@ setInterval(() => {
   odswiezKursy();
 }, 30 * 60 * 1000);
 
-let drugaKopia = false;
-
 async function start() {
   try {
     await przygotujFolder();
     if (!(await zajmijBlokade())) {
-      drugaKopia = true;
       stan.zablokowany = true;
-      pokazBlad('Mikropłatności są już otwarte w innym oknie (sprawdź pasek zadań). To okno zaraz się zamknie.');
+      pokazBlad('Mikropłatności są już otwarte w innym oknie (sprawdź pasek zadań). To okno zaraz się zamknie. Jeśli żadnego okna nie ma (aplikacja się zawiesiła), uruchom ją ponownie za 2 minuty.');
       $('dodaj').disabled = true;
       setTimeout(() => Neutralino.app.exit(), 4000);
       return;
@@ -463,10 +506,11 @@ async function start() {
 
   if (stan.plikKursow) await wczytajZapamietane(stan.plikKursow);
 
+  let tresc = null;
   if (!stan.zablokowany) {
     try {
-      stan.wpisy = await wczytaj();
-      await zrobKopie().catch(console.error);
+      tresc = await wczytaj();
+      stan.wczytano = true;
     } catch (e) {
       // Nie nadpisujemy pliku, którego nie umiemy odczytać.
       stan.zablokowany = true;
@@ -479,16 +523,17 @@ async function start() {
   ustawMotyw(stan.motyw);
   renderujTabele();
   odswiezDodatki();
+  // Kopia zapasowa po pokazaniu danych, ale zawsze przed pierwszym zapisem (zapisy czekają w kolejce za nią).
+  if (stan.wczytano && tresc !== null) stan.zapis = zrobKopie(tresc).catch(console.error);
   if (!stan.zablokowany) pokazStatus('pozycji: ' + stan.wpisy.length);
   dysk.odswiez();
-  renderujKursy();
   odswiezWszystko();
 }
 
 Neutralino.events.on('ready', start);
 Neutralino.events.on('windowClose', async () => {
   await zapiszTeraz();
-  if (!drugaKopia) await zwolnijBlokade();
+  await zwolnijBlokade(); // druga kopia (bez zajętej blokady) niczego nie usuwa
   Neutralino.app.exit();
 });
 Neutralino.init();

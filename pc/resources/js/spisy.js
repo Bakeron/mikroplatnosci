@@ -2,6 +2,7 @@
 
 import { formatujDate, roznicaDni, dzis } from './alarmy.js';
 import { waluta, naPln, formatujKwote } from './waluty.js';
+import { nazwaWpisu } from './dane.js';
 
 // Części opisu: zwykły tekst albo { w: tekst } - wyróżnione (data i liczba dni).
 function opisAlarmu(a, jednorazowa) {
@@ -26,7 +27,7 @@ export function wypelnijListe(lista, alarmy, pustyTekst, jednorazowe) {
     const li = document.createElement('li');
     li.className = 'alarm' + (a.poziom ? ' alarm--' + a.poziom : '');
     const nazwa = document.createElement('strong');
-    nazwa.textContent = a.wpis.nazwa.trim() || '(bez nazwy)';
+    nazwa.textContent = nazwaWpisu(a.wpis);
     const kropki = document.createElement('span');
     kropki.className = 'alarm__kropki';
     const opis = document.createElement('span');

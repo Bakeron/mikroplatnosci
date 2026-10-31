@@ -31,26 +31,34 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     }
   }
 
-  async function synchronizuj(wyslij) {
+  // klikniete: „Wyślij” przyciskiem (nie sama wysyłka po zmianie na telefonie) - tylko wtedy pytanie o zastąpienie pliku.
+  async function synchronizuj(wyslij, klikniete = false) {
     if (stan.zablokowany || stan.synchronizacja || !czyPolaczony()) return;
     stan.synchronizacja = true;
     odswiez();
     pokaz('pobieram z Dysku…');
     try {
       const tekst = await pobierzZDysku();
-      if (tekst !== null) {
-        let dane;
-        try {
-          dane = JSON.parse(tekst);
-        } catch {
-          throw new Error('plik na Dysku jest uszkodzony');
+      const json = (t) => { try { return JSON.parse(t); } catch { return null; } };
+      const zdalne = tekst === null ? null : odczytajDane(json(tekst), true);
+      // Nieczytelny plik na Dysku: dane na urządzeniu zostają; kliknięte „Wyślij” może go zastąpić -
+      // inaczej synchronizacja byłaby zablokowana na stałe (ukrytego folderu nie widać w Dysku).
+      if (tekst !== null && !zdalne) {
+        if (!wyslij || !klikniete || !confirm('Plik na Google Dysku jest uszkodzony albo ma nieznany format. Zastąpić go danymi z tego urządzenia?')) {
+          throw new Error('plik na Dysku jest uszkodzony - „Wyślij na Dysk” może go zastąpić');
         }
-        const zdalne = odczytajDane(dane);
-        if (!zdalne) throw new Error('plik na Dysku ma nieznany format');
+      }
+      if (zdalne) {
         const przed = JSON.stringify([stan.wpisy, stan.usuniete]);
-        const wynik = scal({ wpisy: stan.wpisy, usuniete: stan.usuniete }, zdalne);
-        stan.wpisy = wynik.wpisy;
-        stan.usuniete = wynik.usuniete;
+        const wynik = scal(stan, zdalne);
+        // Dysk usuwa z urządzenia kilka pozycji naraz (podmieniony plik, zegar drugiego urządzenia
+        // mocno do przodu) - tylko po potwierdzeniu.
+        const zostaja = new Set(wynik.wpisy.map((w) => w.id));
+        const ileUsuwa = stan.wpisy.filter((w) => !zostaja.has(w.id)).length;
+        if (ileUsuwa > 2 && !confirm(`Dane z Google Dysku usuwają z tego urządzenia ${ileUsuwa} pozycji. Usunąć je?`)) {
+          throw new Error('przerwano - dane na tym urządzeniu bez zmian');
+        }
+        Object.assign(stan, wynik);
         // Zapis i odświeżenie widoku tylko, gdy Dysk coś zmienił (zwykle nic - pobranie przy każdym starcie telefonu).
         if (JSON.stringify([stan.wpisy, stan.usuniete]) !== przed) await poScaleniu();
       }
@@ -110,7 +118,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     }
   });
   $('dysk-pobierz').addEventListener('click', () => synchronizuj(false));
-  $('dysk-wyslij').addEventListener('click', () => synchronizuj(true));
+  $('dysk-wyslij').addEventListener('click', () => synchronizuj(true, true));
   // Kod trafia też do schowka - na stronie Google wystarczy go wkleić.
   $('okno-dysk-otworz').addEventListener('click', async () => {
     await navigator.clipboard?.writeText($('okno-dysk-kod').textContent).catch(() => {});

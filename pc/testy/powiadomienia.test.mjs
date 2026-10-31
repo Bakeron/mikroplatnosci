@@ -2,9 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as P from '../resources/js/powiadomienia.js';
-import { dzis, dodajMiesiace } from '../resources/js/alarmy.js';
+import { dzis, dodajMiesiace, isoDnia as iso } from '../resources/js/alarmy.js';
 
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const za = (dni) => { const d = dzis(); d.setDate(d.getDate() + dni); return d; };
 // wpis z terminem za N dni: zakup = termin - okres
 const mies = (id, dniDoTerminu, extra = {}) => ({ id, nazwa: id, koszt: 10, waluta: 'PLN', okres: 'M', przedluzac: 'nie', od: iso(dodajMiesiace(za(dniDoTerminu), -1)), ...extra });
@@ -70,12 +69,21 @@ test('zmiana daty zakupu - nowe klucze, pamięć sprzątnięta', () => {
   assert.equal(p.pokazane.size, 1);
   const r = P.rozplanuj([mies('a', 3)], p, po9);
   assert.deepEqual(r.teraz.map((x) => x.napis), ['za 3 dni']);
-  assert.equal(p.pokazane.size, 1);
+  // Stary klucz zostaje do swojego terminu - powrót do starej daty nie powtórzy „za tydzień”.
+  assert.equal(p.pokazane.size, 2);
+  assert.equal(P.rozplanuj([mies('a', 7)], p, po9).teraz.length, 0);
 });
 
-test('przestawienie na „tak” - pamięć czyszczona', () => {
+test('„nie → tak → nie” - powiadomienie się nie powtarza', () => {
   const p = pam();
   P.rozplanuj([mies('a', 7)], p, po9);
-  P.rozplanuj([mies('a', 7, { przedluzac: 'tak' })], p, po9);
+  assert.equal(P.rozplanuj([mies('a', 7, { przedluzac: 'tak' })], p, po9).teraz.length, 0);
+  assert.equal(P.rozplanuj([mies('a', 7)], p, po9).teraz.length, 0);
+});
+
+test('pamięć sprząta klucze po terminie', () => {
+  const p = pam();
+  p.pokazane.add('a|2000-01-01|za tydzień');
+  P.rozplanuj([], p, po9);
   assert.equal(p.pokazane.size, 0);
 });

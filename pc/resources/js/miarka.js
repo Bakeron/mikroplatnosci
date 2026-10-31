@@ -1,6 +1,7 @@
 // Miarka najbliższych 3 miesięcy: podziałka od dziś, terminy w miejscu swojej daty.
 
-import { dzis, dodajMiesiace, roznicaDni, doPlatnosci, dniTekst, formatujDate } from './alarmy.js';
+import { dzis, dodajMiesiace, roznicaDni, doPlatnosci, kiedyTekst, formatujDate } from './alarmy.js';
+import { nazwaWpisu } from './dane.js';
 
 const ODSTEP_ETYKIET = 10;
 
@@ -25,7 +26,6 @@ export function renderujMiarke(kontener, alarmy) {
   }
   for (let m = 1; m <= 3; m++) {
     const pierwszy = new Date(poczatek.getFullYear(), poczatek.getMonth() + m, 1);
-    if (pierwszy > koniec) break;
     const kreska = element('span', 'miarka__kreska miarka__kreska--miesiac');
     kreska.style.left = pozycja(pierwszy) + '%';
     const nazwa = element('span', 'miarka__miesiac', pierwszy.toLocaleDateString('pl-PL', { month: 'long' }));
@@ -50,11 +50,12 @@ export function renderujMiarke(kontener, alarmy) {
     if (x > 70) znacznik.classList.add('znacznik--w-lewo');
     if (dp && !dp.minal) znacznik.style.setProperty('--odcien', String(dp.odcien));
     const dni = roznicaDni(poczatek, a.data);
-    znacznik.title = `${a.wpis.nazwa.trim() || '(bez nazwy)'} - ${formatujDate(a.data)}`;
+    const nazwa = nazwaWpisu(a.wpis);
+    znacznik.title = `${nazwa} - ${formatujDate(a.data)}`;
     const etykieta = element('span', 'znacznik__etykieta');
     etykieta.append(
-      element('strong', '', (jednorazowa ? '! ' : '') + (a.wpis.nazwa.trim() || '(bez nazwy)')),
-      element('span', 'znacznik__dni', dni === 0 ? 'dziś' : dni === 1 ? 'jutro' : dniTekst(dni)),
+      element('strong', '', (jednorazowa ? '! ' : '') + nazwa),
+      element('span', 'znacznik__dni', kiedyTekst(dni)),
     );
     znacznik.append(element('span', 'znacznik__punkt'), etykieta);
     znaczniki.append(znacznik);

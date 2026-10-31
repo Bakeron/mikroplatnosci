@@ -1,5 +1,6 @@
-// Waluty i kursy średnie NBP (tabela A). Jedyne połączenie z internetem w aplikacji:
-// tylko odczyt kursów, nic nie jest wysyłane.
+// Waluty i kursy średnie NBP (tabela A) - tylko odczyt kursów, nic nie jest wysyłane.
+
+import { isoDnia } from './alarmy.js';
 
 export const WALUTY = ['PLN', 'USD', 'EUR'];
 
@@ -34,11 +35,7 @@ export function pobierzKursy() {
   return kursy;
 }
 
-function dzisTekst() {
-  const t = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`;
-}
+const dzisTekst = () => isoDnia(new Date());
 
 // Kurs z pliku lub z NBP przyjmowany tylko, gdy jest sensowną liczbą.
 function poprawnyKurs(v) {
@@ -50,8 +47,12 @@ function poprawneKursy(k) {
     && /^\d{4}-\d{2}-\d{2}$/.test(k.data) && /^\d{4}-\d{2}-\d{2}$/.test(k.pobrano);
 }
 
+// Tabela z dziś, albo pobrano dziś przed jej publikacją (NBP ok. 12:00, w weekend nie publikuje) -
+// otwarta rano aplikacja dobierze dzisiejszy kurs po południu.
 export function czyAktualne() {
-  return !!kursy && kursy.pobrano === dzisTekst();
+  if (!kursy || kursy.pobrano !== dzisTekst()) return false;
+  const t = new Date();
+  return kursy.data === dzisTekst() || t.getHours() < 12 || t.getDay() === 0 || t.getDay() === 6;
 }
 
 // Zapamiętane kursy z poprzedniego pobrania - działają bez internetu.
@@ -64,7 +65,8 @@ export async function wczytajZapamietane(plik) {
   }
 }
 
-// Pobiera bieżącą tabelę A z NBP i zapisuje ją do pliku. Zwraca true, gdy się udało.
+// Pobiera bieżącą tabelę A z NBP i zapisuje ją do pliku (tylko gdy coś się zmieniło).
+// Zwraca true, gdy zmieniły się kursy - wtedy trzeba przeliczyć kwoty.
 export async function odswiezZNbp(plik) {
   const odp = await fetch(ADRES_NBP, {
     headers: { Accept: 'application/json' },
@@ -77,7 +79,9 @@ export async function odswiezZNbp(plik) {
   const kurs = (kod) => tabela?.rates?.find((r) => r.code === kod)?.mid;
   const nowe = { USD: kurs('USD'), EUR: kurs('EUR'), data: tabela?.effectiveDate, pobrano: dzisTekst() };
   if (!poprawneKursy(nowe)) throw new Error('NBP: nieprawidłowa odpowiedź');
+  const zmiana = !kursy || kursy.USD !== nowe.USD || kursy.EUR !== nowe.EUR || kursy.data !== nowe.data;
+  const doZapisu = zmiana || kursy.pobrano !== nowe.pobrano; // „pobrano” potrzebne do czyAktualne()
   kursy = nowe;
-  await Neutralino.filesystem.writeFile(plik, JSON.stringify(kursy, null, 2));
-  return true;
+  if (doZapisu) await Neutralino.filesystem.writeFile(plik, JSON.stringify(kursy, null, 2));
+  return zmiana;
 }

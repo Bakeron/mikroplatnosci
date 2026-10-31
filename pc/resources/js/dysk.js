@@ -145,7 +145,12 @@ async function tokenDostepu() {
 
 async function zapytanie(adres, opcje = {}) {
   const odp = await fetch(adres, { ...opcje, headers: { ...opcje.headers, Authorization: 'Bearer ' + await tokenDostepu() } });
-  if (!odp.ok) throw new Error(`Google Dysk odpowiedział błędem ${odp.status}`);
+  if (!odp.ok) {
+    // 401 - dostęp odrzucony (np. cofnięty na koncie Google): następnym razem po nowy, a gdy Google
+    // odmówi odświeżenia (invalid_grant), aplikacja zapomni dostęp.
+    if (odp.status === 401) Object.assign(dysk, { dostep: '', wazneDo: 0 });
+    throw new Error(`Google Dysk odpowiedział błędem ${odp.status}`);
+  }
   return odp;
 }
 

@@ -5,6 +5,7 @@ const DZIEN_MS = 86400000;
 export function parsujDate(tekst) {
   if (typeof tekst !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(tekst)) return null;
   const [r, m, d] = tekst.split('-').map(Number);
+  if (r < 1900 || r > 2200) return null; // new Date() zamienia lata 0-99 na 19xx
   const data = new Date(r, m - 1, d);
   return data.getMonth() === m - 1 ? data : null;
 }
@@ -22,12 +23,17 @@ export function dodajMiesiace(data, ile) {
   return wynik;
 }
 
+export const isoDnia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export function roznicaDni(od, doDaty) {
   return Math.round((doDaty - od) / DZIEN_MS);
 }
 
+// Jeden gotowy formater - toLocaleDateString z opcjami tworzy go od nowa przy każdym wywołaniu (ok. 50 razy wolniej).
+const FORMAT_DATY = new Intl.DateTimeFormat('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
 export function formatujDate(data) {
-  return data ? data.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+  return data ? FORMAT_DATY.format(data) : '';
 }
 
 // Okres z przełącznika przy dacie zakupu: M - miesięczna, R - roczna, null - nieokreślony.
@@ -57,6 +63,10 @@ export function termin(wpis, okresWpisu = okres(wpis)) {
   let data = dodajMiesiace(poczatek, okresWpisu.miesiecy * k);
   if (wpis.przedluzac === 'nie') return { data };
   const t = dzis();
+  // Skok od razu na okres sprzed dzisiejszego miesiąca - pętla dociąga tylko 1-2 kroki zamiast liczyć od zakupu.
+  const miesiecyOdPoczatku = (t.getFullYear() - poczatek.getFullYear()) * 12 + t.getMonth() - poczatek.getMonth();
+  k = Math.max(k, Math.floor(miesiecyOdPoczatku / okresWpisu.miesiecy) - 1);
+  data = dodajMiesiace(poczatek, okresWpisu.miesiecy * k);
   while (data < t && k < 5000) {
     k++;
     data = dodajMiesiace(poczatek, okresWpisu.miesiecy * k);
@@ -64,13 +74,26 @@ export function termin(wpis, okresWpisu = okres(wpis)) {
   return { data };
 }
 
+// Przy zmianie na „Przedłużać: nie” - data zakupu przesunięta na początek bieżącego okresu,
+// żeby termin był najbliższym odnowieniem, a nie pierwszym po dawnym zakupie.
+export function zakupBiezacegoOkresu(wpis) {
+  const ok = okres(wpis);
+  const zakup = parsujDate(wpis.od);
+  if (!ok.typ || !zakup) return wpis.od;
+  const t = dzis();
+  let k = 0;
+  while (dodajMiesiace(zakup, ok.miesiecy * (k + 1)) < t && k < 5000) k++;
+  return isoDnia(dodajMiesiace(zakup, ok.miesiecy * k));
+}
+
 // Poziomy: czerwony / pomaranczowy / zolty / null; „minal” gdy data już przeszła.
+// Liczone od terminu wstecz - tak samo jak powiadomienia („za miesiąc” = ten sam dzień).
 function poziomRoczny(data) {
   const t = dzis();
   if (data < t) return 'minal';
-  if (data <= dodajMiesiace(t, 1)) return 'czerwony';
-  if (data <= dodajMiesiace(t, 2)) return 'pomaranczowy';
-  if (data <= dodajMiesiace(t, 3)) return 'zolty';
+  if (dodajMiesiace(data, -1) <= t) return 'czerwony';
+  if (dodajMiesiace(data, -2) <= t) return 'pomaranczowy';
+  if (dodajMiesiace(data, -3) <= t) return 'zolty';
   return null;
 }
 
@@ -83,21 +106,23 @@ function poziomMiesieczny(data) {
 }
 
 // Kolumna „Do płatności”: odcień 120 (zielony) → 60 (żółty) → 0 (czerwony),
-// płynnie wg części okresu, która jeszcze została. Bez okresu skala 30 dni.
+// płynnie wg części okresu, która jeszcze została.
 export function doPlatnosci(wpis) {
   const ok = okres(wpis);
   const ter = termin(wpis, ok);
   if (!ter.data) return null;
   const dni = roznicaDni(dzis(), ter.data);
   if (dni < 0) return { dni, minal: true };
-  const dlugosc = ok.typ ? ok.dni : 30;
-  const zostalo = Math.min(dni / dlugosc, 1);
+  const zostalo = Math.min(dni / ok.dni, 1);
   return { dni, minal: false, odcien: Math.round(120 * zostalo), zostalo };
 }
 
 export function dniTekst(n) {
   return n === 1 ? '1 dzień' : n + ' dni';
 }
+
+// „dziś”, „jutro” albo „N dni” do terminu.
+export const kiedyTekst = (n) => (n === 0 ? 'dziś' : n === 1 ? 'jutro' : dniTekst(n));
 
 export function czyZakonczona(wpis) {
   if (wpis.przedluzac !== 'nie') return false;
@@ -116,8 +141,7 @@ export function zbierzAlarmy(wpisy) {
     if (wpis.przedluzac === 'nie') {
       let poziom = 'brak';
       if (ter.data) {
-        const dlugi = ok.typ === 'R' || (ok.typ === 'I' && ok.dni > 45);
-        poziom = dlugi ? poziomRoczny(ter.data) : poziomMiesieczny(ter.data);
+        poziom = ok.typ === 'R' ? poziomRoczny(ter.data) : poziomMiesieczny(ter.data);
       }
       jednorazowe.push({ wpis, data: ter.data, poziom });
       continue;
