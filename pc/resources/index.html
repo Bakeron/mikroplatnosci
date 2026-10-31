@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pl" data-motyw="ciemny">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:* https:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Mikropłatności</title>
+  <link rel="stylesheet" href="/css/wyglad.css">
+</head>
+<body>
+  <header class="naglowek">
+    <h1>Mikropłatności</h1>
+    <p class="naglowek__data" id="dzisiaj"></p>
+    <p class="kursy" id="kursy" aria-live="polite"></p>
+    <button type="button" class="odswiez" id="odswiez" title="Pobierz od nowa kursy NBP i ceny ze stron (☑ w kolumnie Prognoza)" aria-label="Odśwież kursy i ceny">↻<span class="odswiez__tekst"> odśwież</span></button>
+    <button type="button" class="motyw" id="motyw" title="Przełącz tło: ciemne / jasne"><span class="motyw__noc">noc</span><span class="motyw__dzien">dzień</span></button>
+    <span class="status" id="status" aria-live="polite"></span>
+  </header>
+
+  <div class="blad" id="blad" hidden></div>
+
+  <main class="kartka">
+    <div class="zeszyt-ramka">
+    <table class="zeszyt">
+      <thead>
+        <tr>
+          <th class="kol-lp" title="Kolejność - przeciągnij numer, aby przesunąć wiersz">Lp.</th>
+          <th class="kol-akcje"><span class="sr">Wykreśl</span></th>
+          <th>Nazwa i opis<span class="naglowek-opis"><span class="wykrzyknik" aria-hidden="true">!</span> = jednorazowa, do wycofania</span></th>
+          <th class="kol-koszt">Koszt</th>
+          <th class="kol-koszt kol-prognoza" title="Cena na najbliższy miesiąc - wpisana ręcznie albo, za zgodą, odczytana ze strony z linku">Prognoza<span class="naglowek-opis">☑ = cena ze strony</span></th>
+          <th class="kol-zakup" title="Data zakupu i okres płatności: miesięczna albo roczna">Zakup</th>
+          <th class="kol-termin">Do płatności</th>
+          <th class="kol-przedluzac">Przedłużać</th>
+          <th class="kol-link">Link</th>
+        </tr>
+      </thead>
+      <tbody id="wiersze"></tbody>
+      <tfoot>
+        <tr class="dopisz-wiersz">
+          <td colspan="9"><button type="button" class="dopisz" id="dodaj">+ dopisz nową pozycję…</button></td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+    <p class="pusto" id="pusto" hidden>Zeszyt jest pusty - dopisz pierwszą pozycję.</p>
+
+    <section class="margines" aria-label="Najbliższe terminy i podsumowanie">
+      <div class="miarka-ramka">
+        <h2 class="tytul-sekcji">Najbliższe 3 miesiące</h2>
+        <div class="miarka" id="miarka"></div>
+      </div>
+
+      <div class="margines__dol">
+        <div class="spisy">
+          <h2 class="tytul-sekcji">Roczne - zbliża się płatność</h2>
+          <ul class="spis" id="alarmy-roczne"></ul>
+          <h2 class="tytul-sekcji"><span class="wykrzyknik" aria-hidden="true">!</span> Do wycofania przed odnowieniem</h2>
+          <ul class="spis spis--wycofanie" id="alarmy-jednorazowe"></ul>
+        </div>
+        <aside class="paragon-cien"><div class="paragon" id="podsumowanie" aria-label="Podsumowanie kosztów"></div></aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="stopka">
+    <label class="stopka__wlacz"><input type="checkbox" id="dysk-wlacz"> Synchronizuj z Google Dyskiem</label>
+    <button type="button" class="stopka__przycisk" id="dysk-pobierz" title="Pobierz zmiany z Dysku (np. z telefonu) i połącz z tymi na komputerze" hidden>↓ Pobierz z Dysku</button>
+    <button type="button" class="stopka__przycisk" id="dysk-wyslij" title="Połącz ze zmianami z Dysku i wyślij wynik na Dysk" hidden>↑ Wyślij na Dysk</button>
+    <span class="stopka__stan" id="dysk-stan" aria-live="polite"></span>
+    <span class="stopka__wersja" id="wersja"></span>
+  </footer>
+
+  <dialog class="okno" id="okno-dysk">
+    <p>W przeglądarce otwiera się <strong>google.com/device</strong> - wpisz tam ten kod i zgódź się na dostęp:</p>
+    <p class="okno__kod" id="okno-dysk-kod"></p>
+    <p class="okno__uwaga">Aplikacja zobaczy tylko swój ukryty folder na Dysku, nie Twoje pliki. Czekam na zgodę…</p>
+    <div class="okno__przyciski">
+      <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj">Anuluj</button>
+      <button type="button" class="przycisk-tekst" id="okno-dysk-otworz">Kopiuj kod i otwórz Google jeszcze raz</button>
+    </div>
+  </dialog>
+
+  <dialog class="okno okno--szersze" id="okno-google">
+    <p>Synchronizacja potrzebuje identyfikatora Twojego projektu w Google Cloud (raz, za darmo):</p>
+    <label class="okno__pole">Identyfikator klienta
+      <input type="text" id="okno-google-id" autocomplete="off" spellcheck="false" maxlength="127" placeholder="…apps.googleusercontent.com">
+    </label>
+    <label class="okno__pole">Tajny klucz klienta
+      <input type="password" id="okno-google-sekret" autocomplete="off" spellcheck="false" maxlength="100" placeholder="GOCSPX-…">
+    </label>
+    <p class="okno__blad" id="okno-google-blad" role="alert" hidden></p>
+    <label class="okno__pomoc"><input type="checkbox"> Nie wiem, skąd to wziąć - pokaż jak</label>
+    <div class="okno__rozwin">
+      <div>
+        <ol class="okno__kroki">
+          <li><button type="button" class="przycisk-tekst" id="okno-google-konsola">Otwórz console.cloud.google.com</button>, zaloguj się i utwórz <b>Nowy projekt</b> o nazwie <code>Mikroplatnosci</code>.</li>
+          <li>Menu ☰ → <b>Interfejsy API i usługi → Biblioteka</b> → <b>Google Drive API</b> → <b>Włącz</b>.</li>
+          <li>Menu → <b>Google Auth Platform</b> → <b>Rozpocznij</b>: nazwa <code>Mikropłatności</code>, Twój e-mail, odbiorcy <b>Zewnętrzni</b> → Utwórz.</li>
+          <li><b>Dostęp do danych</b> → <b>Dodaj lub usuń zakresy</b> → ręcznie wpisz <code>https://www.googleapis.com/auth/drive.appdata</code> → Dodaj → <b>Zapisz</b>.</li>
+          <li><b>Odbiorcy</b> → <b>Opublikuj aplikację</b> (bez tego zgoda wygasa co 7 dni).</li>
+          <li><b>Klienci</b> → <b>Utwórz klienta</b> → typ <b>Telewizory i urządzenia z ograniczonym wprowadzaniem danych</b> → Utwórz. Skopiuj identyfikator i tajny klucz do pól wyżej.</li>
+        </ol>
+        <p class="okno__uwaga">Przy logowaniu Google ostrzeże „nie zweryfikował tej aplikacji” - to normalne dla własnego projektu: <b>Zaawansowane → Przejdź do Mikropłatności</b>. Identyfikator zostaje tylko na tym urządzeniu (obok danych). Dokładniej: <code>google-cloud.md</code>.</p>
+      </div>
+    </div>
+    <div class="okno__przyciski">
+      <button type="button" class="przycisk-tekst" id="okno-google-anuluj">Anuluj</button>
+      <button type="button" class="przycisk-tekst" id="okno-google-zapisz">Zapisz i połącz</button>
+    </div>
+  </dialog>
+
+  <dialog class="okno" id="okno-usun">
+    <p id="okno-usun-tekst"></p>
+    <div class="okno__przyciski">
+      <button type="button" class="przycisk-tekst" id="okno-anuluj">Zostaw</button>
+      <button type="button" class="pieczatka" id="okno-potwierdz">Wykreśl</button>
+    </div>
+  </dialog>
+
+  <script src="/js/neutralino.js"></script>
+  <script src="/js/wersja.js"></script>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

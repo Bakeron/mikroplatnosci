@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Mikropłatności</string>
+    <string name="title_activity_main">Mikropłatności</string>
+    <string name="package_name">pl.prywatne.mikroplatnosci</string>
+    <string name="custom_url_scheme">pl.prywatne.mikroplatnosci</string>
+</resources>

@@ -1,6 +1,6 @@
 # Podgląd - obrazki poglądowe aplikacji Mikropłatności
 
-Cztery obrazki zbiorcze pokazują wszystkie możliwości i stany aplikacji. **Przy każdej aktualizacji aplikacji (`instalacja\instaluj.ps1`) obrazek, który przestał pasować, trzeba wyrenderować od nowa** (tabela „Zależy od” poniżej mówi, który) - nie po każdej drobnej zmianie.
+Cztery obrazki zbiorcze pokazują wszystkie możliwości i stany aplikacji. **Obrazki odświeża się tylko na prośbę autora** - nie przy aktualizacji aplikacji (`pc\instalacja\instaluj.ps1`) ani po zmianach. Wtedy renderuje się od nowa te, które przestały pasować (tabela „Zależy od” poniżej mówi, które).
 
 | Plik | Co pokazuje | Zależy od |
 |---|---|---|
@@ -19,9 +19,9 @@ Pliki pomocnicze są w `zrodla/`:
 - `zestaw.html` - składa klatki w obrazek zbiorczy: `zestaw.html?zestaw=03&klatki=<adres folderu z klatkami>` (klatki `03a/03b/03c.png`, `04a/04b/04c.png`).
 
 Kroki:
-1. Serwer testowy z katalogu projektu: `bin\neutralino-win_x64.exe --load-dir-res --path=. --mode=cloud --port=58321`.
+1. Serwer testowy z folderu `pc`: `bin\neutralino-win_x64.exe --load-dir-res --path=. --mode=cloud --port=58321`.
 2. Dla każdego obrazka: `PODGLAD_DANE=<folder testowy> node zrodla/przygotuj.mjs <scenariusz>`, potem przeglądarka testowa (chrome-devtools, szerokość 1500 px) otwiera `http://127.0.0.1:58321/` **nawigacją z initScript** = `window.__DANE = '<folder testowy>';` + treść `strony-testowe.js` (samo przeładowanie strony gubi skrypt startowy i zamyka serwer testowy).
-   - 01 / 02: `pelny-noc` / `pelny-dzien`, wysokość okna tak, żeby nic się nie przewijało (ok. 1830 px), zrzut całego okna.
+   - 01 / 02: `pelny-noc` / `pelny-dzien`, szerokość 1500 px. Całość (ok. 2120 px) jest wyższa niż ekran, więc przed zrzutem wyłączyć przewijanie kartki przez CSSOM (CSP blokuje wstawianie `<style>`): `html` i `body` - `height: auto !important`, `.kartka` - `overflow: visible !important; flex: none !important`, potem zrzut całej strony (fullPage).
    - 03a: `pelny-noc`, najechanie i kliknięcie „×” przy Netflix (okno 1500×640).
    - 03b: ten sam stan po „Zostaw”: w ChatGPT Plus koszt `20,5,1`, Spotify przeciągany pod Netflix (zdarzenia `dragstart` + `dragover` bez `dragend`).
    - 03c: `pelny-noc` + tryb `bez-internetu` (okno 1500×720).

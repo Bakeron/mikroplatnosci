@@ -1,0 +1,132 @@
+// Google Dysk (dysk.js): identyfikator wpisany w aplikacji, zapamiętany dostęp, odmowa Google.
+// Neutralino i fetch udawane w pamięci - bez sieci i bez prawdziwych plików.
+import { test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+const pliki = new Map();
+let env = {};
+let odpowiedzi = {};
+globalThis.Neutralino = {
+  os: { getEnv: async (n) => env[n] ?? '' },
+  filesystem: {
+    readFile: async (p) => { if (!pliki.has(p)) throw new Error('brak'); return pliki.get(p); },
+    writeFile: async (p, d) => { pliki.set(p, d); },
+    remove: async (p) => { pliki.delete(p); },
+  },
+};
+let wyslaneId = [];
+globalThis.fetch = async (adres, o) => {
+  wyslaneId.push(new URLSearchParams(o?.body).get('client_id'));
+  const [status, dane] = odpowiedzi[Object.keys(odpowiedzi).find((k) => String(adres).includes(k))] ?? [500, {}];
+  return { ok: status < 300, status, json: async () => dane };
+};
+
+const PLIK = 'test/google.json';
+const ID = '123-abc.apps.googleusercontent.com';
+const SEKRET = 'GOCSPX-abcdefghijk';
+const plik = () => (pliki.has(PLIK) ? JSON.parse(pliki.get(PLIK)) : null);
+
+// Moduł trzyma stan - świeża kopia przed każdym testem.
+let D;
+let licznik = 0;
+beforeEach(async () => {
+  pliki.clear();
+  env = {};
+  odpowiedzi = {};
+  wyslaneId = [];
+  D = await import('../resources/js/dysk.js?' + licznik++);
+});
+
+test('bez identyfikatora - nieskonfigurowany', async () => {
+  await D.przygotujDysk('test');
+  assert.equal(D.czySkonfigurowany(), false);
+});
+
+test('identyfikator ze zmiennych środowiskowych', async () => {
+  env = { MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET };
+  await D.przygotujDysk('test');
+  assert.equal(D.czySkonfigurowany(), true);
+  assert.equal(plik(), null);
+});
+
+test('złe wpisy odrzucone z opisem, nic nie zapisane', async () => {
+  await D.przygotujDysk('test');
+  assert.match(await D.ustawIdentyfikator('abc', SEKRET), /googleusercontent/);
+  assert.match(await D.ustawIdentyfikator(ID, 'krótki'), /GOCSPX/);
+  assert.match(await D.ustawIdentyfikator(ID + '"<x>', SEKRET), /googleusercontent/);
+  assert.equal(D.czySkonfigurowany(), false);
+  assert.equal(plik(), null);
+});
+
+test('poprawny wpis zapisany (spacje obcięte) i pamiętany po ponownym uruchomieniu', async () => {
+  await D.przygotujDysk('test');
+  assert.equal(await D.ustawIdentyfikator(`  ${ID} `, ` ${SEKRET}\n`), '');
+  assert.deepEqual(plik(), { id: ID, sekret: SEKRET });
+  const D2 = await import('../resources/js/dysk.js?' + licznik++);
+  await D2.przygotujDysk('test');
+  assert.equal(D2.czySkonfigurowany(), true);
+});
+
+test('wpisany identyfikator ma pierwszeństwo przed zmiennymi', async () => {
+  env = { MIKROPLATNOSCI_GOOGLE_ID: 'zly-1.apps.googleusercontent.com', MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET };
+  pliki.set(PLIK, JSON.stringify({ id: ID, sekret: SEKRET }));
+  await D.przygotujDysk('test');
+  await assert.rejects(D.zacznijLogowanie());
+  assert.deepEqual(wyslaneId, [ID]);
+});
+
+test('Google odrzuca identyfikator - aplikacja go zapomina', async () => {
+  await D.przygotujDysk('test');
+  await D.ustawIdentyfikator(ID, SEKRET);
+  odpowiedzi = { 'device/code': [401, { error: 'invalid_client' }] };
+  await assert.rejects(D.zacznijLogowanie(), /nie rozpoznał/);
+  assert.equal(D.czySkonfigurowany(), false);
+  assert.equal(plik(), null);
+});
+
+test('zły tajny klucz wychodzi przy czekaniu na zgodę - też zapomniany', async () => {
+  await D.przygotujDysk('test');
+  await D.ustawIdentyfikator(ID, SEKRET);
+  odpowiedzi = { 'device/code': [200, { device_code: 'd', user_code: 'ABCD-EFGH', interval: 0.01, expires_in: 5 }], token: [401, { error: 'invalid_client' }] };
+  const l = await D.zacznijLogowanie();
+  assert.equal(l.kod, 'ABCD-EFGH');
+  await assert.rejects(l.czekaj(), /nie rozpoznał/);
+  assert.equal(D.czySkonfigurowany(), false);
+});
+
+test('zgoda - dostęp zapisany obok identyfikatora; wyłączenie zostawia identyfikator', async () => {
+  await D.przygotujDysk('test');
+  await D.ustawIdentyfikator(ID, SEKRET);
+  odpowiedzi = {
+    'device/code': [200, { device_code: 'd', user_code: 'ABCD-EFGH', interval: 0.01, expires_in: 5 }],
+    token: [200, { access_token: 'a', refresh_token: 'r', expires_in: 3600 }],
+    revoke: [200, {}],
+  };
+  await (await D.zacznijLogowanie()).czekaj();
+  assert.equal(D.czyPolaczony(), true);
+  assert.deepEqual(plik(), { odswiezajacy: 'r', id: ID, sekret: SEKRET });
+  await D.rozlacz();
+  assert.equal(D.czyPolaczony(), false);
+  assert.deepEqual(plik(), { id: ID, sekret: SEKRET });
+});
+
+test('identyfikator ze zmiennych nie trafia do pliku; po wyłączeniu plik znika', async () => {
+  env = { MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET };
+  await D.przygotujDysk('test');
+  odpowiedzi = {
+    'device/code': [200, { device_code: 'd', user_code: 'K', interval: 0.01, expires_in: 5 }],
+    token: [200, { access_token: 'a', refresh_token: 'r' }],
+    revoke: [200, {}],
+  };
+  await (await D.zacznijLogowanie()).czekaj();
+  assert.deepEqual(plik(), { odswiezajacy: 'r' });
+  await D.rozlacz();
+  assert.equal(plik(), null);
+});
+
+test('uszkodzony plik dostępu - ignorowany', async () => {
+  pliki.set(PLIK, JSON.stringify({ odswiezajacy: 5, id: 'zly', sekret: SEKRET }));
+  await D.przygotujDysk('test');
+  assert.equal(D.czyPolaczony(), false);
+  assert.equal(D.czySkonfigurowany(), false);
+});

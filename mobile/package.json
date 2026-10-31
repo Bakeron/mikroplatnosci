@@ -1,0 +1,21 @@
+{
+  "name": "mikroplatnosci-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mikropłatności na Androida (Capacitor) - wspólne obliczenia z aplikacją PC",
+  "scripts": {
+    "przygotuj": "node skrypty/przygotuj.mjs",
+    "apk": "node skrypty/przygotuj.mjs && npx cap sync android && node skrypty/apk.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/browser": "8.0.5",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/local-notifications": "8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}

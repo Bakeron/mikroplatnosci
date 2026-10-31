@@ -1,13 +1,23 @@
 # Pliki JSON nie trafiają do gita (dane aplikacji, kopie) - poza konfiguracją potrzebną do budowania
 *.json
-!/package.json
-!/package-lock.json
-!/neutralino.config.json
+!/pc/package.json
+!/pc/package-lock.json
+!/pc/neutralino.config.json
+!/mobile/package.json
+!/mobile/package-lock.json
+!/mobile/capacitor.config.json
 
 # Zależności i pliki generowane (odtwarzane przez npm install / neu update / neu build)
 node_modules/
 bin/
 dist/
+/pc/resources/js/wersja.js
+
+# Aplikacja na Androida: składane www/, gotowe APK; klucz podpisu nigdy w repozytorium
+/mobile/www/
+/mobile/apk/
+*.jks
+*.keystore
 
 # Lokalne ustawienia Claude Code
 .claude/settings.local.json

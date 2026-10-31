@@ -1,0 +1,18 @@
+{
+  "appId": "pl.prywatne.mikroplatnosci",
+  "appName": "Mikropłatności",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_powiadomienie",
+      "iconColor": "#C42E1D"
+    }
+  }
+}

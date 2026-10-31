@@ -1,0 +1,14 @@
+{
+  "name": "mikroplatnosci",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lokalna aplikacja do pilnowania mikropłatności i subskrypcji",
+  "scripts": {
+    "start": "neu run",
+    "build": "neu build --release",
+    "test": "node --test \"testy/*.test.mjs\""
+  },
+  "devDependencies": {
+    "@neutralinojs/neu": "11.8.0"
+  }
+}

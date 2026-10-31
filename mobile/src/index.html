@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pl" data-motyw="ciemny">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Mikropłatności</title>
+  <link rel="stylesheet" href="css/wyglad.css">
+  <link rel="stylesheet" href="css/telefon.css">
+</head>
+<body class="telefon">
+  <header class="t-naglowek">
+    <div class="t-naglowek__gora">
+      <h1>Mikropłatności</h1>
+      <span class="t-naglowek__suma" id="suma-miesiac"></span>
+    </div>
+    <p class="t-naglowek__data" id="dzisiaj"></p>
+    <div class="t-dysk">
+      <label class="t-dysk__wlacz"><input type="checkbox" id="dysk-wlacz"> Google Dysk</label>
+      <button type="button" class="t-dysk__przycisk" id="dysk-pobierz" aria-label="Pobierz z Dysku" hidden>↓ pobierz</button>
+      <button type="button" class="t-dysk__przycisk" id="dysk-wyslij" aria-label="Wyślij na Dysk" hidden>↑ wyślij</button>
+      <span class="t-dysk__stan" id="dysk-stan" aria-live="polite"></span>
+    </div>
+  </header>
+
+  <div class="blad t-blad" id="blad" hidden></div>
+
+  <main class="t-tresc" id="tresc">
+    <section class="t-zakladka" id="zakladka-lista" aria-label="Lista">
+      <ul class="t-karty" id="karty"></ul>
+      <p class="pusto" id="pusto" hidden>Zeszyt jest pusty - dodaj pierwszą pozycję przyciskiem „+ Dodaj”.</p>
+    </section>
+
+    <section class="t-zakladka" id="zakladka-terminy" aria-label="Terminy" hidden>
+      <h2 class="tytul-sekcji">Najbliższe 3 miesiące</h2>
+      <div class="miarka t-miarka" id="miarka"></div>
+      <h2 class="tytul-sekcji">Roczne - zbliża się płatność</h2>
+      <ul class="spis" id="alarmy-roczne"></ul>
+      <h2 class="tytul-sekcji"><span class="wykrzyknik" aria-hidden="true">!</span> Do wycofania przed odnowieniem</h2>
+      <ul class="spis spis--wycofanie" id="alarmy-jednorazowe"></ul>
+    </section>
+
+    <section class="t-zakladka" id="zakladka-paragon" aria-label="Paragon" hidden>
+      <div class="paragon-cien t-paragon"><div class="paragon" id="paragon" aria-label="Podsumowanie kosztów"></div></div>
+      <p class="t-wersja" id="wersja"></p>
+    </section>
+  </main>
+
+  <nav class="t-zakladki" aria-label="Widoki">
+    <button type="button" class="t-zakladki__przycisk" data-zakladka="lista" aria-current="page">Lista</button>
+    <button type="button" class="t-zakladki__przycisk" data-zakladka="terminy">Terminy</button>
+    <button type="button" class="t-zakladki__przycisk" data-zakladka="paragon">Paragon</button>
+    <button type="button" class="t-zakladki__przycisk t-zakladki__dodaj" id="dodaj">+ Dodaj</button>
+  </nav>
+
+  <dialog class="t-arkusz" id="arkusz">
+    <form class="t-formularz" id="formularz" novalidate>
+      <h2 class="t-formularz__tytul" id="arkusz-tytul">Nowa pozycja</h2>
+      <label class="t-pole">Nazwa
+        <input type="text" name="nazwa" maxlength="200" autocomplete="off" enterkeyhint="next">
+      </label>
+      <label class="t-pole">Opis
+        <input type="text" name="opis" maxlength="300" autocomplete="off" placeholder="krótki opis…">
+      </label>
+      <div class="t-wiersz">
+        <label class="t-pole t-pole--szerokie">Koszt
+          <input type="text" name="koszt" inputmode="decimal" autocomplete="off" placeholder="0,00">
+        </label>
+        <label class="t-pole">Waluta
+          <select name="waluta"><option>PLN</option><option>USD</option><option>EUR</option></select>
+        </label>
+      </div>
+      <div class="t-wiersz">
+        <label class="t-pole t-pole--szerokie">Data zakupu
+          <input type="date" name="od">
+        </label>
+        <fieldset class="t-pole t-wybor">
+          <legend>Okres</legend>
+          <label><input type="radio" name="okres" value="M"> mies.</label>
+          <label><input type="radio" name="okres" value="R"> rok</label>
+        </fieldset>
+      </div>
+      <label class="t-pole">Przedłużać
+        <select name="przedluzac">
+          <option value="">- jeszcze nie wiem</option>
+          <option value="tak">tak - odnawiam</option>
+          <option value="nie">nie - jednorazowa, do wycofania</option>
+        </select>
+      </label>
+      <label class="t-pole">Prognoza na następną płatność
+        <input type="text" name="prognoza" inputmode="decimal" autocomplete="off" placeholder="wpisz…">
+      </label>
+      <label class="t-pole">Link
+        <input type="url" name="link" maxlength="2000" autocomplete="off" placeholder="https://">
+      </label>
+      <p class="t-formularz__blad" id="formularz-blad" aria-live="polite"></p>
+      <div class="t-formularz__przyciski">
+        <button type="button" class="t-usun" id="arkusz-usun">Usuń</button>
+        <button type="button" class="przycisk-tekst" id="arkusz-anuluj">Anuluj</button>
+        <button type="submit" class="t-zapisz">Zapisz</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="okno" id="okno-dysk">
+    <p>Skopiuj kod, otwórz <strong>google.com/device</strong>, wklej go tam i zgódź się na dostęp:</p>
+    <p class="okno__kod" id="okno-dysk-kod"></p>
+    <p class="okno__uwaga">Aplikacja zobaczy tylko swój ukryty folder na Dysku, nie Twoje pliki. Po zgodzie wróć tutaj - połączy się sama.</p>
+    <div class="okno__przyciski">
+      <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj">Anuluj</button>
+      <button type="button" class="t-zapisz" id="okno-dysk-otworz">Kopiuj kod i otwórz Google</button>
+    </div>
+  </dialog>
+
+  <dialog class="okno okno--szersze" id="okno-google">
+    <p>Synchronizacja potrzebuje identyfikatora Twojego projektu w Google Cloud (raz, za darmo):</p>
+    <label class="okno__pole">Identyfikator klienta
+      <input type="text" id="okno-google-id" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="127" placeholder="…apps.googleusercontent.com">
+    </label>
+    <label class="okno__pole">Tajny klucz klienta
+      <input type="password" id="okno-google-sekret" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="100" placeholder="GOCSPX-…">
+    </label>
+    <p class="okno__blad" id="okno-google-blad" role="alert" hidden></p>
+    <label class="okno__pomoc"><input type="checkbox"> Nie wiem, skąd to wziąć - pokaż jak</label>
+    <div class="okno__rozwin">
+      <div>
+        <ol class="okno__kroki">
+          <li><button type="button" class="przycisk-tekst" id="okno-google-konsola">Otwórz console.cloud.google.com</button>, zaloguj się i utwórz <b>Nowy projekt</b> o nazwie <code>Mikroplatnosci</code>.</li>
+          <li>Menu ☰ → <b>Interfejsy API i usługi → Biblioteka</b> → <b>Google Drive API</b> → <b>Włącz</b>.</li>
+          <li>Menu → <b>Google Auth Platform</b> → <b>Rozpocznij</b>: nazwa <code>Mikropłatności</code>, Twój e-mail, odbiorcy <b>Zewnętrzni</b> → Utwórz.</li>
+          <li><b>Dostęp do danych</b> → <b>Dodaj lub usuń zakresy</b> → ręcznie wpisz <code>https://www.googleapis.com/auth/drive.appdata</code> → Dodaj → <b>Zapisz</b>.</li>
+          <li><b>Odbiorcy</b> → <b>Opublikuj aplikację</b> (bez tego zgoda wygasa co 7 dni).</li>
+          <li><b>Klienci</b> → <b>Utwórz klienta</b> → typ <b>Telewizory i urządzenia z ograniczonym wprowadzaniem danych</b> → Utwórz. Skopiuj identyfikator i tajny klucz do pól wyżej.</li>
+        </ol>
+        <p class="okno__uwaga">Przy logowaniu Google ostrzeże „nie zweryfikował tej aplikacji” - to normalne dla własnego projektu: <b>Zaawansowane → Przejdź do Mikropłatności</b>. Identyfikator zostaje tylko na tym urządzeniu. Wygodniej zrobić to na komputerze - ten sam identyfikator wpisuje się na PC i w telefonie.</p>
+      </div>
+    </div>
+    <div class="okno__przyciski">
+      <button type="button" class="przycisk-tekst" id="okno-google-anuluj">Anuluj</button>
+      <button type="button" class="t-zapisz" id="okno-google-zapisz">Zapisz i połącz</button>
+    </div>
+  </dialog>
+
+  <script src="js/capacitor.js"></script>
+  <script src="js/google.js"></script>
+  <script src="js/wersja.js"></script>
+  <script src="js/neutralino-telefon.js"></script>
+  <script type="module" src="js/aplikacja.js"></script>
+</body>
+</html>
