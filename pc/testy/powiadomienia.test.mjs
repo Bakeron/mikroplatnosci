@@ -1,8 +1,11 @@
-// Powiadomienia o pozycjach do wycofania (powiadomienia.js). Daty liczone od dziś.
-import { test } from 'node:test';
+// Powiadomienia o pozycjach do wycofania (powiadomienia.js). Daty liczone od stałego „dziś”.
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import * as P from '../resources/js/powiadomienia.js';
 import { dzis, dodajMiesiace, isoDnia as iso } from '../resources/js/alarmy.js';
+// Stały „dziś” (10.11.2026, 10:00): pomocnicze funkcje odwracają dodajMiesiace, a pod koniec miesiąca
+// to daje dzień mniej - bez stałej daty testy były czerwone w ok. 35 dniach w roku.
+mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10, 0) });
 
 const za = (dni) => { const d = dzis(); d.setDate(d.getDate() + dni); return d; };
 // wpis z terminem za N dni: zakup = termin - okres

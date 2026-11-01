@@ -1,6 +1,8 @@
 // Powiadomienia o pozycjach, których nie przedłużamy (przedłużać = „nie”), przed terminem odnowienia.
 // Roczne: 3, 2, 1 miesiąc i 3, 2, 1 tydzień przed; miesięczne: 14, 7, 5, 4, 3, 2, 1 dzień przed.
 // Nie przychodzą, gdy pozycja zostanie usunięta albo przestawiona na „tak - odnawiam”.
+// Do tego „Zapłać” przy płatności ręcznej („płacę sam”): 7, 3 i 1 dzień przed pierwszym
+// niezapłaconym terminem (po „✓ zapłacone” - przed następnym).
 // Wspólne dla PC (pokazuje, gdy aplikacja jest otwarta) i telefonu (planuje z wyprzedzeniem).
 
 import { termin, dodajMiesiace, dzis, roznicaDni, formatujDate, isoDnia } from './alarmy.js';
@@ -20,18 +22,25 @@ const PROGI = {
   ],
 };
 
-// Wszystkie powiadomienia pozycji „do wycofania”: { klucz, wpis, termin, dzien, godzina, napis }.
-// Klucz zawiera termin - po zmianie daty zakupu powiadomienia liczą się od nowa.
+const PROGI_ZAPLATY = [{ dni: 7, napis: 'za tydzień' }, { dni: 3, napis: 'za 3 dni' }, { dni: 1, napis: 'jutro' }];
+
+// Wszystkie powiadomienia: { klucz, wpis, termin, dzien, godzina, napis, rodzaj } - rodzaj „wycofaj”
+// (pozycje do wycofania) albo „zaplac” (płatność ręczna). Klucz zawiera termin - po zmianie daty
+// zakupu powiadomienia liczą się od nowa.
 export function przypomnienia(wpisy) {
   const lista = [];
   for (const wpis of wpisy) {
-    if (wpis.przedluzac !== 'nie') continue;
+    const wycofaj = wpis.przedluzac === 'nie';
+    if (!wycofaj && !wpis.platnoscReczna) continue;
     const data = termin(wpis).data;
-    if (!data) continue;
-    for (const prog of PROGI[wpis.okres === 'R' ? 'R' : 'M']) {
+    if (!data) continue; // przy płatności ręcznej termin to pierwszy niezapłacony - po „✓ zapłacone” już następny
+    const progi = wycofaj ? PROGI[wpis.okres === 'R' ? 'R' : 'M'] : PROGI_ZAPLATY;
+    for (const prog of progi) {
       const dzien = prog.miesiecy ? dodajMiesiace(data, -prog.miesiecy) : new Date(data.getFullYear(), data.getMonth(), data.getDate() - prog.dni);
       const godzina = new Date(dzien.getFullYear(), dzien.getMonth(), dzien.getDate(), GODZINA);
-      lista.push({ klucz: `${wpis.id}|${isoDnia(data)}|${prog.napis}`, wpis, termin: data, dzien, godzina, napis: prog.napis });
+      // Termin zawsze przedostatni w kluczu (rozplanuj czyści pamięć po nim).
+      const klucz = `${wpis.id}|${isoDnia(data)}|${wycofaj ? '' : 'zapłać '}${prog.napis}`;
+      lista.push({ klucz, wpis, termin: data, dzien, godzina, napis: prog.napis, rodzaj: wycofaj ? 'wycofaj' : 'zaplac' });
     }
   }
   return lista;
@@ -65,13 +74,19 @@ export function rozplanuj(wpisy, pamiec, teraz = new Date()) {
 }
 
 export function tytul(p) {
-  return `Wycofaj: ${nazwaWpisu(p.wpis)}`;
+  return `${p.rodzaj === 'zaplac' ? 'Zapłać' : 'Wycofaj'}: ${nazwaWpisu(p.wpis)}`;
 }
 
 // Dzień powiadomienia - napis progu („za tydzień”), zaległe - prawdziwa liczba dni.
 export function tresc(p, dzien = p.dzien) {
   const dni = roznicaDni(new Date(dzien.getFullYear(), dzien.getMonth(), dzien.getDate()), p.termin);
   const kiedy = dni === roznicaDni(p.dzien, p.termin) ? p.napis : dni === 1 ? 'jutro' : `za ${dni} dni`;
+  if (p.rodzaj === 'zaplac') {
+    // Do zapłaty jest cena od następnej płatności, jeśli wpisana.
+    const doZaplaty = p.wpis.prognoza ?? p.wpis.koszt;
+    const kwotaZaplaty = typeof doZaplaty === 'number' ? ` (${formatujKwote(doZaplaty, waluta(p.wpis))})` : '';
+    return `Termin płatności ${kiedy}, ${formatujDate(p.termin)}${kwotaZaplaty}. Nie pobiera się samo - zapłać ręcznie.`;
+  }
   const kwota = typeof p.wpis.koszt === 'number' ? ` (${formatujKwote(p.wpis.koszt, waluta(p.wpis))})` : '';
   return `Odnowienie ${kiedy}, ${formatujDate(p.termin)}${kwota}. Jeśli nie przedłużasz - anuluj subskrypcję.`;
 }

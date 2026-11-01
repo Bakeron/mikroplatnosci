@@ -17,7 +17,6 @@
     "app.exit",
     "os.open",
     "os.getPath",
-    "os.getEnv",
     "os.showNotification",
     "filesystem.readFile",
     "filesystem.writeFile",
@@ -44,7 +43,6 @@
       "hidden": false,
       "resizable": true,
       "exitProcessOnClose": false,
-      "webviewArgs": "--disable-web-security",
       "useSavedState": true
     }
   },

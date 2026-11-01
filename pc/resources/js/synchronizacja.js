@@ -4,16 +4,25 @@
 
 import { scal } from './scalanie.js';
 import { odczytajDane, doZapisu } from './dane.js';
-import { czyPolaczony, czySkonfigurowany, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, STRONA_KODU } from './dysk.js';
+import { czyPolaczony, czySkonfigurowany, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
 
 const $ = (id) => document.getElementById(id);
 const godzina = () => new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 // Bez internetu fetch rzuca TypeError z angielskim opisem.
 const opisBledu = (e) => (e instanceof TypeError ? 'brak połączenia z Google - sprawdź internet' : e.message);
+// „1 pozycję”, „3 pozycje”, „5 pozycji”, „22 pozycje” (polska liczba mnoga w bierniku).
+function ilePozycji(n) {
+  const r10 = n % 10;
+  const r100 = n % 100;
+  const forma = n === 1 ? 'pozycję' : r10 >= 2 && r10 <= 4 && (r100 < 12 || r100 > 14) ? 'pozycje' : 'pozycji';
+  return `${n} ${forma}`;
+}
 
 // stan: { wpisy, usuniete, zablokowany, synchronizacja }; poScaleniu: zapis i odświeżenie widoku;
-// klasaBledu: klasa stanu przy błędzie; otworzOdRazu: strona Google otwierana razem z oknem kodu.
-export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRazu }) {
+// klasaBledu: klasa stanu przy błędzie; otworzOdRazu: strona Google otwierana razem z oknem kodu;
+// czyLokalnie / wlaczLokalnie: „Zapisuj lokalnie” (przed usunięciem z Dysku zapis na urządzeniu
+// musi być włączony, inaczej dane znikną); naOdswiez: po każdej zmianie stanu przycisków.
+export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRazu, czyLokalnie = () => true, wlaczLokalnie = async () => {}, naOdswiez = () => {} }) {
   let logowanie = null;
 
   function pokaz(tekst, blad = false) {
@@ -25,15 +34,17 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     const polaczony = czyPolaczony();
     $('dysk-wlacz').checked = polaczony || stan.synchronizacja;
     $('dysk-wlacz').disabled = stan.zablokowany || stan.synchronizacja;
-    for (const id of ['dysk-pobierz', 'dysk-wyslij']) {
+    for (const id of ['dysk-pobierz', 'dysk-wyslij', 'dysk-usun']) {
       $(id).hidden = !polaczony;
       $(id).disabled = stan.zablokowany || stan.synchronizacja;
     }
+    naOdswiez();
   }
 
-  // klikniete: „Wyślij” przyciskiem (nie sama wysyłka po zmianie na telefonie) - tylko wtedy pytanie o zastąpienie pliku.
+  // klikniete: „Wyślij” przyciskiem (nie sama wysyłka po zmianie) - tylko wtedy pytanie o zastąpienie pliku.
+  // Zwraca true, gdy wymiana z Dyskiem się udała.
   async function synchronizuj(wyslij, klikniete = false) {
-    if (stan.zablokowany || stan.synchronizacja || !czyPolaczony()) return;
+    if (stan.zablokowany || stan.synchronizacja || !czyPolaczony()) return false;
     stan.synchronizacja = true;
     odswiez();
     pokaz('pobieram z Dysku…');
@@ -55,7 +66,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
         // mocno do przodu) - tylko po potwierdzeniu.
         const zostaja = new Set(wynik.wpisy.map((w) => w.id));
         const ileUsuwa = stan.wpisy.filter((w) => !zostaja.has(w.id)).length;
-        if (ileUsuwa > 2 && !confirm(`Dane z Google Dysku usuwają z tego urządzenia ${ileUsuwa} pozycji. Usunąć je?`)) {
+        if (ileUsuwa > 2 && !confirm(`Dane z Google Dysku usuwają z tego urządzenia ${ilePozycji(ileUsuwa)}. Usunąć je?`)) {
           throw new Error('przerwano - dane na tym urządzeniu bez zmian');
         }
         Object.assign(stan, wynik);
@@ -67,9 +78,11 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
         await wyslijNaDysk(JSON.stringify(doZapisu(stan)));
       }
       pokaz((wyslij ? 'wysłano na Dysk ✓ ' : tekst === null ? 'na Dysku jeszcze nic nie ma · ' : 'pobrano z Dysku ✓ ') + godzina());
+      return true;
     } catch (e) {
       pokaz(opisBledu(e) || 'błąd połączenia z Google Dyskiem', true);
       console.error(e);
+      return false;
     } finally {
       stan.synchronizacja = false;
       odswiez();
@@ -108,15 +121,48 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     }
   }
 
+  // Wyłączenie synchronizacji: aplikacja zapomina dostęp do Google (także przy „Usuń z komputera”).
+  async function wylacz(tekst = 'synchronizacja wyłączona') {
+    await rozlacz();
+    pokaz(tekst);
+    odswiez();
+  }
+
+  // „Usuń z Dysku”: plik z ukrytego folderu aplikacji znika, synchronizacja na tym urządzeniu się wyłącza.
+  async function usunDysk() {
+    if (stan.zablokowany || stan.synchronizacja || !czyPolaczony()) return;
+    const lokalnie = czyLokalnie();
+    const pytanie = 'Usunąć dane z Google Dysku? Synchronizacja na tym urządzeniu zostanie wyłączona. '
+      + (lokalnie ? 'Dane na tym urządzeniu zostają. ' : 'Włączy się zapis na tym urządzeniu, żeby dane z niego nie zniknęły. ')
+      + 'Na drugim urządzeniu też wyłącz synchronizację - inaczej wyśle swoje dane na Dysk od nowa.';
+    if (!confirm(pytanie)) return;
+    stan.synchronizacja = true;
+    odswiez();
+    pokaz('usuwam z Dysku…');
+    try {
+      if (!lokalnie) await wlaczLokalnie();
+      await usunZDysku();
+      stan.synchronizacja = false;
+      await wylacz('usunięto z Dysku · synchronizacja wyłączona');
+    } catch (e) {
+      pokaz(opisBledu(e) || 'nie udało się usunąć z Dysku', true);
+      console.error(e);
+    } finally {
+      stan.synchronizacja = false;
+      odswiez();
+    }
+  }
+
   $('dysk-wlacz').addEventListener('change', async (e) => {
     if (e.target.checked) {
       await polacz();
+    } else if (czyLokalnie() || confirm('Zapis na tym urządzeniu jest wyłączony - bez synchronizacji dane będą tylko w pamięci i znikną po zamknięciu aplikacji. Wyłączyć synchronizację?')) {
+      await wylacz();
     } else {
-      await rozlacz();
-      pokaz('synchronizacja wyłączona');
-      odswiez();
+      e.target.checked = true;
     }
   });
+  $('dysk-usun').addEventListener('click', usunDysk);
   $('dysk-pobierz').addEventListener('click', () => synchronizuj(false));
   $('dysk-wyslij').addEventListener('click', () => synchronizuj(true, true));
   // Kod trafia też do schowka - na stronie Google wystarczy go wkleić.
@@ -143,5 +189,5 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
   });
   $('okno-google-konsola').addEventListener('click', () => Neutralino.os.open('https://console.cloud.google.com/').catch(console.error));
 
-  return { synchronizuj, odswiez, pokaz, trwaLogowanie: () => logowanie !== null };
+  return { synchronizuj, odswiez, pokaz, wylacz, trwaLogowanie: () => logowanie !== null };
 }

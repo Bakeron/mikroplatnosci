@@ -1,5 +1,5 @@
-// Skrypt startowy dla przeglądarki testowej (initScript): podstawia strony z cenami, żeby
-// kolumna „Prognoza” pokazała wszystkie przypadki bez łączenia się z prawdziwymi sklepami.
+// Skrypt startowy dla przeglądarki testowej (initScript): dane aplikacji tylko w folderze testowym,
+// bez powiadomień Windows; opcjonalnie brak internetu (kursy NBP).
 // Ustaw window.__TRYB = 'bez-internetu' PRZED tym kodem, żeby zasymulować brak sieci.
 // Ustaw window.__DANE = '<folder testowy>' PRZED tym kodem - aplikacja czyta i zapisuje tylko tam.
 // Bez __DANE albo przy ścieżce do %APPDATA% (Roaming) każdy dostęp do plików jest blokowany.
@@ -13,6 +13,12 @@
       neutralino = v;
       const getPath = v.os.getPath;
       v.os.getPath = (nazwa) => (nazwa === 'data' ? Promise.resolve(folder || 'BRAK-FOLDERU-TESTOWEGO') : getPath(nazwa));
+      // Serwer testowy to prawdziwy Neutralino - powiadomienie z danych przykładowych („Wycofaj: YouTube
+      // Premium”) trafiłoby na pulpit autora jak prawdziwe. Tylko zapis w konsoli.
+      v.os.showNotification = (tytul, tresc) => {
+        console.log('[powiadomienie testowe]', tytul, '-', tresc);
+        return Promise.resolve();
+      };
       for (const [klucz, f] of Object.entries(v.filesystem)) {
         if (typeof f !== 'function') continue;
         v.filesystem[klucz] = (...a) => (!folder || a.some((x) => typeof x === 'string' && /roaming/i.test(x))
@@ -23,28 +29,9 @@
   });
 })();
 (() => {
+  // Tryb „bez internetu”: każde połączenie (kursy NBP) kończy się błędem sieci.
   const oryginalny = window.fetch.bind(window);
-  let u = '';
-  // Jak prawdziwa odpowiedź: z adresem strony w Response.url.
-  const html = (tresc) => {
-    const odp = new Response('<!doctype html><html><body>' + tresc + '</body></html>', { status: 200, headers: { 'Content-Type': 'text/html' } });
-    Object.defineProperty(odp, 'url', { value: u });
-    return Promise.resolve(odp);
-  };
-  const brakSieci = () => Promise.reject(new TypeError('Failed to fetch'));
-  window.fetch = (adres, opcje) => {
-    u = String(adres);
-    const offline = window.__TRYB === 'bez-internetu';
-    if (u.includes('api.nbp.pl')) return offline ? brakSieci() : oryginalny(adres, opcje);
-    if (u.includes('spotify.com')) {
-      if (offline) return brakSieci();
-      return html('<script type="application/ld+json">{"@type":"Product","offers":{"@type":"Offer","price":"26.99","priceCurrency":"PLN"}}</script><h1>Premium Individual</h1>');
-    }
-    if (u.includes('eset.com')) {
-      if (offline) return new Promise(() => {}); // wisi (sprawdzana ostatnia) - widać „sprawdzam stronę…”
-      return html('<h2>Internet Security</h2><p>Cena: 139,00 zł / rok</p><p>Pakiet rodzinny 249,00 zł</p>');
-    }
-    if (u.includes('silownia-przyklad.pl')) return html('<h1>Zapisz się już dziś!</h1><p>Zadzwoń po ofertę.</p>');
-    return oryginalny(adres, opcje);
-  };
+  window.fetch = (adres, opcje) => (window.__TRYB === 'bez-internetu'
+    ? Promise.reject(new TypeError('Failed to fetch'))
+    : oryginalny(adres, opcje));
 })();

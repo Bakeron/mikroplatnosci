@@ -1,0 +1,104 @@
+// Pliki na urządzeniu (PC i telefon): odczyt i zapis danych, kopie zapasowe, usuwanie danych,
+// blokada drugiej kopii aplikacji (tylko PC). Ścieżki przychodzą z main.js / aplikacja.js - dzięki temu
+// testy działają na udawanych plikach.
+
+import { odczytajTresc } from './dane.js';
+
+export const ILE_KOPII = 5;
+// Zminimalizowane okno WebView2 spowalnia liczniki nawet do raz na minutę - stąd zapas 2 minut.
+export const BLOKADA_WAZNA = 120000;
+const WZOR_KOPII = /^mikroplatnosci-\d{8}-\d{6}\.json$/;
+
+// Tylko „nie ma takiej ścieżki” znaczy brak pliku. Inny błąd (uprawnienia, plik zajęty przez inny
+// program) idzie dalej - inaczej aplikacja wystartowałaby z pustą listą i nadpisała dane.
+export async function istnieje(sciezka) {
+  try {
+    await Neutralino.filesystem.getStats(sciezka);
+    return true;
+  } catch (e) {
+    if (e?.code === 'NE_FS_NOPATHE') return false;
+    throw e;
+  }
+}
+
+// Zapis do pliku danych tylko po wczytaniu (inaczej pusta lista nadpisałaby dane), bez blokady
+// po błędzie odczytu i tylko przy włączonym „Zapisuj lokalnie”.
+export const czyZapisywac = (stan) => Boolean(!stan.zablokowany && stan.wczytano && stan.lokalnie && stan.plik && stan.niezapisane);
+
+// { tresc, odczytane } albo null, gdy pliku jeszcze nie ma. Pusty albo obcy plik = błąd (blokada zapisu).
+export async function wczytajPlikDanych(plik) {
+  if (!(await istnieje(plik))) return null;
+  const tresc = await Neutralino.filesystem.readFile(plik);
+  return { tresc, odczytane: odczytajTresc(tresc) };
+}
+
+export function znacznikCzasu(t = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${t.getFullYear()}${p(t.getMonth() + 1)}${p(t.getDate())}-${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}`;
+}
+
+// Brak folderu (telefon przed pierwszą kopią) = brak kopii; zapis kopii sam go tworzy.
+const nazwyKopii = async (folder) => (!(await istnieje(folder)) ? [] : (await Neutralino.filesystem.readDirectory(folder))
+  .filter((e) => e.type === 'FILE' && WZOR_KOPII.test(e.entry))
+  .map((e) => e.entry)
+  .sort());
+
+// Kopia przy uruchomieniu, zostaje ILE_KOPII najnowszych. Plik taki sam jak w najnowszej kopii -
+// bez nowej kopii, żeby starty „tylko popatrzeć” nie wypierały starszych wersji.
+export async function zrobKopie(folder, tresc) {
+  const pliki = await nazwyKopii(folder);
+  const najnowsza = pliki.at(-1);
+  if (najnowsza && (await Neutralino.filesystem.readFile(`${folder}/${najnowsza}`).catch(() => null)) === tresc) return;
+  // Kopia z treści wczytanej przy starcie - nawet gdyby plik zdążył się już zmienić.
+  await Neutralino.filesystem.writeFile(`${folder}/mikroplatnosci-${znacznikCzasu()}.json`, tresc);
+  for (const nazwa of (await nazwyKopii(folder)).slice(0, -ILE_KOPII)) {
+    await Neutralino.filesystem.remove(`${folder}/${nazwa}`);
+  }
+}
+
+// Zapis do pliku tymczasowego i podmiana - zanik prądu w trakcie zapisu nie zostawia uciętego pliku danych.
+export async function zapiszPlik(plik, tresc) {
+  const tymczasowy = plik + '.tmp';
+  await Neutralino.filesystem.writeFile(tymczasowy, tresc);
+  try {
+    await Neutralino.filesystem.move(tymczasowy, plik);
+  } catch (e) {
+    // Podmiana się nie udała - zapis wprost, jak dawniej (zapisane dane ważniejsze niż sposób zapisu).
+    console.error(e);
+    await Neutralino.filesystem.writeFile(plik, tresc);
+    await Neutralino.filesystem.remove(tymczasowy).catch(() => {});
+  }
+}
+
+// „Usuń z komputera” i wyłączenie „Zapisuj lokalnie”: plik danych, plik tymczasowy i wszystkie kopie.
+// Brak pliku nie jest błędem; każdy inny błąd idzie dalej (użytkownik musi wiedzieć, że coś zostało).
+export async function usunDaneLokalne(plik, folderKopii) {
+  const usunPlik = async (p) => {
+    if (await istnieje(p)) await Neutralino.filesystem.remove(p);
+  };
+  await usunPlik(plik);
+  await usunPlik(plik + '.tmp');
+  for (const nazwa of await nazwyKopii(folderKopii)) await Neutralino.filesystem.remove(`${folderKopii}/${nazwa}`);
+}
+
+// Jedna kopia aplikacji naraz: otwarta odświeża znacznik w pliku, druga go widzi i się zamyka.
+// Zwraca true, gdy blokada zajęta przez tę kopię (pid). Odświeżanie co 30 s robi main.js.
+export async function zajmijBlokade(plik, pid) {
+  const czytaj = async () => JSON.parse(await Neutralino.filesystem.readFile(plik));
+  let blokada = null;
+  try {
+    blokada = await czytaj();
+  } catch {
+    // Pusty albo uszkodzony plik - może akurat zapisuje go druga kopia; drugie podejście po chwili.
+    if (await istnieje(plik).catch(() => false)) {
+      await new Promise((r) => setTimeout(r, 300));
+      blokada = await czytaj().catch(() => null);
+    }
+  }
+  // Math.abs: czas „z przyszłości” (cofnięty zegar) nie blokuje startu na godziny.
+  if (blokada && blokada.pid !== pid && Math.abs(Date.now() - blokada.czas) < BLOKADA_WAZNA) return false;
+  await odswiezBlokade(plik, pid);
+  return true;
+}
+
+export const odswiezBlokade = (plik, pid) => Neutralino.filesystem.writeFile(plik, JSON.stringify({ pid, czas: Date.now() }));

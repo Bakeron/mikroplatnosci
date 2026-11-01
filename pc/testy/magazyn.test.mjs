@@ -1,0 +1,137 @@
+// Pliki na komputerze (magazyn.js) i ustawienia urządzenia (ustawienia.js): odczyt z blokadą po błędzie,
+// zapis przez plik tymczasowy, kopie zapasowe, usuwanie danych, blokada drugiej kopii aplikacji.
+// Udawany dysk w pamięci - bez prawdziwych plików autora.
+import { test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import * as M from '../resources/js/magazyn.js';
+import { wczytajUstawienia, zapiszUstawienia } from '../resources/js/ustawienia.js';
+
+const pliki = new Map();
+let bledy = {}; // nazwa funkcji -> błąd do rzucenia (np. getStats: { code: 'NE_FS_PERMISSION' })
+let zapisy = [];
+const blad = (kod) => Object.assign(new Error(kod), { code: kod });
+const rzuc = (fn) => { if (bledy[fn]) throw bledy[fn]; };
+globalThis.Neutralino = {
+  filesystem: {
+    getStats: async (p) => {
+      rzuc('getStats');
+      if (pliki.has(p) || [...pliki.keys()].some((k) => k.startsWith(p + '/'))) return {};
+      throw blad('NE_FS_NOPATHE');
+    },
+    readFile: async (p) => { rzuc('readFile'); if (!pliki.has(p)) throw blad('NE_FS_FILRDER'); return pliki.get(p); },
+    writeFile: async (p, d) => { rzuc('writeFile'); zapisy.push(p); pliki.set(p, d); },
+    move: async (z, doCelu) => { rzuc('move'); pliki.set(doCelu, pliki.get(z)); pliki.delete(z); },
+    remove: async (p) => { rzuc('remove'); pliki.delete(p); },
+    readDirectory: async (folder) => [...pliki.keys()]
+      .filter((k) => k.startsWith(folder + '/') && !k.slice(folder.length + 1).includes('/'))
+      .map((k) => ({ entry: k.slice(folder.length + 1), type: 'FILE' })),
+  },
+};
+console.error = () => {}; // oczekiwane błędy (np. nieudana podmiana) bez szumu w wyniku
+
+const F = 'dane';
+const PLIK = F + '/mikroplatnosci.json';
+const KOPIE = F + '/kopie';
+const tresc = (wpisy) => JSON.stringify({ wersja: 2, wpisy, usuniete: [] });
+
+beforeEach(() => {
+  pliki.clear();
+  bledy = {};
+  zapisy = [];
+});
+
+test('brak pliku = nowy zeszyt (null); błąd inny niż „brak pliku” idzie dalej', async () => {
+  assert.equal(await M.wczytajPlikDanych(PLIK), null);
+  bledy.getStats = blad('NE_FS_PERMISSION');
+  await assert.rejects(M.wczytajPlikDanych(PLIK), { code: 'NE_FS_PERMISSION' });
+});
+
+test('pusty albo obcy plik danych = błąd (aplikacja blokuje wtedy zapis), dobry = wpisy', async () => {
+  pliki.set(PLIK, '');
+  await assert.rejects(M.wczytajPlikDanych(PLIK), /pusty/);
+  pliki.set(PLIK, '{"cos":1}');
+  await assert.rejects(M.wczytajPlikDanych(PLIK), /format/);
+  pliki.set(PLIK, tresc([{ id: 'a', nazwa: 'A' }]));
+  const { odczytane } = await M.wczytajPlikDanych(PLIK);
+  assert.deepEqual(odczytane.wpisy.map((w) => w.id), ['a']);
+});
+
+test('czyZapisywac: tylko po wczytaniu, bez blokady, przy „Zapisuj lokalnie” i ze zmianami', () => {
+  const dobry = { zablokowany: false, wczytano: true, lokalnie: true, plik: PLIK, niezapisane: true };
+  assert.equal(M.czyZapisywac(dobry), true);
+  assert.equal(M.czyZapisywac({ ...dobry, wczytano: false }), false, 'przed wczytaniem pusta lista nadpisałaby dane');
+  assert.equal(M.czyZapisywac({ ...dobry, zablokowany: true }), false);
+  assert.equal(M.czyZapisywac({ ...dobry, lokalnie: false }), false);
+  assert.equal(M.czyZapisywac({ ...dobry, niezapisane: false }), false);
+  assert.equal(M.czyZapisywac({ ...dobry, plik: '' }), false);
+});
+
+test('zapis przez plik tymczasowy i podmianę; nieudana podmiana = zapis wprost, bez .tmp', async () => {
+  await M.zapiszPlik(PLIK, 'A');
+  assert.equal(pliki.get(PLIK), 'A');
+  assert.equal(pliki.has(PLIK + '.tmp'), false);
+  assert.equal(zapisy[0], PLIK + '.tmp');
+  bledy.move = blad('NE_FS_MOVEERR');
+  await M.zapiszPlik(PLIK, 'B');
+  assert.equal(pliki.get(PLIK), 'B');
+  assert.equal(pliki.has(PLIK + '.tmp'), false);
+});
+
+test('kopie: zostaje 5 najnowszych, ta sama treść co w najnowszej - bez nowej kopii', async () => {
+  for (let i = 1; i <= 7; i++) pliki.set(`${KOPIE}/mikroplatnosci-2026010${i}-120000.json`, 'stara ' + i);
+  pliki.set(`${KOPIE}/notatka.txt`, 'obcy plik zostaje');
+  await M.zrobKopie(KOPIE, 'nowa');
+  const kopie = [...pliki.keys()].filter((k) => k.startsWith(KOPIE + '/mikroplatnosci-')).sort();
+  assert.equal(kopie.length, 5);
+  assert.ok(!kopie.some((k) => k.includes('20260101') || k.includes('20260102') || k.includes('20260103')), 'usunięte najstarsze');
+  assert.equal(pliki.get(kopie.at(-1)), 'nowa');
+  assert.ok(pliki.has(`${KOPIE}/notatka.txt`));
+  zapisy = [];
+  await M.zrobKopie(KOPIE, 'nowa');
+  assert.equal(zapisy.length, 0);
+});
+
+test('usuwanie danych z komputera: plik, plik tymczasowy i wszystkie kopie; inne pliki zostają', async () => {
+  pliki.set(PLIK, tresc([]));
+  pliki.set(PLIK + '.tmp', 'x');
+  pliki.set(`${KOPIE}/mikroplatnosci-20260101-120000.json`, 'k1');
+  pliki.set(`${KOPIE}/mikroplatnosci-20260102-120000.json`, 'k2');
+  pliki.set(F + '/kursy.json', '{}');
+  pliki.set(F + '/ustawienia.json', '{}');
+  await M.usunDaneLokalne(PLIK, KOPIE);
+  assert.deepEqual([...pliki.keys()].sort(), [F + '/kursy.json', F + '/ustawienia.json']);
+  // Drugi raz (nic nie ma) - bez błędu.
+  await M.usunDaneLokalne(PLIK, KOPIE);
+});
+
+test('usuwanie danych: błąd usuwania idzie dalej (użytkownik musi wiedzieć, że plik został)', async () => {
+  pliki.set(PLIK, tresc([]));
+  bledy.remove = blad('NE_FS_REMVERR');
+  await assert.rejects(M.usunDaneLokalne(PLIK, KOPIE), { code: 'NE_FS_REMVERR' });
+});
+
+test('blokada: świeża blokada innej kopii zatrzymuje start; stara, „z przyszłości” albo własna - przejęta', async () => {
+  const B = F + '/otwarta.lock';
+  pliki.set(B, JSON.stringify({ pid: 2, czas: Date.now() - 60000 }));
+  assert.equal(await M.zajmijBlokade(B, 1), false);
+  pliki.set(B, JSON.stringify({ pid: 2, czas: Date.now() - 3 * 60000 }));
+  assert.equal(await M.zajmijBlokade(B, 1), true);
+  assert.equal(JSON.parse(pliki.get(B)).pid, 1);
+  pliki.set(B, JSON.stringify({ pid: 2, czas: Date.now() + 3 * 60000 }));
+  assert.equal(await M.zajmijBlokade(B, 1), true);
+  pliki.set(B, JSON.stringify({ pid: 1, czas: Date.now() }));
+  assert.equal(await M.zajmijBlokade(B, 1), true);
+  pliki.delete(B);
+  assert.equal(await M.zajmijBlokade(B, 1), true);
+});
+
+test('ustawienia: domyślnie zapis lokalny włączony; zapis i odczyt; śmieci = domyślne', async () => {
+  const U = F + '/ustawienia.json';
+  assert.deepEqual(await wczytajUstawienia(U), { lokalnie: true, motyw: '' });
+  await zapiszUstawienia(U, { lokalnie: false, motyw: 'jasny' });
+  assert.deepEqual(await wczytajUstawienia(U), { lokalnie: false, motyw: 'jasny' });
+  pliki.set(U, '{zepsute');
+  assert.deepEqual(await wczytajUstawienia(U), { lokalnie: true, motyw: '' });
+  pliki.set(U, JSON.stringify({ lokalnie: 'nie', motyw: '<script>' }));
+  assert.deepEqual(await wczytajUstawienia(U), { lokalnie: true, motyw: '' });
+});

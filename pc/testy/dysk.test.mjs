@@ -4,10 +4,11 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 const pliki = new Map();
-let env = {};
+// Identyfikator wbudowany przy budowaniu (js/google.js) - w testach podstawiany wprost.
+const wbuduj = (klucze) => { globalThis.GOOGLE_KLUCZE = klucze; };
 let odpowiedzi = {};
 globalThis.Neutralino = {
-  os: { getEnv: async (n) => env[n] ?? '' },
+  os: {},
   filesystem: {
     readFile: async (p) => { if (!pliki.has(p)) throw new Error('brak'); return pliki.get(p); },
     writeFile: async (p, d) => { pliki.set(p, d); },
@@ -31,7 +32,7 @@ let D;
 let licznik = 0;
 beforeEach(async () => {
   pliki.clear();
-  env = {};
+  wbuduj(undefined);
   odpowiedzi = {};
   wyslaneId = [];
   D = await import('../resources/js/dysk.js?' + licznik++);
@@ -42,8 +43,8 @@ test('bez identyfikatora - nieskonfigurowany', async () => {
   assert.equal(D.czySkonfigurowany(), false);
 });
 
-test('identyfikator ze zmiennych środowiskowych', async () => {
-  env = { MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET };
+test('identyfikator wbudowany przy budowaniu', async () => {
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
   await D.przygotujDysk('test');
   assert.equal(D.czySkonfigurowany(), true);
   assert.equal(plik(), null);
@@ -68,7 +69,7 @@ test('poprawny wpis zapisany (spacje obcięte) i pamiętany po ponownym uruchomi
 });
 
 test('wpisany identyfikator ma pierwszeństwo przed zmiennymi', async () => {
-  env = { MIKROPLATNOSCI_GOOGLE_ID: 'zly-1.apps.googleusercontent.com', MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET };
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: 'zly-1.apps.googleusercontent.com', MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
   pliki.set(PLIK, JSON.stringify({ id: ID, sekret: SEKRET }));
   await D.przygotujDysk('test');
   await assert.rejects(D.zacznijLogowanie());
@@ -109,8 +110,8 @@ test('zgoda - dostęp zapisany obok identyfikatora; wyłączenie zostawia identy
   assert.deepEqual(plik(), { id: ID, sekret: SEKRET });
 });
 
-test('identyfikator ze zmiennych nie trafia do pliku; po wyłączeniu plik znika', async () => {
-  env = { MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET };
+test('identyfikator wbudowany nie trafia do pliku; po wyłączeniu plik znika', async () => {
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
   await D.przygotujDysk('test');
   odpowiedzi = {
     'device/code': [200, { device_code: 'd', user_code: 'K', interval: 0.01, expires_in: 5 }],

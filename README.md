@@ -1,0 +1,92 @@
+# Mikropłatności
+
+Aplikacja do pilnowania subskrypcji i drobnych płatności: pokazuje, ile naprawdę kosztują miesięcznie (w złotówkach, po kursie NBP), kiedy wypada następne odnowienie i których usług nie przedłużać. Wersja na Windows i na Androida, na tych samych danych. Bez konta i bez własnego serwera.
+
+![Okno aplikacji - motyw „noc”](Podgląd/01-noc-pelny-widok.png)
+
+> **In English:** a personal subscription tracker for Windows (Neutralinojs, ~2.5 MB) and Android (Capacitor) sharing one data format and one set of calculation modules. Data stays on the device; optional sync goes through a hidden app folder on the user's Google Drive (`drive.appdata`, OAuth device flow). Built with Claude Code as a pair programmer: the author set the requirements and made the decisions, Claude wrote the code, tests and audits. Code and docs are in Polish.
+
+## Co umie
+
+- **Lont terminu** - przy każdej pozycji pasek dopalający się do dnia odnowienia, kolor od zielonego do czerwonego.
+- **Paragon** - sumy miesięczne i roczne w złotówkach, waluty obce przeliczane po kursie średnim NBP, prognoza na miesiąc.
+- **Miarka 3 miesięcy** - najbliższe terminy rozłożone na osi czasu.
+- **Cena od następnej płatności** - wpisujesz ją, gdy kończy się promocja albo serwis zapowiedział podwyżkę; aplikacja pokazuje, o ile będzie drożej lub taniej.
+- **Płatność ręczna** - przy rachunkach, które nie schodzą same z konta (np. prąd): tydzień przed terminem czerwony margines, przypomnienie i przycisk „✓ zapłacone”.
+- **Synchronizacja z Google Dyskiem** - zmiany z telefonu trafiają na komputer i odwrotnie, scalane wiersz po wierszu.
+- **O aplikacji** - wersja, prywatność w skrócie, kontakt, licencje bibliotek.
+- **Gdzie trzymać dane** - na urządzeniu, na swoim Google Dysku albo w obu miejscach; przyciski „Usuń z komputera” / „Usuń z Dysku” kasują dane z jednego miejsca.
+- **Powiadomienia** o pozycjach, których nie przedłużasz, zanim się odnowią.
+
+Wygląd wynika z jednego pomysłu: **zeszyt rachunkowy** - liniatura, czerwony margines, paragon z ząbkowanym brzegiem, pieczątka „Wykreśl”. Motyw „noc” i „dzień”.
+
+## Technologie i dlaczego
+
+| Część | Technologia | Dlaczego |
+|---|---|---|
+| Windows | [Neutralinojs](https://neutralino.js.org/) 6.10, czysty HTML/CSS/JavaScript | ok. 2,5 MB zamiast ok. 150 MB Electrona, okno przez WebView2 wbudowany w Windows 11, bez kompilacji |
+| Android | [Capacitor](https://capacitorjs.com/) 8 | ten sam kod obliczeń co na PC, APK ok. 3,4 MB |
+| Dane | plik JSON na urządzeniu | zapis przez plik tymczasowy i podmianę, 5 kopii zapasowych, blokada zapisu po błędzie odczytu |
+| Synchronizacja | Google Dysk, ukryty folder aplikacji, logowanie kodem | za darmo, bez własnego serwera; aplikacja widzi tylko swój plik, nie dokumenty użytkownika |
+| Testy | `node --test` (wbudowany w Node.js) | bez dodatkowych bibliotek, bez sieci i bez prawdziwych danych |
+
+Pełne uzasadnienia z porównaniem alternatyw: [`zalozenia.md`](zalozenia.md).
+
+## Jak to jest zbudowane
+
+```
+                 pc/resources/js/  (wspólne obliczenia: terminy, waluty, paragon, format danych, scalanie, Dysk)
+                  │                         │
+          aplikacja PC                kopiowane przy budowaniu
+       (Neutralino, pc/)          (mobile/skrypty/przygotuj.mjs)
+                  │                         │
+   plik JSON w %APPDATA%          aplikacja na Androida (Capacitor, mobile/)
+                  │                         │
+                  └──── Google Dysk (ukryty folder aplikacji) ────┘
+```
+
+Telefon nie ma własnej kopii obliczeń - przy budowaniu bierze pliki z `pc/resources/js/`. Dzięki temu poprawka terminu czy kursu działa od razu w obu aplikacjach, a aplikacja PC buduje się bez zmian. Różnice platform (zapis plików, otwieranie stron) załatwia mały zamiennik `mobile/src/js/neutralino-telefon.js`.
+
+| Folder / plik | Co to |
+|---|---|
+| `pc/` | aplikacja na Windows, testy (`pc/testy/`), instalacja (`pc/instalacja/instaluj.ps1`) |
+| `mobile/` | aplikacja na Androida - opis budowania w [`mobile/README.md`](mobile/README.md) |
+| `zalozenia.md` | założenia: wybór technologii, format danych, bezpieczeństwo, wygląd |
+| `robota.md` | lista zadań z decyzjami autora |
+| `google-cloud.md` | jak założyć projekt Google do synchronizacji |
+| `polityka-prywatnosci.md` | polityka prywatności (do opublikowania na stronie www przed wydaniem) |
+| `microsoft.md` | Microsoft Store w skrócie - propozycja na wersję PC |
+| `Podgląd/` | obrazki aplikacji z danymi przykładowymi i źródła do ich odtworzenia |
+
+## Uruchomienie
+
+Potrzebny [Node.js](https://nodejs.org/) (sprawdzone na 24) i Windows 10/11 z WebView2.
+
+```
+cd pc
+npm install
+npx neu update      # pobiera program Neutralino (bin/ nie jest w repozytorium)
+npm run start       # okno aplikacji
+npm test            # testy, ok. 2 s
+```
+
+Instalacja na stałe ze skrótem na pulpicie: `powershell -NoProfile -ExecutionPolicy Bypass -File pc\instalacja\instaluj.ps1` (najpierw uruchamia testy). Android: [`mobile/README.md`](mobile/README.md).
+
+## Jak powstał - praca z Claude Code
+
+Projekt powstał w parze z [Claude Code](https://claude.com/claude-code) (AI). Podział ról:
+
+- **Autor:** wymagania, wszystkie decyzje produktowe i architektoniczne, testy na prawdziwym sprzęcie i koncie Google, akceptacja każdej zmiany. Przykłady decyzji: Google Dysk zamiast własnego serwera i Firebase (porównanie 5 wariantów w `robota.md`), bez dodatkowego szyfrowania hasłem, APK bez sklepu, bez sortowania tabeli (własna kolejność), nowa pozycja domyślnie „przedłużać: tak”.
+- **Claude:** kod, testy, skrypty budowania, dokumentacja, propozycje rozwiązań z kosztami. Drobne decyzje techniczne podejmuje sam i zapisuje je w raportach.
+
+Zasady pracy (wspólne dla projektów autora): minimalne zmiany, prawdziwych danych użytkownika AI nigdy nie dotyka, sekrety tylko w zmiennych środowiskowych, każda zmiana sprawdzana testami, a wygląd - zrzutem ekranu.
+
+**Audyty.** W `.claude/skills/` są audyty uruchamiane jak polecenia. 4 są napisane pod ten projekt: `/code-review` (poprawność), `/simplify` (uproszczenia), `/better` (wydajność), `/bezpieczenstwo` (uprawnienia Neutralino, CSP, dane). 7 jest wspólnych dla projektów autora: wydanie, testy, portfolio, dostępność, wygląd, teksty, zależności. Audyt tylko zapisuje raport (`code-review*.md`, `audyt-*.md`). Poprawki trafiają do kodu dopiero po decyzji autora, a raport dostaje stan wdrożenia - widać, co poprawiono, co odrzucono i dlaczego. Po wdrożeniu raport jest usuwany z katalogu (zostaje w historii gita), a to, co jeszcze otwarte (decyzje, sprawdzenie na telefonie), przechodzi do `robota.md`.
+
+**Testy:** `pc/testy/` - format danych, scalanie, przebieg synchronizacji, Google Dysk na udawanym serwerze, terminy i powiadomienia ze stałą datą, kursy NBP, ochrona przed złośliwymi linkami, kompletność plików telefonu.
+
+## Stan projektu (31.10.2026)
+
+- Aplikacja na Windows: działa, używana na co dzień.
+- Aplikacja na Androida: zbudowana, czeka na test na telefonie.
+- Synchronizacja z Google Dyskiem: gotowa i przetestowana na udawanym serwerze Google, czeka na projekt w Google Cloud i test na prawdziwym koncie.

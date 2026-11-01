@@ -1,7 +1,7 @@
 // Sprawdzanie danych z pliku i z Dysku (dane.js) oraz paragon (podsumowanie.js) - bez DOM.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu } from '../resources/js/dane.js';
+import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz } from '../resources/js/dane.js';
 import { policz } from '../resources/js/podsumowanie.js';
 
 test('plik danych: nieznany format odrzucony', () => {
@@ -24,12 +24,12 @@ test('plik danych: zapis i ponowny odczyt dają to samo, dodatki PC przed wpisam
 });
 
 test('śmieci z pliku zamieniane na bezpieczne wartości', () => {
-  const w = normalizuj({ id: 5, od: '2026-13', okres: 'X', nazwa: 7, koszt: -3, waluta: 'GBP', przedluzac: 'może', prognoza: Infinity, prognozaCennik: 'javascript:alert(1)', zmieniono: 'wczoraj' });
+  const w = normalizuj({ id: 5, od: '2026-13', okres: 'X', nazwa: 7, koszt: -3, waluta: 'GBP', przedluzac: 'może', prognoza: Infinity, zmieniono: 'wczoraj' });
   assert.equal(typeof w.id, 'string');
   assert.ok(w.id.length > 0);
   assert.deepEqual(
-    [w.od, w.okres, w.nazwa, w.koszt, w.waluta, w.przedluzac, w.prognoza, w.prognozaCennik, w.zmieniono],
-    ['', 'M', '', null, 'PLN', '', null, '', ''],
+    [w.od, w.okres, w.nazwa, w.koszt, w.waluta, w.przedluzac, w.prognoza, w.zmieniono],
+    ['', 'M', '', null, 'PLN', '', null, ''],
   );
 });
 
@@ -43,6 +43,9 @@ test('stare wpisy: okres z dat „od” i „do”', () => {
   assert.equal(normalizuj({ od: '2025-11-20', do: '2026-11-20' }).okres, 'R');
   assert.equal(normalizuj({ od: '2026-08-05' }).okres, 'M');
   assert.equal(normalizuj({ od: '2025-11-20', do: '2026-11-20', okres: 'M' }).okres, 'M');
+  // Kwartał nie zostaje miesięczną (koszt kwartału w sumach 3 razy za duży) - bez okresu, do wyboru.
+  assert.equal(normalizuj({ od: '2026-01-15', do: '2026-04-15' }).okres, '');
+  assert.equal(policz([normalizuj({ od: '2026-01-15', do: '2026-04-15', koszt: 90, przedluzac: 'tak' })]).lacznieMiesiecznie, 0);
 });
 
 test('lista usuniętych: tylko poprawne pozycje', () => {
@@ -137,4 +140,48 @@ test('dane z Dysku: czasy z przyszłości obcięte do jutra, za dużo wpisów = 
 test('nazwa wpisu: pusta zastąpiona „(bez nazwy)”', () => {
   assert.equal(nazwaWpisu({ nazwa: '  ' }), '(bez nazwy)');
   assert.equal(nazwaWpisu({ nazwa: ' Netflix ' }), 'Netflix');
+});
+
+// Formularz edycji na telefonie (zastosujFormularz) - logika bez ekranu.
+const pola = (zmiany = {}) => ({ nazwa: 'Netflix', opis: '', koszt: '43,00', waluta: 'PLN', od: '2026-10-12', okres: 'M', przedluzac: 'tak', prognoza: '', link: 'https://netflix.com', ...zmiany });
+
+test('formularz: nowa pozycja trafia na koniec listy z czasem zmiany', () => {
+  const wpisy = [normalizuj({ id: 'a', nazwa: 'A' })];
+  const { wpis } = zastosujFormularz(wpisy, null, pola());
+  assert.deepEqual(wpisy.map((w) => w.nazwa), ['A', 'Netflix']);
+  assert.equal(wpis.koszt, 43);
+  assert.ok(Date.parse(wpis.zmieniono) > Date.now() - 5000);
+});
+
+test('formularz: wpis podmieniony przez scalanie z Dyskiem w trakcie edycji - zmiana trafia do nowego obiektu', () => {
+  const stary = normalizuj({ id: 'a', nazwa: 'Stary', okres: 'M' });
+  const zDysku = normalizuj({ id: 'a', nazwa: 'Z Dysku', okres: 'M' });
+  const wpisy = [zDysku]; // scalanie podmieniło obiekt, formularz trzyma jeszcze stary
+  zastosujFormularz(wpisy, stary, pola({ nazwa: 'Po edycji' }));
+  assert.equal(wpisy.length, 1);
+  assert.equal(wpisy[0], zDysku);
+  assert.equal(wpisy[0].nazwa, 'Po edycji');
+});
+
+test('stare pola odczytu ceny ze strony znikają, cena od następnej płatności zostaje', () => {
+  const w = normalizuj({ id: 'a', okres: 'M', prognoza: 20, prognozaZeStrony: true, prognozaZrodlo: 'strona', prognozaData: '2026-10-30', prognozaCennik: 'https://a.pl/cennik', prognozaVat: true });
+  assert.equal(w.prognoza, 20);
+  for (const pole of ['prognozaZeStrony', 'prognozaZrodlo', 'prognozaData', 'prognozaCennik', 'prognozaVat']) assert.equal(pole in w, false, pole);
+  zastosujFormularz([w], w, pola({ prognoza: '25' }));
+  assert.equal(w.prognoza, 25);
+});
+
+test('formularz: zła kwota - komunikat i nic się nie zmienia', () => {
+  const w = normalizuj({ id: 'a', nazwa: 'A', koszt: 10, okres: 'M' });
+  const wpisy = [w];
+  const przed = JSON.stringify(wpisy);
+  assert.match(zastosujFormularz(wpisy, w, pola({ koszt: '12,5,1' })).blad, /liczbą/);
+  assert.match(zastosujFormularz(wpisy, null, pola({ prognoza: 'abc' })).blad, /liczbą/);
+  assert.equal(JSON.stringify(wpisy), przed);
+});
+
+test('formularz: nieznana waluta i okres - bezpieczne wartości', () => {
+  const { wpis } = zastosujFormularz([], null, pola({ waluta: 'BTC', okres: 'X' }));
+  assert.equal(wpis.waluta, 'PLN');
+  assert.equal(wpis.okres, 'M');
 });

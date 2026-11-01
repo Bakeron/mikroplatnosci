@@ -16,6 +16,7 @@
     </div>
     <p class="t-naglowek__data" id="dzisiaj"></p>
     <div class="t-dysk">
+      <label class="t-dysk__wlacz"><input type="checkbox" id="lokalnie-wlacz" checked> w telefonie</label>
       <label class="t-dysk__wlacz"><input type="checkbox" id="dysk-wlacz"> Google Dysk</label>
       <button type="button" class="t-dysk__przycisk" id="dysk-pobierz" aria-label="Pobierz z Dysku" hidden>↓ pobierz</button>
       <button type="button" class="t-dysk__przycisk" id="dysk-wyslij" aria-label="Wyślij na Dysk" hidden>↑ wyślij</button>
@@ -23,7 +24,8 @@
     </div>
   </header>
 
-  <div class="blad t-blad" id="blad" hidden></div>
+  <div class="blad t-blad" id="blad" role="alert" hidden></div>
+  <div class="blad t-blad" id="bez-zapisu" role="status" hidden>Dane nie są nigdzie zapisywane - zaznacz u góry „w telefonie” albo „Google Dysk”. Inaczej znikną po zamknięciu aplikacji.</div>
 
   <main class="t-tresc" id="tresc">
     <section class="t-zakladka" id="zakladka-lista" aria-label="Lista">
@@ -42,7 +44,11 @@
 
     <section class="t-zakladka" id="zakladka-paragon" aria-label="Paragon" hidden>
       <div class="paragon-cien t-paragon"><div class="paragon" id="paragon" aria-label="Podsumowanie kosztów"></div></div>
-      <p class="t-wersja" id="wersja"></p>
+      <div class="t-dane">
+        <button type="button" class="t-dysk__przycisk t-dane__usun" id="usun-lokalnie">Usuń dane z telefonu</button>
+        <button type="button" class="t-dysk__przycisk t-dane__usun" id="dysk-usun" hidden>Usuń dane z Google Dysku</button>
+      </div>
+      <p class="t-wersja"><span id="wersja"></span> · <button type="button" class="t-dysk__przycisk t-wersja__o" id="o-aplikacji">o aplikacji</button></p>
     </section>
   </main>
 
@@ -80,14 +86,21 @@
           <label><input type="radio" name="okres" value="R"> rok</label>
         </fieldset>
       </div>
-      <label class="t-pole">Przedłużać
+      <label class="t-pole" id="pole-przedluzac">Przedłużać
         <select name="przedluzac">
           <option value="">- jeszcze nie wiem</option>
           <option value="tak">tak - odnawiam</option>
           <option value="nie">nie - jednorazowa, do wycofania</option>
         </select>
       </label>
-      <label class="t-pole">Prognoza na następną płatność
+      <label class="t-pole">Płatność
+        <select name="platnosc">
+          <option value="">pobiera się sama</option>
+          <option value="reczna">płacę sam - przypomnij przed terminem</option>
+        </select>
+      </label>
+      <label class="t-zaznacz" id="pole-koniec-miesiaca" hidden><input type="checkbox" name="koniecMiesiaca"> termin do końca miesiąca</label>
+      <label class="t-pole">Cena od następnej płatności
         <input type="text" name="prognoza" inputmode="decimal" autocomplete="off" placeholder="wpisz…">
       </label>
       <label class="t-pole">Link

@@ -2,24 +2,24 @@
 
 import { zbierzAlarmy, formatujDate, parsujDate, dzis } from './alarmy.js';
 import { renderujPodsumowanie } from './podsumowanie.js';
-import { utworzWiersz, odswiezWiersze, odswiezWiersz, numeruj, przeciaganieWierszy, stanCen } from './tabela.js';
-import { odczytajCene, przyjmijCene } from './ceny.js';
+import { utworzWiersz, odswiezWiersze, numeruj, przeciaganieWierszy } from './tabela.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
-import { nowyWpis, odczytajTresc, doZapisu, usun, bezpiecznyLink, nazwaWpisu } from './dane.js';
+import { nowyWpis, doZapisu, usun, nazwaWpisu } from './dane.js';
 import { wypelnijListe } from './spisy.js';
-import { przygotujDysk } from './dysk.js';
+import { przygotujDysk, czyPolaczony } from './dysk.js';
 import { polaczSynchronizacje } from './synchronizacja.js';
 import { rozplanuj, tytul, tresc, wczytajPamiec, zapiszPamiec } from './powiadomienia.js';
-import { waluta, wczytajZapamietane, odswiezZNbp, czyAktualne, pobierzKursy } from './waluty.js';
+import { wczytajZapamietane, odswiezZNbp, czyAktualne, pobierzKursy } from './waluty.js';
+import { istnieje, czyZapisywac, wczytajPlikDanych, zrobKopie, zapiszPlik, usunDaneLokalne, zajmijBlokade, odswiezBlokade } from './magazyn.js';
+import { wczytajUstawienia, zapiszUstawienia } from './ustawienia.js';
+import { pokazOAplikacji } from './oAplikacji.js';
 
 const NAZWA_PLIKU = 'mikroplatnosci.json';
-const ILE_KOPII = 5;
 const OPOZNIENIE_ZAPISU = 400;
+const OPOZNIENIE_WYSYLKI = 3000; // bez zapisu lokalnego: kilka zmian = jedna wysyłka na Dysk
+const LIMIT_WYSYLKI_PRZY_ZAMKNIECIU = 15000;
 const OPOZNIENIE_DODATKOW = 150;
-// Zminimalizowane okno WebView2 spowalnia liczniki nawet do raz na minutę - stąd zapas 2 minut.
-const BLOKADA_CO = 30000;
-const BLOKADA_WAZNA = 120000;
-const CENY_NARAZ = 3; // tyle wpisów czytanych naraz; strony jednego wpisu - po kolei
+const BLOKADA_CO = 30000; // ważność blokady: magazyn.js
 
 const stan = {
   wpisy: [],
@@ -28,6 +28,10 @@ const stan = {
   plikBlokady: '',
   plikKursow: '',
   plikPowiadomien: '',
+  plikUstawien: '',
+  lokalnie: true, // „Zapisuj lokalnie” - wyłączone: dane tylko w pamięci i na Google Dysku
+  doWyslania: false, // bez zapisu lokalnego: są zmiany, których jeszcze nie ma na Dysku
+  timerWysylki: null,
   kursyStatus: '', // pobieram / ok / offline
   motyw: 'ciemny', // ciemny / jasny
   folderKopii: '',
@@ -46,54 +50,23 @@ const tbody = $('wiersze');
 
 // --- dane -------------------------------------------------------------
 
-// Tylko „nie ma takiej ścieżki” znaczy brak pliku. Inny błąd (uprawnienia, plik zajęty przez inny
-// program) idzie dalej - inaczej aplikacja wystartowałaby z pustą listą i nadpisała dane.
-async function istnieje(sciezka) {
-  try {
-    await Neutralino.filesystem.getStats(sciezka);
-    return true;
-  } catch (e) {
-    if (e?.code === 'NE_FS_NOPATHE') return false;
-    throw e;
-  }
-}
-
-function znacznikCzasu() {
-  const t = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${t.getFullYear()}${p(t.getMonth() + 1)}${p(t.getDate())}-${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}`;
-}
-
 async function przygotujFolder() {
   const folder = (await Neutralino.os.getPath('data')).replace(/\\/g, '/') + '/Mikroplatnosci';
   stan.plik = folder + '/' + NAZWA_PLIKU;
   stan.plikBlokady = folder + '/otwarta.lock';
   stan.plikKursow = folder + '/kursy.json';
   stan.plikPowiadomien = folder + '/powiadomienia.json';
+  stan.plikUstawien = folder + '/ustawienia.json';
   stan.folderKopii = folder + '/kopie';
   if (!(await istnieje(folder))) await Neutralino.filesystem.createDirectory(folder);
   if (!(await istnieje(stan.folderKopii))) await Neutralino.filesystem.createDirectory(stan.folderKopii);
   await przygotujDysk(folder);
 }
 
-// Jedna kopia aplikacji naraz: otwarta odświeża znacznik w pliku, druga go widzi i się zamyka.
-async function zajmijBlokade() {
-  const czytaj = async () => JSON.parse(await Neutralino.filesystem.readFile(stan.plikBlokady));
-  let blokada = null;
-  try {
-    blokada = await czytaj();
-  } catch {
-    // Pusty albo uszkodzony plik - może akurat zapisuje go druga kopia; drugie podejście po chwili.
-    if (await istnieje(stan.plikBlokady).catch(() => false)) {
-      await new Promise((r) => setTimeout(r, 300));
-      blokada = await czytaj().catch(() => null);
-    }
-  }
-  // Math.abs: czas „z przyszłości” (cofnięty zegar) nie blokuje startu na godziny.
-  if (blokada && blokada.pid !== NL_PID && Math.abs(Date.now() - blokada.czas) < BLOKADA_WAZNA) return false;
-  const odswiez = () => Neutralino.filesystem.writeFile(stan.plikBlokady, JSON.stringify({ pid: NL_PID, czas: Date.now() }));
-  await odswiez();
-  stan.timerBlokady = setInterval(() => odswiez().catch(console.error), BLOKADA_CO);
+// Jedna kopia aplikacji naraz (magazyn.js); znacznik odświeżany co 30 s.
+async function zajmijBlokadeOkna() {
+  if (!(await zajmijBlokade(stan.plikBlokady, NL_PID))) return false;
+  stan.timerBlokady = setInterval(() => odswiezBlokade(stan.plikBlokady, NL_PID).catch(console.error), BLOKADA_CO);
   return true;
 }
 
@@ -106,59 +79,27 @@ async function zwolnijBlokade() {
 
 // Zwraca treść pliku (do kopii zapasowej) albo null, gdy pliku jeszcze nie ma (pierwsze uruchomienie).
 async function wczytaj() {
-  if (!(await istnieje(stan.plik))) {
+  const plik = await wczytajPlikDanych(stan.plik);
+  if (!plik) {
     stan.wpisy = [];
     return null;
   }
-  const tresc = await Neutralino.filesystem.readFile(stan.plik);
-  const odczytane = odczytajTresc(tresc);
+  const { odczytane } = plik;
   if (odczytane.motyw === 'ciemny' || odczytane.motyw === 'jasny') stan.motyw = odczytane.motyw;
   stan.wpisy = odczytane.wpisy;
   stan.usuniete = odczytane.usuniete;
-  return tresc;
-}
-
-const nazwyKopii = async () => (await Neutralino.filesystem.readDirectory(stan.folderKopii))
-  .filter((e) => e.type === 'FILE' && /^mikroplatnosci-\d{8}-\d{6}\.json$/.test(e.entry))
-  .map((e) => e.entry)
-  .sort();
-
-// Kopia przy uruchomieniu, zostaje ILE_KOPII najnowszych. Plik taki sam jak w najnowszej kopii -
-// bez nowej kopii, żeby starty „tylko popatrzeć” nie wypierały starszych wersji.
-async function zrobKopie(tresc) {
-  const pliki = await nazwyKopii();
-  const najnowsza = pliki.at(-1);
-  if (najnowsza && (await Neutralino.filesystem.readFile(`${stan.folderKopii}/${najnowsza}`).catch(() => null)) === tresc) return;
-  // Kopia z treści wczytanej przy starcie - nawet gdyby plik zdążył się już zmienić.
-  await Neutralino.filesystem.writeFile(`${stan.folderKopii}/mikroplatnosci-${znacznikCzasu()}.json`, tresc);
-  for (const nazwa of (await nazwyKopii()).slice(0, -ILE_KOPII)) {
-    await Neutralino.filesystem.remove(`${stan.folderKopii}/${nazwa}`);
-  }
-}
-
-// Zapis do pliku tymczasowego i podmiana - zanik prądu w trakcie zapisu nie zostawia uciętego pliku danych.
-async function zapiszPlik(tresc) {
-  const tymczasowy = stan.plik + '.tmp';
-  await Neutralino.filesystem.writeFile(tymczasowy, tresc);
-  try {
-    await Neutralino.filesystem.move(tymczasowy, stan.plik);
-  } catch (e) {
-    // Podmiana się nie udała - zapis wprost, jak dawniej (zapisane dane ważniejsze niż sposób zapisu).
-    console.error(e);
-    await Neutralino.filesystem.writeFile(stan.plik, tresc);
-    await Neutralino.filesystem.remove(tymczasowy).catch(() => {});
-  }
+  return plik.tresc;
 }
 
 async function zapiszZmiany() {
-  if (stan.zablokowany || !stan.wczytano || !stan.plik || !stan.niezapisane) return;
+  if (!czyZapisywac(stan)) return;
   stan.niezapisane = false; // zmiany zrobione w trakcie zapisu ustawią to od nowa
   try {
-    await zapiszPlik(JSON.stringify(doZapisu(stan, { motyw: stan.motyw }), null, 2));
+    await zapiszPlik(stan.plik, JSON.stringify(doZapisu(stan, { motyw: stan.motyw }), null, 2));
     pokazStatus('zapisano ✓ ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {
     stan.niezapisane = true;
-    pokazStatus('Błąd zapisu!', true);
+    pokazStatus('Błąd zapisu! Ponowię przy następnej zmianie', true);
     console.error(e);
   }
 }
@@ -173,6 +114,10 @@ function zapiszTeraz() {
 
 function zaplanujZapis() {
   if (stan.zablokowany) return;
+  if (!stan.lokalnie) {
+    zaplanujWysylke();
+    return;
+  }
   stan.niezapisane = true;
   clearTimeout(stan.timer);
   pokazStatus('zapisuję…');
@@ -191,10 +136,136 @@ const dysk = polaczSynchronizacje({
   },
   klasaBledu: 'stopka__stan--blad',
   otworzOdRazu: true,
+  czyLokalnie: () => stan.lokalnie,
+  wlaczLokalnie: () => wlaczZapisLokalny(),
+  naOdswiez: () => odswiezMiejsceZapisu(),
 });
+
+// Bez zapisu lokalnego każda zmiana idzie na Dysk po chwili (kilka zmian = jedna wysyłka).
+function zaplanujWysylke() {
+  if (!czyPolaczony() || stan.zablokowany) return;
+  stan.doWyslania = true;
+  clearTimeout(stan.timerWysylki);
+  dysk.pokaz('zmiany czekają na wysłanie…');
+  stan.timerWysylki = setTimeout(wyslijZaleglosci, OPOZNIENIE_WYSYLKI);
+}
+
+async function wyslijZaleglosci() {
+  clearTimeout(stan.timerWysylki);
+  stan.timerWysylki = null;
+  if (!stan.doWyslania) return true;
+  if (stan.synchronizacja) {
+    zaplanujWysylke(); // trwa inna wymiana z Dyskiem - wysyłka zaraz po niej
+    return false;
+  }
+  stan.doWyslania = false; // zmiany w trakcie wysyłki ustawią to od nowa
+  const ok = await dysk.synchronizuj(true);
+  if (!ok) stan.doWyslania = true;
+  return ok;
+}
+
+// --- gdzie zapisywać: „Zapisuj lokalnie”, „Usuń z komputera” ------------
+
+// Bez zapisu lokalnego i bez Dysku dane są tylko w pamięci - tabela wyszarzona, informacja u góry.
+function odswiezMiejsceZapisu() {
+  const bezZapisu = !stan.zablokowany && !stan.lokalnie && !czyPolaczony();
+  $('lokalnie-wlacz').checked = stan.lokalnie;
+  $('lokalnie-wlacz').disabled = stan.zablokowany || stan.synchronizacja;
+  $('usun-lokalnie').disabled = stan.zablokowany || stan.synchronizacja || !stan.lokalnie;
+  $('bez-zapisu').hidden = !bezZapisu;
+  document.querySelector('.kartka').inert = bezZapisu;
+  document.body.classList.toggle('bez-zapisu', bezZapisu);
+  if (!stan.zablokowany) $('dodaj').disabled = bezZapisu;
+}
+
+const zapiszMojeUstawienia = () => zapiszUstawienia(stan.plikUstawien, { lokalnie: stan.lokalnie, motyw: stan.motyw }).catch(console.error);
+
+// Włączenie zapisu lokalnego: obecne dane (np. pobrane z Dysku) trafiają do pliku na komputerze.
+// Plik, który mimo wszystko jeszcze jest (np. nie dał się usunąć), najpierw idzie do kopii.
+async function wlaczZapisLokalny() {
+  const stary = await wczytajPlikDanych(stan.plik).catch(() => null);
+  if (stary) await zrobKopie(stan.folderKopii, stary.tresc).catch(console.error);
+  stan.lokalnie = true;
+  await zapiszMojeUstawienia();
+  stan.wczytano = true;
+  stan.niezapisane = true;
+  await zapiszTeraz();
+  odswiezMiejsceZapisu();
+}
+
+// Wyłączenie zapisu lokalnego: najpierw wysyłka na Dysk, potem plik danych i kopie znikają z komputera.
+// Zwraca false, gdy autor zrezygnował albo wysyłka się nie udała (zapis lokalny zostaje włączony).
+async function wylaczZapisLokalny() {
+  const polaczony = czyPolaczony();
+  const pytanie = polaczony
+    ? 'Przestać zapisywać dane na tym komputerze? Najpierw zostaną wysłane na Google Dysk, potem plik danych i kopie zapasowe zostaną usunięte z komputera. Każda zmiana będzie od razu wysyłana na Dysk.'
+    : 'Synchronizacja z Google Dyskiem jest wyłączona - bez zapisu na komputerze dane znikną po zamknięciu aplikacji. Usunąć plik danych i kopie zapasowe z komputera?';
+  if (!confirm(pytanie)) return false;
+  if (polaczony && !(await dysk.synchronizuj(true))) {
+    pokazStatus('Nie udało się wysłać na Dysk - dane zostają na komputerze.', true);
+    return false;
+  }
+  clearTimeout(stan.timer);
+  stan.niezapisane = false;
+  await stan.zapis;
+  stan.lokalnie = false;
+  await zapiszMojeUstawienia();
+  try {
+    await usunDaneLokalne(stan.plik, stan.folderKopii);
+    pokazStatus('dane usunięte z komputera');
+  } catch (e) {
+    pokazStatus('Nie udało się usunąć wszystkich plików z komputera.', true);
+    console.error(e);
+  }
+  return true;
+}
+
+// „Usuń z komputera”: lista, plik danych i kopie. Przy połączonym Dysku dane najpierw idą na Dysk
+// i tam zostają, a synchronizacja na tym komputerze się wyłącza (inaczej wróciłyby przy pobraniu).
+async function usunZKomputera() {
+  if (stan.zablokowany || stan.synchronizacja || !stan.lokalnie) return;
+  const polaczony = czyPolaczony();
+  const pytanie = 'Usunąć wszystkie dane z tego komputera - listę, plik danych i kopie zapasowe? '
+    + (polaczony ? 'Najpierw zostaną wysłane na Google Dysk i tam zostaną, a synchronizacja na tym komputerze się wyłączy. ' : 'Synchronizacja z Dyskiem jest wyłączona, więc dane znikną całkiem. ')
+    + 'Tego nie da się cofnąć.';
+  if (!confirm(pytanie)) return;
+  if (polaczony && !(await dysk.synchronizuj(true))) {
+    pokazStatus('Nie udało się wysłać na Dysk - nic nie zostało usunięte.', true);
+    return;
+  }
+  clearTimeout(stan.timer);
+  stan.niezapisane = false;
+  await stan.zapis;
+  if (polaczony) await dysk.wylacz().catch(console.error);
+  try {
+    await usunDaneLokalne(stan.plik, stan.folderKopii);
+  } catch (e) {
+    pokazStatus('Nie udało się usunąć wszystkich plików z komputera.', true);
+    console.error(e);
+    return;
+  }
+  stan.wpisy = [];
+  stan.usuniete = [];
+  renderujTabele();
+  odswiezDodatki();
+  pokazStatus('dane usunięte z komputera');
+}
+
+$('lokalnie-wlacz').addEventListener('change', async (e) => {
+  const pole = e.target;
+  pole.disabled = true;
+  try {
+    if (pole.checked) await wlaczZapisLokalny();
+    else if (!(await wylaczZapisLokalny())) pole.checked = true;
+  } finally {
+    odswiezMiejsceZapisu();
+  }
+});
+$('usun-lokalnie').addEventListener('click', usunZKomputera);
 
 // Numer wersji wpisuje instaluj.ps1 (wersja.js); przy „neu run” to wersja z ostatniej instalacji albo „robocza”.
 $('wersja').textContent = 'wersja ' + (window.WERSJA_APLIKACJI || 'robocza');
+$('o-aplikacji').addEventListener('click', () => pokazOAplikacji('pc', (adres) => Neutralino.os.open(adres).catch(console.error)));
 
 // --- widok ------------------------------------------------------------
 
@@ -229,9 +300,6 @@ const akcjeWiersza = {
   },
   onOtworz(adres) {
     Neutralino.os.open(adres).catch(console.error);
-  },
-  onSprawdzCene(wpis) {
-    sprawdzCene(wpis);
   },
   // Strzałki: wiersz o jedno miejsce wyżej / niżej, fokus zostaje w tym samym polu.
   onPrzesun(wpis, kierunek, fokus) {
@@ -269,62 +337,13 @@ for (const typ of ['dragover', 'drop']) {
   });
 }
 
-// Numer ostatniego odczytu każdego wpisu - wynik starszego odczytu (np. z innym kosztem albo walutą) jest pomijany.
-const numerOdczytu = new Map();
-
-// Odczyt ceny ze strony - tylko wpisy ze zgodą „ze strony”. Błąd zostawia poprzednią
-// prognozę bez zmian i prosi o wpis ręczny.
-async function sprawdzCene(wpis) {
-  const nr = (numerOdczytu.get(wpis.id) ?? 0) + 1;
-  numerOdczytu.set(wpis.id, nr);
-  const adres = bezpiecznyLink(wpis.link);
-  if (!wpis.prognozaZeStrony || !adres) {
-    stanCen.delete(wpis.id);
-    odswiezWiersz(tbody, wpis.id);
-    return;
-  }
-  stanCen.set(wpis.id, { stan: 'sprawdzam' });
-  odswiezWiersz(tbody, wpis.id);
-  const aktualny = () => numerOdczytu.get(wpis.id) === nr;
-  // Zgoda, link i sam wpis sprawdzane przed każdą pobieraną stroną i po odczycie.
-  const czyWolno = () => aktualny() && wpis.prognozaZeStrony && bezpiecznyLink(wpis.link) === adres && stan.wpisy.includes(wpis);
-  try {
-    const wynik = await odczytajCene(adres, waluta(wpis), wpis.koszt, wpis.prognozaCennik, czyWolno);
-    if (!czyWolno()) return;
-    stanCen.delete(wpis.id);
-    // Paragon, spisy i miarka od nowa tylko, gdy wynik trafił do wpisu.
-    if (przyjmijCene(wpis, wynik, adres)) {
-      zaplanujZapis();
-      zaplanujDodatki();
-    }
-  } catch (e) {
-    // Odczyt przerwany (odznaczona zgoda, zmieniony link) - bez komunikatu o błędzie.
-    if (czyWolno() && !e.przerwane) stanCen.set(wpis.id, { stan: 'blad', tekst: e.message || 'nie udało się odczytać strony' });
-  } finally {
-    if (aktualny()) {
-      if (stanCen.get(wpis.id)?.stan === 'sprawdzam') stanCen.delete(wpis.id);
-      odswiezWiersz(tbody, wpis.id);
-    }
-  }
-}
-
-// Przy każdym uruchomieniu i przyciskiem „odśwież” - kilka wpisów naraz,
-// strony jednego wpisu po kolei, żeby nie obciążać serwisu.
-async function sprawdzCeny() {
-  const kolejka = stan.wpisy.filter((w) => w.prognozaZeStrony);
-  const watek = async () => {
-    while (kolejka.length) await sprawdzCene(kolejka.shift());
-  };
-  await Promise.all(Array.from({ length: CENY_NARAZ }, watek));
-}
-
-// Kursy NBP i ceny ze stron od nowa - przy starcie i przyciskiem „odśwież” (bez restartu aplikacji).
+// Kursy NBP od nowa - przy starcie i przyciskiem „odśwież” (bez restartu aplikacji).
 async function odswiezWszystko() {
   const przycisk = $('odswiez');
   if (przycisk.disabled) return;
   przycisk.disabled = true;
   try {
-    await Promise.all([odswiezKursy(true), stan.zablokowany ? null : sprawdzCeny()]);
+    await odswiezKursy(true);
   } finally {
     przycisk.disabled = false;
   }
@@ -388,7 +407,8 @@ $('odswiez').addEventListener('click', odswiezWszystko);
 
 $('motyw').addEventListener('click', () => {
   ustawMotyw(stan.motyw === 'ciemny' ? 'jasny' : 'ciemny');
-  zaplanujZapis();
+  zapiszMojeUstawienia(); // motyw w ustawieniach - zostaje także bez zapisu lokalnego
+  if (stan.lokalnie) zaplanujZapis();
 });
 
 $('okno-anuluj').addEventListener('click', () => $('okno-usun').close());
@@ -491,7 +511,7 @@ setInterval(() => {
 async function start() {
   try {
     await przygotujFolder();
-    if (!(await zajmijBlokade())) {
+    if (!(await zajmijBlokadeOkna())) {
       stan.zablokowany = true;
       pokazBlad('Mikropłatności są już otwarte w innym oknie (sprawdź pasek zadań). To okno zaraz się zamknie. Jeśli żadnego okna nie ma (aplikacja się zawiesiła), uruchom ją ponownie za 2 minuty.');
       $('dodaj').disabled = true;
@@ -505,9 +525,11 @@ async function start() {
   }
 
   if (stan.plikKursow) await wczytajZapamietane(stan.plikKursow);
+  const ustawienia = stan.plikUstawien ? await wczytajUstawienia(stan.plikUstawien) : { lokalnie: true, motyw: '' };
+  stan.lokalnie = ustawienia.lokalnie;
 
   let tresc = null;
-  if (!stan.zablokowany) {
+  if (!stan.zablokowany && stan.lokalnie) {
     try {
       tresc = await wczytaj();
       stan.wczytano = true;
@@ -520,19 +542,24 @@ async function start() {
   }
 
   if (!stan.zablokowany) pamiecPowiadomien = await wczytajPamiec(stan.plikPowiadomien);
+  if (ustawienia.motyw) stan.motyw = ustawienia.motyw;
   ustawMotyw(stan.motyw);
   renderujTabele();
   odswiezDodatki();
   // Kopia zapasowa po pokazaniu danych, ale zawsze przed pierwszym zapisem (zapisy czekają w kolejce za nią).
-  if (stan.wczytano && tresc !== null) stan.zapis = zrobKopie(tresc).catch(console.error);
+  if (stan.wczytano && tresc !== null) stan.zapis = zrobKopie(stan.folderKopii, tresc).catch(console.error);
   if (!stan.zablokowany) pokazStatus('pozycji: ' + stan.wpisy.length);
   dysk.odswiez();
+  // Bez zapisu lokalnego dane są tylko na Dysku - pobierane przy każdym starcie.
+  if (!stan.lokalnie && !stan.zablokowany) dysk.synchronizuj(false);
   odswiezWszystko();
 }
 
 Neutralino.events.on('ready', start);
 Neutralino.events.on('windowClose', async () => {
   await zapiszTeraz();
+  // Bez zapisu lokalnego niewysłane zmiany idą na Dysk przed zamknięciem (najwyżej 15 s).
+  if (stan.doWyslania) await Promise.race([wyslijZaleglosci(), new Promise((r) => setTimeout(r, LIMIT_WYSYLKI_PRZY_ZAMKNIECIU))]);
   await zwolnijBlokade(); // druga kopia (bez zajętej blokady) niczego nie usuwa
   Neutralino.app.exit();
 });

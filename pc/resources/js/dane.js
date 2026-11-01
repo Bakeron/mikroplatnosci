@@ -1,6 +1,6 @@
 // Format danych wspólny dla PC i telefonu: nowy wpis i sprawdzanie danych z pliku (także z Google Dysku).
 
-import { okresZDat } from './alarmy.js';
+import { okresZDat, ustawPoczatekZaplaty } from './alarmy.js';
 import { WALUTY } from './waluty.js';
 
 export function noweId() {
@@ -53,6 +53,12 @@ function idZTresci(w) {
 }
 
 // Dane z pliku traktowane jak dane z zewnątrz - każde pole sprawdzane.
+// okres przychodzi już ze sprawdzonych dat (RRRR-MM-DD albo pusty tekst).
+function okresZDatWpisu(od, doDnia) {
+  const okres = okresZDat(od, doDnia);
+  return okres === 'inny' ? '' : okres || 'M';
+}
+
 export function normalizuj(w) {
   const tekst = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
   const data = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
@@ -61,20 +67,19 @@ export function normalizuj(w) {
     id: typeof w.id === 'string' && w.id ? w.id.slice(0, 64) : idZTresci(w),
     od: data(w.od),
     do: data(w.do),
-    // Stare wpisy: okres z różnicy dat „od” i „do”, a gdy jest tylko jedna z nich - miesięczny.
-    okres: w.okres === 'M' || w.okres === 'R' ? w.okres : okresZDat(data(w.od), data(w.do)) || 'M',
+    // Stare wpisy: okres z różnicy dat „od” i „do”, a gdy jest tylko jedna z nich - miesięczny;
+    // odstęp ani miesięczny, ani roczny (np. kwartał) - bez okresu, do wybrania przez użytkownika.
+    okres: w.okres === 'M' || w.okres === 'R' ? w.okres : okresZDatWpisu(data(w.od), data(w.do)),
     nazwa: tekst(w.nazwa, 200),
     opis: tekst(w.opis, 300),
     koszt: kwota(w.koszt),
     waluta: WALUTY.includes(w.waluta) ? w.waluta : 'PLN',
     link: tekst(w.link, 2000),
     przedluzac: w.przedluzac === 'tak' || w.przedluzac === 'nie' ? w.przedluzac : '',
-    prognoza: kwota(w.prognoza),
-    prognozaZeStrony: w.prognozaZeStrony === true,
-    prognozaZrodlo: w.prognozaZrodlo === 'strona' || w.prognozaZrodlo === 'reczna' ? w.prognozaZrodlo : '',
-    prognozaData: data(w.prognozaData),
-    prognozaCennik: typeof w.prognozaCennik === 'string' && /^https:\/\//i.test(w.prognozaCennik) ? w.prognozaCennik.slice(0, 2000) : '',
-    prognozaVat: w.prognozaVat === true,
+    prognoza: kwota(w.prognoza), // cena od następnej płatności, wpisywana ręcznie
+    platnoscReczna: w.platnoscReczna === true, // „płacę sam” - nie pobiera się samo z konta
+    zaplaconyTermin: data(w.zaplaconyTermin), // ostatni termin oznaczony jako zapłacony
+    koniecMiesiaca: w.koniecMiesiaca === true, // płatność ręczna: termin w ostatnim dniu miesiąca
     zmieniono: czasIso(w.zmieniono),
   };
 }
@@ -138,6 +143,39 @@ export function usun(stan, wpis) {
   // inaczej scalanie przywróciłoby wpis.
   const kiedy = Math.max(Date.now(), (Date.parse(wpis.zmieniono) || 0) + 1);
   stan.usuniete.push({ id: wpis.id, kiedy: new Date(kiedy).toISOString() });
+}
+
+// Formularz edycji (telefon): wartości pól (tekst) do wpisu. W trakcie edycji mogły przyjść zmiany
+// z Dysku - wpis szukany po id w bieżącej liście, a nie stary obiekt. Nowy wpis trafia na koniec listy.
+// Zwraca { wpis } albo { blad } (zła kwota - nic się nie zmienia).
+export function zastosujFormularz(wpisy, edytowany, p) {
+  const koszt = parsujKoszt(p.koszt);
+  const prognoza = parsujKoszt(p.prognoza);
+  if (koszt === undefined || prognoza === undefined) return { blad: 'Kwota musi być liczbą, np. 12,50' };
+  const wpis = edytowany ? (wpisy.find((w) => w.id === edytowany.id) ?? edytowany) : nowyWpis();
+  const link = String(p.link ?? '').trim();
+  // Płatność ręczna liczy zaległości od ostatniego zapłaconego terminu - po jej włączeniu albo zmianie
+  // daty, okresu czy „przedłużać” liczy się od najbliższego terminu (jak na PC).
+  const przed = `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.przedluzac}|${wpis.koniecMiesiaca}`;
+  Object.assign(wpis, {
+    nazwa: p.nazwa,
+    opis: p.opis,
+    koszt,
+    waluta: WALUTY.includes(p.waluta) ? p.waluta : 'PLN',
+    od: p.od,
+    okres: p.okres === 'R' ? 'R' : 'M',
+    // Przy „płacę sam” pole „Przedłużać” jest schowane - ukryte „nie” wyłączałoby przypomnienia.
+    przedluzac: p.platnosc === 'reczna' && p.przedluzac === 'nie' ? 'tak' : p.przedluzac,
+    prognoza,
+    platnoscReczna: p.platnosc === 'reczna',
+    koniecMiesiaca: p.platnosc === 'reczna' && p.koniecMiesiaca === true,
+    link,
+    zmieniono: new Date().toISOString(),
+  });
+  Object.assign(wpis, normalizuj(wpis));
+  if (przed !== `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.przedluzac}|${wpis.koniecMiesiaca}`) ustawPoczatekZaplaty(wpis);
+  if (!wpisy.includes(wpis)) wpisy.push(wpis);
+  return { wpis };
 }
 
 // Treść pliku danych w formacie wersja 2; PC dokłada w dodatkach swoje ustawienia (motyw).

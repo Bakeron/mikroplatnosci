@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:* https:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:* https://api.nbp.pl https://oauth2.googleapis.com https://www.googleapis.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Mikropłatności</title>
   <link rel="stylesheet" href="/css/wyglad.css">
 </head>
@@ -12,12 +12,13 @@
     <h1>Mikropłatności</h1>
     <p class="naglowek__data" id="dzisiaj"></p>
     <p class="kursy" id="kursy" aria-live="polite"></p>
-    <button type="button" class="odswiez" id="odswiez" title="Pobierz od nowa kursy NBP i ceny ze stron (☑ w kolumnie Prognoza)" aria-label="Odśwież kursy i ceny">↻<span class="odswiez__tekst"> odśwież</span></button>
+    <button type="button" class="odswiez" id="odswiez" title="Pobierz od nowa kursy NBP" aria-label="Odśwież kursy NBP">↻<span class="odswiez__tekst"> odśwież</span></button>
     <button type="button" class="motyw" id="motyw" title="Przełącz tło: ciemne / jasne"><span class="motyw__noc">noc</span><span class="motyw__dzien">dzień</span></button>
     <span class="status" id="status" aria-live="polite"></span>
   </header>
 
-  <div class="blad" id="blad" hidden></div>
+  <div class="blad" id="blad" role="alert" hidden></div>
+  <div class="blad" id="bez-zapisu" role="status" hidden>Dane nie są nigdzie zapisywane - zaznacz na dole „Zapisuj lokalnie” albo „Synchronizuj z Google Dyskiem”. Inaczej znikną po zamknięciu aplikacji.</div>
 
   <main class="kartka">
     <div class="zeszyt-ramka">
@@ -27,18 +28,17 @@
           <th class="kol-lp" title="Kolejność - przeciągnij numer, aby przesunąć wiersz">Lp.</th>
           <th class="kol-akcje"><span class="sr">Wykreśl</span></th>
           <th>Nazwa i opis<span class="naglowek-opis"><span class="wykrzyknik" aria-hidden="true">!</span> = jednorazowa, do wycofania</span></th>
-          <th class="kol-koszt">Koszt</th>
-          <th class="kol-koszt kol-prognoza" title="Cena na najbliższy miesiąc - wpisana ręcznie albo, za zgodą, odczytana ze strony z linku">Prognoza<span class="naglowek-opis">☑ = cena ze strony</span></th>
+          <th class="kol-koszt" title="Zapłacona cena, a pod nią - gdy wiadomo - cena od następnej płatności (koniec promocji, podwyżka)">Koszt<span class="naglowek-opis">zapłacona / następna</span></th>
           <th class="kol-zakup" title="Data zakupu i okres płatności: miesięczna albo roczna">Zakup</th>
           <th class="kol-termin">Do płatności</th>
-          <th class="kol-przedluzac">Przedłużać</th>
           <th class="kol-link">Link</th>
+          <th class="kol-wiecej" title="Ustawienia pozycji: przedłużać, sposób płatności"><span class="sr">Ustawienia</span></th>
         </tr>
       </thead>
       <tbody id="wiersze"></tbody>
       <tfoot>
         <tr class="dopisz-wiersz">
-          <td colspan="9"><button type="button" class="dopisz" id="dodaj">+ dopisz nową pozycję…</button></td>
+          <td colspan="8"><button type="button" class="dopisz" id="dodaj">+ dopisz nową pozycję…</button></td>
         </tr>
       </tfoot>
     </table>
@@ -64,10 +64,14 @@
   </main>
 
   <footer class="stopka">
+    <label class="stopka__wlacz" title="Dane w pliku na tym komputerze (z 5 kopiami zapasowymi). Wyłączone: dane tylko na Google Dysku"><input type="checkbox" id="lokalnie-wlacz" checked> Zapisuj lokalnie</label>
+    <button type="button" class="stopka__przycisk stopka__przycisk--usun" id="usun-lokalnie" title="Usuń listę, plik danych i kopie zapasowe z tego komputera">Usuń z komputera</button>
     <label class="stopka__wlacz"><input type="checkbox" id="dysk-wlacz"> Synchronizuj z Google Dyskiem</label>
     <button type="button" class="stopka__przycisk" id="dysk-pobierz" title="Pobierz zmiany z Dysku (np. z telefonu) i połącz z tymi na komputerze" hidden>↓ Pobierz z Dysku</button>
     <button type="button" class="stopka__przycisk" id="dysk-wyslij" title="Połącz ze zmianami z Dysku i wyślij wynik na Dysk" hidden>↑ Wyślij na Dysk</button>
+    <button type="button" class="stopka__przycisk stopka__przycisk--usun" id="dysk-usun" title="Usuń plik z danymi z Google Dysku i wyłącz synchronizację" hidden>Usuń z Dysku</button>
     <span class="stopka__stan" id="dysk-stan" aria-live="polite"></span>
+    <button type="button" class="stopka__przycisk stopka__o-aplikacji" id="o-aplikacji">o aplikacji</button>
     <span class="stopka__wersja" id="wersja"></span>
   </footer>
 
@@ -120,6 +124,7 @@
 
   <script src="/js/neutralino.js"></script>
   <script src="/js/wersja.js"></script>
+  <script src="/js/google.js"></script>
   <script type="module" src="/js/main.js"></script>
 </body>
 </html>

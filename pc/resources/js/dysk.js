@@ -14,19 +14,16 @@ const WZOR_SEKRETU = /^[\w-]{10,100}$/;
 // wpisane: identyfikator pochodzi z aplikacji (zapisywany w google.json), nie ze zmiennych.
 const dysk = { id: '', sekret: '', wpisane: false, plikDostepu: '', odswiezajacy: '', dostep: '', wazneDo: 0, idPliku: '' };
 
-async function zmienna(nazwa) {
-  try {
-    return (await Neutralino.os.getEnv(nazwa)).trim();
-  } catch {
-    return '';
-  }
-}
+// Identyfikator aplikacji wbudowany przy budowaniu (js/google.js z instaluj.ps1 albo przygotuj.mjs,
+// ze zmiennych autora MIKROPLATNOSCI_GOOGLE_*). To identyfikator aplikacji, nie konta - każdy
+// użytkownik loguje się swoim kontem Google. Bez niego: okno „wpisz identyfikator” w aplikacji.
+const wbudowany = (nazwa) => String(globalThis.GOOGLE_KLUCZE?.[nazwa] ?? '').trim();
 
 // Zapamiętany dostęp leży w osobnym pliku obok danych (nie w pliku z wpisami).
 export async function przygotujDysk(folder) {
   dysk.plikDostepu = folder + '/google.json';
-  dysk.id = await zmienna('MIKROPLATNOSCI_GOOGLE_ID');
-  dysk.sekret = await zmienna('MIKROPLATNOSCI_GOOGLE_SECRET');
+  dysk.id = wbudowany('MIKROPLATNOSCI_GOOGLE_ID');
+  dysk.sekret = wbudowany('MIKROPLATNOSCI_GOOGLE_SECRET');
   try {
     const d = JSON.parse(await Neutralino.filesystem.readFile(dysk.plikDostepu));
     if (typeof d.odswiezajacy === 'string' && d.odswiezajacy.length < 2000) dysk.odswiezajacy = d.odswiezajacy;
@@ -168,6 +165,16 @@ export async function pobierzZDysku() {
   const tekst = await (await zapytanie(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(plik.id)}?alt=media`)).text();
   if (tekst.length > MAKS_ROZMIAR) throw new Error('plik na Dysku jest za duży');
   return tekst;
+}
+
+// „Usuń z Dysku”: kasuje plik danych z ukrytego folderu aplikacji (każdą kopię o tej nazwie).
+export async function usunZDysku() {
+  const q = encodeURIComponent(`name = '${NAZWA_PLIKU}'`);
+  const lista = await (await zapytanie(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id)`)).json();
+  for (const plik of Array.isArray(lista.files) ? lista.files : []) {
+    if (typeof plik?.id === 'string') await zapytanie(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(plik.id)}`, { method: 'DELETE' });
+  }
+  dysk.idPliku = '';
 }
 
 // Nadpisuje plik znaleziony przy ostatnim pobraniu albo zakłada nowy w ukrytym folderze aplikacji.

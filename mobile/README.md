@@ -6,29 +6,33 @@ Aplikacja APK (Capacitor 8) z tymi samymi danymi co wersja PC, połączona przez
 
 | Ścieżka | Co to |
 |---|---|
-| `src/` | pliki telefonu: `index.html`, `css/telefon.css`, `js/aplikacja.js`, `js/neutralino-telefon.js` (zamiennik zapisu plików i otwierania stron na wtyczki Capacitora) |
-| `../pc/resources/js/` | **wspólne obliczenia** - `alarmy.js`, `waluty.js`, `podsumowanie.js`, `spisy.js`, `miarka.js`, `dane.js`, `scalanie.js`, `dysk.js`, `synchronizacja.js`, `powiadomienia.js` - kopiowane do telefonu przy budowaniu (jedno źródło dla obu aplikacji) |
+| `src/` | pliki telefonu: `index.html`, `css/telefon.css`, `js/aplikacja.js`, `js/neutralino-telefon.js` (zamiennik zapisu plików i otwierania stron na wtyczki Capacitora), `czcionki/` (Gelasio, Barlow Semi Condensed, Cascadia Mono - SIL OFL, z licencjami `OFL-*.txt`) |
+| `../pc/resources/js/` | **wspólne obliczenia** - `dom.js`, `ustawienia.js`, `alarmy.js`, `waluty.js`, `podsumowanie.js`, `spisy.js`, `miarka.js`, `dane.js`, `scalanie.js`, `dysk.js`, `synchronizacja.js`, `powiadomienia.js` - kopiowane do telefonu przy budowaniu (jedno źródło dla obu aplikacji) |
 | `../pc/resources/css/wyglad.css` | kolory, paragon, listy terminów - też kopiowane |
 | `skrypty/przygotuj.mjs` | składa `www/` (nie w gicie) i wpisuje identyfikator projektu Google ze zmiennych środowiskowych |
 | `skrypty/apk.mjs` | buduje podpisany APK → `apk/Mikroplatnosci.apk` (nie w gicie) |
 | `skrypty/ikony.ps1` | ikony Androida i ekran startowy z rysunku ikony PC |
 | `android/` | projekt Androida z `npx cap add android` (wyniki budowania poza gitem) |
+| `../pc/testy/` | testy - także telefonu: wspólne obliczenia, zamiennik Neutralino, kompletność listy plików kopiowanych do `www/` (`cd pc && npm test`) |
 
 ## Budowanie APK
 
 ```
 cd mobile
 npm install            # raz, po pobraniu repozytorium
-npm run apk            # www/ + kopiowanie do Androida + podpisany APK
+npm run apk            # testy + www/ + kopiowanie do Androida + podpisany APK
+npm run aab            # to samo, ale paczka AAB dla Google Play (mobile/apk/Mikroplatnosci.aab)
 ```
 
-Każde budowanie dostaje nowy numer wersji z daty i godziny (widoczny w zakładce Paragon, pod paragonem) i rosnący kod wersji dla Androida (`mobile/wersja.json`, poza gitem).
+Gdy któryś test nie przechodzi, APK się nie buduje. Każde budowanie dostaje nowy numer wersji z daty i godziny (widoczny w zakładce Paragon, pod paragonem) i rosnący kod wersji dla Androida (`mobile/wersja.json`, poza gitem).
 
 Potrzebne (zainstalowane 30.10.2026 bez uprawnień administratora, w `%LOCALAPPDATA%\Android`):
 - `jdk\jdk-21…` - Java (Microsoft Build of OpenJDK 21),
-- `sdk\` - Android SDK: `cmdline-tools` (jest), `platform-tools`, `platforms;android-36`, `build-tools;36.0.0` (doinstalowane po akceptacji licencji - stan 31.10.2026: jeszcze nie).
+- `sdk\` - Android SDK: `cmdline-tools`, `platform-tools`, `platforms;android-36`, `build-tools;36.0.0` (licencja zaakceptowana przez autora 31.10.2026).
 
-**Licencja Android SDK** musi być zaakceptowana przez autora (raz) - polecenie w `robota.md`, pkt 3.
+Dwie rzeczy, które `apk.mjs` obchodzi sam (31.10.2026):
+- **Polskie litery w ścieżce** („mikropłatności”) - wtyczka Androida do Gradle odmawia budowania. Skrypt buduje przez skrót folderu `%LOCALAPPDATA%\Android\budowa-mikroplatnosci` → `mobile/` (junction, tworzony raz). Usuwanie skrótu: `rmdir` bez `/s` - inaczej zniknie zawartość `mobile/`.
+- **Antywirus sprawdzający HTTPS** podstawia własny certyfikat - Java mu nie ufa, więc Gradle nie pobrałby niczego. Skrypt każe Javie korzystać z listy zaufanych certyfikatów Windows (`JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStoreType=Windows-ROOT`) - tej samej, której ufa Edge.
 
 ## Klucz podpisu - WAŻNE
 

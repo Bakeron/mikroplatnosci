@@ -3,6 +3,7 @@
 import { okres, czyZakonczona, parsujDate, formatujDate } from './alarmy.js';
 import { naPln, przeliczNaPln, waluta, pobierzKursy, formatujKwote } from './waluty.js';
 import { nazwaWpisu } from './dane.js';
+import { element } from './dom.js';
 
 const kwotaKursu = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
@@ -46,13 +47,6 @@ export function policz(wpisy) {
 
   s.lacznieMiesiecznie = s.miesieczne + s.roczne / 12;
   return s;
-}
-
-function element(tag, klasa, tekst) {
-  const el = document.createElement(tag);
-  if (klasa) el.className = klasa;
-  if (tekst !== undefined) el.textContent = tekst;
-  return el;
 }
 
 // Pozycja paragonu: nazwa ....... wartość

@@ -2,15 +2,9 @@
 
 import { dzis, dodajMiesiace, roznicaDni, doPlatnosci, kiedyTekst, formatujDate } from './alarmy.js';
 import { nazwaWpisu } from './dane.js';
+import { element } from './dom.js';
 
 const ODSTEP_ETYKIET = 10;
-
-function element(tag, klasa, tekst) {
-  const el = document.createElement(tag);
-  el.className = klasa;
-  if (tekst !== undefined) el.textContent = tekst;
-  return el;
-}
 
 export function renderujMiarke(kontener, alarmy) {
   const poczatek = dzis();

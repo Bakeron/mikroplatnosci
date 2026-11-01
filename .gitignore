@@ -12,6 +12,7 @@ node_modules/
 bin/
 dist/
 /pc/resources/js/wersja.js
+/pc/resources/js/google.js
 
 # Aplikacja na Androida: składane www/, gotowe APK; klucz podpisu nigdy w repozytorium
 /mobile/www/
