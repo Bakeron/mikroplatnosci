@@ -9,7 +9,7 @@ Cztery obrazki zbiorcze pokazują wszystkie możliwości i stany aplikacji. **Ob
 | `03-stany-i-dzialania.png` | (1) wykreślanie: przekreślony wiersz i okno „Na pewno wykreślić…?”; (2) przeciąganie wiersza za Lp. i błędna kwota; (3) płatność ręczna i otwarta karteczka „⋯” (przedłużać, sposób płatności); (4) bez internetu: kurs NBP zapamiętany | `tabela.js`, `main.js` (wykreślanie, przesuwanie, kursy), `alarmy.js` (terminy, płatność ręczna), `waluty.js`, `wyglad.css` |
 | `04-sytuacje-szczegolne.png` | (1) pierwsze uruchomienie - pusty zeszyt; (2) uszkodzony plik danych - ostrzeżenie i blokada zapisu; (3) druga kopia aplikacji - komunikat | `main.js` (start, odczyt, blokada), `index.html`, `wyglad.css` |
 
-**`dodatkowo/`** (na prośbę autora 01.11.2026) - sama tabela, bez reszty ekranu, tylko jasne tło (motyw dzień): cała tabela (`tabela-zeszyt-dzien.png`) i tabela z otwartą karteczką „⋯” (`tabela-zeszyt-karteczka-dzien.png`).
+**`dodatkowo/`** (na prośbę autora 01.11.2026, poza gitem) - sama tabela, bez reszty ekranu, tylko jasne tło (motyw dzień): cała tabela (`tabela-zeszyt-dzien.png`) i tabela z otwartą karteczką „⋯” (`tabela-zeszyt-karteczka-dzien.png`). Do tego sama karteczka „⋯” przy Spotify w każdym wariancie (skala 2×, kadr dokładnie do ramki karteczki): `karteczka-1-pobiera-sama-przedluzac-tak.png`, `karteczka-2-pobiera-sama-przedluzac-nie.png`, `karteczka-3-place-sam-przedluzac-tak.png`, `karteczka-4-place-sam-koniec-miesiaca.png`, `karteczka-5-place-sam-przedluzac-nie.png` - stany ustawiane kliknięciami w karteczce (dane testowe).
 
 Daty w danych przykładowych liczą się od dnia renderowania, więc lont, miarka, alarmy i płatność ręczna zawsze wyglądają „aktualnie”.
 

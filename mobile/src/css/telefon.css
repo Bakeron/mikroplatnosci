@@ -107,10 +107,10 @@
   font: 600 15px var(--f-tekst);
 }
 .karta-zaplac input { width: 22px; height: 22px; margin: 0; accent-color: var(--czerwony); }
-/* „termin do końca miesiąca” w formularzu - tylko przy „płacę sam” */
-.t-zaznacz { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--atrament); font: italic 16px var(--f-tytul); }
-.t-zaznacz[hidden] { display: none; }
-.t-zaznacz input { width: 20px; height: 20px; margin: 0; accent-color: var(--atrament); }
+/* „Przedłużać” i „Termin do końca miesiąca” (tylko przy „płacę sam”) - przełączniki tak / nie
+   (wygląd we wspólnym wyglad.css), cały rząd do dotknięcia */
+.t-przelacznik { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; color: var(--olowek); font: 600 11.5px var(--f-liczby); letter-spacing: 0.08em; text-transform: uppercase; }
+.t-przelacznik[hidden] { display: none; }
 
 /* spisy terminów: w wąskim ekranie opis terminu w drugiej linii */
 .telefon .alarm { flex-wrap: wrap; gap: 2px 10px; }

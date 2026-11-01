@@ -155,10 +155,11 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   otworz.type = 'button';
   otworz.title = 'Otwórz link w przeglądarce';
 
-  const przedluzac = element('select', 'pole pole--wybor');
-  przedluzac.setAttribute('aria-label', 'Chęć przedłużania');
-  przedluzac.append(...[['', '-'], ['tak', 'tak'], ['nie', 'nie']].map(([wartosc, tekst]) => new Option(tekst, wartosc)));
-  przedluzac.value = wpis.przedluzac;
+  // Przełącznik tak / nie (kółko w prawo = tak). Puste „-” liczy się jak „tak”, więc pokazuje „tak”.
+  const przedluzac = element('input', 'przelacznik');
+  przedluzac.type = 'checkbox';
+  przedluzac.setAttribute('role', 'switch');
+  przedluzac.checked = wpis.przedluzac !== 'nie';
 
   // „⋯” - karteczka z ustawieniami, które ustawia się raz (przedłużać, sposób płatności).
   // Okienko „popover”: nad tabelą, zamyka je Esc albo kliknięcie obok; przyklejone do przycisku kotwicą CSS.
@@ -182,12 +183,9 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     const opcja = element('button', 'okres-wybor__opcja', tekst);
     opcja.type = 'button';
     opcja.addEventListener('click', () => {
-      // Włączenie „płacę sam” - liczy się od daty zakupu. „Przedłużać” jest wtedy schowane (dotyczy tylko
-      // płatności pobieranych samych), więc ukryte „nie” nie może wyłączać przypomnień - wraca „tak”.
+      // Włączenie „płacę sam” - liczy się od daty zakupu. „Przedłużać” widać przy obu sposobach płatności.
       if (reczna && !wpis.platnoscReczna) {
         wpis.platnoscReczna = true;
-        if (wpis.przedluzac === 'nie') wpis.przedluzac = 'tak';
-        przedluzac.value = wpis.przedluzac;
         ustawPoczatekZaplaty(wpis);
       }
       wpis.platnoscReczna = reczna;
@@ -200,12 +198,13 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const platnoscPole = element('div', 'karteczka__pole');
   platnoscPole.append(element('span', 'karteczka__nazwa', 'Płatność'), platnoscWybor);
   // Tylko przy „płacę sam”: termin w ostatnim dniu miesiąca (np. rachunki, których data zmienia się co miesiąc).
-  const koniecPole = element('input');
+  const koniecPole = element('input', 'przelacznik przelacznik--zwykly');
   koniecPole.type = 'checkbox';
-  const koniecEtykieta = element('label', 'karteczka__pole karteczka__pole--zaznacz');
+  koniecPole.setAttribute('role', 'switch');
+  const koniecEtykieta = element('label', 'karteczka__pole');
   koniecEtykieta.append(element('span', 'karteczka__nazwa', 'Termin do końca miesiąca'), koniecPole);
   const platnoscOpis = element('p', 'karteczka__opis', `„Płacę sam” - od ${DNI_DO_ZAPLATY} dni przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.`);
-  karteczka.append(karteczkaTytul, przedluzacEtykieta, platnoscPole, koniecEtykieta, platnoscOpis);
+  karteczka.append(karteczkaTytul, platnoscPole, przedluzacEtykieta, koniecEtykieta, platnoscOpis);
 
   const usun = element('button', 'wykresl', '×');
   usun.type = 'button';
@@ -273,7 +272,6 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
       zaplacPole.setAttribute('aria-label', 'Zapłacone - termin ' + formatujDate(dz.data));
     }
     koniecEtykieta.hidden = !wpis.platnoscReczna;
-    przedluzacEtykieta.hidden = !!wpis.platnoscReczna; // „Przedłużać” tylko przy „pobiera się sama”
     koniecPole.checked = !!wpis.koniecMiesiaca;
 
     const nazwaTekst = nazwaWpisu(wpis);
@@ -388,8 +386,8 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   });
   przedluzac.addEventListener('change', () => {
     // „nie” po kilku okresach - termin ma być najbliższym odnowieniem, a nie pierwszym po dawnym zakupie.
-    if (przedluzac.value === 'nie') wpis.od = zakupBiezacegoOkresu(wpis);
-    wpis.przedluzac = przedluzac.value;
+    if (!przedluzac.checked) wpis.od = zakupBiezacegoOkresu(wpis);
+    wpis.przedluzac = przedluzac.checked ? 'tak' : 'nie';
     ustawPoczatekZaplaty(wpis); // np. „nie” → „tak” przy płacę sam - bez zaległości z czasu „nie”
     od.value = wpis.od;
     odswiez();

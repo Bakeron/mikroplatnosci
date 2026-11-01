@@ -164,8 +164,7 @@ export function zastosujFormularz(wpisy, edytowany, p) {
     waluta: WALUTY.includes(p.waluta) ? p.waluta : 'PLN',
     od: p.od,
     okres: p.okres === 'R' ? 'R' : 'M',
-    // Przy „płacę sam” pole „Przedłużać” jest schowane - ukryte „nie” wyłączałoby przypomnienia.
-    przedluzac: p.platnosc === 'reczna' && p.przedluzac === 'nie' ? 'tak' : p.przedluzac,
+    przedluzac: p.przedluzac,
     prognoza,
     platnoscReczna: p.platnosc === 'reczna',
     koniecMiesiaca: p.platnosc === 'reczna' && p.koniecMiesiaca === true,

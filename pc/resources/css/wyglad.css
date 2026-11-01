@@ -482,11 +482,59 @@ tr:hover .uchwyt::before,
 .karteczka__pole { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; border-bottom: 1px dotted var(--linia); }
 .karteczka__nazwa { color: var(--olowek); font: 600 10.5px var(--f-liczby); letter-spacing: 0.08em; text-transform: uppercase; }
 .karteczka__wybor { padding: 0; }
+/* podkreślenie wybranej opcji wystaje pod napis - rząd „Płatność” podniesiony o tyle, żeby całość była na środku */
+.karteczka__pole:has(.karteczka__wybor) { padding-bottom: 5px; border-top: 1px dotted var(--linia); }
 .karteczka__wybor .okres-wybor__opcja { white-space: nowrap; }
 .karteczka__pole[hidden] { display: none; }
-.karteczka__pole--zaznacz { cursor: pointer; }
-.karteczka__pole--zaznacz input { width: 15px; height: 15px; margin: 0; accent-color: var(--atrament); cursor: pointer; }
 .karteczka__opis { margin: 8px 0 0; color: var(--olowek); font: italic 12px/1.35 var(--f-tytul); }
+
+/* Przełącznik tak / nie (np. „Przedłużać”): kółko w prawo = tak (atrament), w lewo = nie (czerwień jak „!”);
+   napis w środku po stronie bez kółka, więc stan widać nie tylko po kolorze. Wspólny dla PC i telefonu. */
+.przelacznik {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 58px;
+  height: 24px;
+  margin: 0;
+  border: 1.5px solid var(--czerwony);
+  border-radius: 12px;
+  background: var(--papier-2);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.przelacznik::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--czerwony);
+  transition: transform 0.15s, background-color 0.15s;
+}
+.przelacznik::after {
+  content: "nie";
+  position: absolute;
+  top: 0;
+  right: 8px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  color: var(--czerwony);
+  font: 700 10.5px/1 var(--f-liczby);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.przelacznik:checked { border-color: var(--atrament); }
+.przelacznik:checked::before { transform: translateX(34px); background: var(--atrament); }
+.przelacznik:checked::after { content: "tak"; right: auto; left: 8px; color: var(--atrament); }
+.przelacznik:focus-visible { outline: 2px solid var(--atrament); outline-offset: 2px; }
+/* „nie” jako zwykły stan, nie ostrzeżenie (np. „Termin do końca miesiąca”) - ołówkiem zamiast czerwieni */
+.przelacznik--zwykly:not(:checked) { border-color: var(--olowek); }
+.przelacznik--zwykly:not(:checked)::before { background: var(--olowek); }
+.przelacznik--zwykly:not(:checked)::after { color: var(--olowek); }
 
 .otworz {
   flex-shrink: 0;

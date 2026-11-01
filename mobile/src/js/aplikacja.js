@@ -258,7 +258,7 @@ function otworzArkusz(wpis) {
   pola.waluta.value = waluta(w);
   pola.od.value = w.od;
   pola.okres.value = w.okres;
-  pola.przedluzac.value = w.przedluzac;
+  pola.przedluzac.checked = w.przedluzac !== 'nie'; // przełącznik: puste „-” liczy się jak „tak”
   pola.prognoza.value = formatujKoszt(w.prognoza);
   pola.platnosc.value = w.platnoscReczna ? 'reczna' : '';
   pola.koniecMiesiaca.checked = !!w.koniecMiesiaca;
@@ -277,7 +277,9 @@ function otworzArkusz(wpis) {
 formularz.addEventListener('submit', async (e) => {
   e.preventDefault();
   // Wspólna logika (dane.js, z testami): wpis szukany po id - w trakcie edycji mogły przyjść zmiany z Dysku.
-  const wartosci = Object.fromEntries(['nazwa', 'opis', 'koszt', 'waluta', 'od', 'okres', 'przedluzac', 'prognoza', 'platnosc', 'link'].map((p) => [p, pola[p].value]));
+  const wartosci = Object.fromEntries(['nazwa', 'opis', 'koszt', 'waluta', 'od', 'okres', 'prognoza', 'platnosc', 'link'].map((p) => [p, pola[p].value]));
+  // Przełącznik nie zmieniany przy pustym „-” zostawia puste (bez sztucznej zmiany wpisu).
+  wartosci.przedluzac = !pola.przedluzac.checked ? 'nie' : stan.edytowany?.przedluzac === '' ? '' : 'tak';
   wartosci.koniecMiesiaca = pola.koniecMiesiaca.checked;
   const { blad } = zastosujFormularz(stan.wpisy, stan.edytowany, wartosci);
   if (blad) {
@@ -305,15 +307,12 @@ $('arkusz-usun').addEventListener('click', async () => {
 
 // „nie” po kilku okresach - termin ma być najbliższym odnowieniem, a nie pierwszym po dawnym zakupie (jak na PC).
 pola.przedluzac.addEventListener('change', () => {
-  if (pola.przedluzac.value === 'nie') pola.od.value = zakupBiezacegoOkresu({ od: pola.od.value, okres: pola.okres.value });
+  if (!pola.przedluzac.checked) pola.od.value = zakupBiezacegoOkresu({ od: pola.od.value, okres: pola.okres.value });
 });
 
-// „Termin do końca miesiąca” widać tylko przy „płacę sam”, a „Przedłużać” - tylko przy „pobiera się sama”
-// (jak w „⋯” na PC; przy „płacę sam” zapis ustawia „tak” - dane.js).
+// „Termin do końca miesiąca” widać tylko przy „płacę sam” (jak w „⋯” na PC); „Przedłużać” - zawsze.
 const pokazKoniecMiesiaca = () => {
-  const reczna = pola.platnosc.value === 'reczna';
-  $('pole-koniec-miesiaca').hidden = !reczna;
-  $('pole-przedluzac').hidden = reczna;
+  $('pole-koniec-miesiaca').hidden = pola.platnosc.value !== 'reczna';
 };
 pola.platnosc.addEventListener('change', pokazKoniecMiesiaca);
 

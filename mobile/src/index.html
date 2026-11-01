@@ -86,20 +86,18 @@
           <label><input type="radio" name="okres" value="R"> rok</label>
         </fieldset>
       </div>
-      <label class="t-pole" id="pole-przedluzac">Przedłużać
-        <select name="przedluzac">
-          <option value="">- jeszcze nie wiem</option>
-          <option value="tak">tak - odnawiam</option>
-          <option value="nie">nie - jednorazowa, do wycofania</option>
-        </select>
-      </label>
       <label class="t-pole">Płatność
         <select name="platnosc">
           <option value="">pobiera się sama</option>
           <option value="reczna">płacę sam - przypomnij przed terminem</option>
         </select>
       </label>
-      <label class="t-zaznacz" id="pole-koniec-miesiaca" hidden><input type="checkbox" name="koniecMiesiaca"> termin do końca miesiąca</label>
+      <label class="t-przelacznik" id="pole-przedluzac">Przedłużać
+        <input type="checkbox" role="switch" class="przelacznik" name="przedluzac">
+      </label>
+      <label class="t-przelacznik" id="pole-koniec-miesiaca" hidden>Termin do końca miesiąca
+        <input type="checkbox" role="switch" class="przelacznik przelacznik--zwykly" name="koniecMiesiaca">
+      </label>
       <label class="t-pole">Cena od następnej płatności
         <input type="text" name="prognoza" inputmode="decimal" autocomplete="off" placeholder="wpisz…">
       </label>
