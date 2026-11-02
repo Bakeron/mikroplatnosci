@@ -71,7 +71,7 @@ export function pokazOAplikacji(platforma, otworz) {
   przyciski.append(zamknij);
   okno.append(przyciski);
   krzyzykOkna(okno, t('Zamknij'));
-  okno.addEventListener('close', () => okno.remove());
+  okno.addEventListener('close', () => setTimeout(() => okno.remove(), 200)); // po animacji zamykania (wyglad.css)
   document.body.append(okno);
   okno.showModal();
 }

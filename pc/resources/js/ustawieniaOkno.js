@@ -170,7 +170,7 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   przyciski.append(zamknij);
   okno.append(przyciski);
   krzyzykOkna(okno, t('Zamknij')); // widoczne także po przewinięciu okna (obok „Zamknij” na dole)
-  okno.addEventListener('close', () => okno.remove());
+  okno.addEventListener('close', () => setTimeout(() => okno.remove(), 200)); // po animacji zamykania (wyglad.css)
   document.body.append(okno);
   okno.showModal();
 }

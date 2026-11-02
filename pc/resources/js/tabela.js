@@ -1,12 +1,12 @@
 // Tabela mikropłatności: wiersze z edycją w komórkach i przesuwaniem.
 
-import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, zakupBiezacegoOkresu, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, DNI_DO_ZAPLATY, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
+import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, zakupBiezacegoOkresu, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
 import { WALUTY, waluta, przeliczNaPln, formatujKwote } from './waluty.js';
 import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, nazwaKategorii } from './dane.js';
 import { element } from './dom.js';
 import { funkcja, reczna as recznaWpisu, zmiennaKwota, osobWpisu, kategoriaWpisu, firmowa } from './funkcje.js';
 import { przyciskPomocy } from './pomoc.js';
-import { t, tn, tekst, jezyk, liczba, region } from './teksty.js';
+import { t, tekst, jezyk, liczba, region } from './teksty.js';
 
 const odswiezacze = new WeakMap();
 let numerKarteczki = 0; // nazwy kotwic CSS (anchor-name) - karteczka „⋯” wisi przy swoim przycisku
@@ -241,6 +241,11 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   wiecej.style.setProperty('anchor-name', kotwica);
   karteczka.style.setProperty('position-anchor', kotwica);
   const karteczkaTytul = element('div', 'karteczka__tytul');
+  const karteczkaX = element('button', 'okno__x', '×');
+  karteczkaX.type = 'button';
+  karteczkaX.title = t('Zamknij');
+  karteczkaX.setAttribute('aria-label', t('Zamknij'));
+  karteczkaX.addEventListener('click', () => karteczka.hidePopover());
   const przedluzacEtykieta = element('label', 'karteczka__pole');
   przedluzacEtykieta.append(element('span', 'karteczka__nazwa', t('Przedłużać')), przedluzac);
   const platnoscWybor = element('div', 'okres-wybor karteczka__wybor');
@@ -265,7 +270,9 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const platnoscPole = element('div', 'karteczka__pole');
   // F26: „?” przy „Płatność” - czym różni się „płacę sam” od „pobiera się sama”.
   const platnoscNazwa = element('span', 'karteczka__nazwa', t('Płatność'));
-  platnoscNazwa.append(' ', przyciskPomocy(tekst('„Pobiera się sama” - karta albo konto płacą bez Ciebie. „Płacę sam” - rachunek, który płacisz ręcznie (np. prąd): tydzień przed terminem wiersz czerwienieje, a po zapłacie zaznaczasz „☐ zapłacone”.'), tekst('płacę sam')));
+  platnoscNazwa.append(' ', przyciskPomocy(tekst('„Pobiera się sama” - karta albo konto płacą bez Ciebie. „Płacę sam” - rachunek, który płacisz ręcznie (np. prąd): tydzień przed terminem wiersz czerwienieje, a po zapłacie zaznaczasz „☐ zapłacone”.'), tekst('Płatność')));
+  // „?” zaraz za „płacę sam” - co się dzieje przed terminem takiej płatności.
+  platnoscWybor.append(przyciskPomocy(tekst('„Płacę sam” - od 7 dni przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.'), tekst('płacę sam')));
   platnoscPole.append(platnoscNazwa, platnoscWybor);
   // Tylko przy „płacę sam”: termin w ostatnim dniu miesiąca (np. rachunki, których data zmienia się co miesiąc).
   const koniecPole = element('input', 'przelacznik przelacznik--zwykly');
@@ -280,7 +287,6 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const zmiennaEtykieta = element('label', 'karteczka__pole');
   zmiennaEtykieta.title = t('Przy zaznaczaniu „zapłacone” aplikacja zapyta, ile zapłacono, i zapamięta to w historii');
   zmiennaEtykieta.append(element('span', 'karteczka__nazwa', t('Kwota za każdym razem inna')), zmiennaPole);
-  const platnoscOpis = element('p', 'karteczka__opis', tn(DNI_DO_ZAPLATY, '„Płacę sam” - od {n} dnia przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.', '„Płacę sam” - od {n} dni przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.', '„Płacę sam” - od {n} dni przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.'));
 
   // D18: na firmę - osobna suma na paragonie i przypomnienie o fakturze po każdej płatności.
   const firmaPole = element('input', 'przelacznik przelacznik--zwykly');
@@ -360,7 +366,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     element('p', 'karteczka__opis', t('Np. siłownia zawieszona na wakacje. Do tego dnia bez alarmów i poza sumami, w dniu wznowienia - pierwsza płatność.')),
   );
 
-  karteczka.append(karteczkaTytul, platnoscPole, przedluzacEtykieta, koniecEtykieta, zmiennaEtykieta, firmaEtykieta, platnoscOpis, kategoriaGrupa.det, okresGrupa.det, dzielGrupa.det, pauzaGrupa.det);
+  karteczka.append(karteczkaX, karteczkaTytul, platnoscPole, przedluzacEtykieta, koniecEtykieta, zmiennaEtykieta, firmaEtykieta, kategoriaGrupa.det, okresGrupa.det, dzielGrupa.det, pauzaGrupa.det);
 
   function ustawOkres(typ, ile) {
     wpis.okres = typ;
@@ -459,7 +465,6 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     }
     // Wyłączone „Płacę sam” - bez wyboru płatności (wszystko liczone jak „pobiera się sama”).
     platnoscPole.hidden = !funkcja('platnosc');
-    platnoscOpis.hidden = !funkcja('platnosc');
     koniecEtykieta.hidden = !recznaWpisu(wpis);
     koniecPole.checked = !!wpis.koniecMiesiaca;
     zmiennaEtykieta.hidden = !recznaWpisu(wpis) || !funkcja('kwotaZmienna');
