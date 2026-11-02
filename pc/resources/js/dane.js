@@ -1,7 +1,15 @@
 // Format danych wspólny dla PC i telefonu: nowy wpis i sprawdzanie danych z pliku (także z Google Dysku).
 
-import { okresZDat, ustawPoczatekZaplaty } from './alarmy.js';
+import { okresZDat, ustawPoczatekZaplaty, isoDnia, dzis, dopiszCene } from './alarmy.js';
 import { WALUTY } from './waluty.js';
+import { t, tekst, jezyk } from './teksty.js';
+
+// D17: kategorie pozycji [klucz, nazwa] - nazwa po polsku, tłumaczona przy wyświetleniu (t()).
+export const KATEGORIE = [
+  ['rozrywka', tekst('rozrywka')], ['praca', tekst('praca')], ['ai', tekst('AI')], ['dom', tekst('dom i rachunki')],
+  ['nauka', tekst('nauka')], ['zdrowie', tekst('zdrowie i sport')], ['inne', tekst('inne')],
+];
+export const nazwaKategorii = (klucz) => t(KATEGORIE.find(([k]) => k === klucz)?.[1] ?? '');
 
 export function noweId() {
   return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -10,7 +18,7 @@ export function noweId() {
 // Nowy wpis = pusty wpis po sprawdzeniu (jedna lista pól - w normalizuj); subskrypcje bierze się, żeby je przedłużać.
 export const nowyWpis = () => normalizuj({ id: noweId(), przedluzac: 'tak', zmieniono: new Date().toISOString() });
 
-export const nazwaWpisu = (w) => w.nazwa.trim() || '(bez nazwy)';
+export const nazwaWpisu = (w) => w.nazwa.trim() || t('(bez nazwy)');
 
 // Zwraca bezpieczny adres http(s) albo null. „example.com” → „https://example.com/”.
 export function bezpiecznyLink(tekst) {
@@ -28,8 +36,10 @@ export function bezpiecznyLink(tekst) {
   }
 }
 
+// Wartość do pola edycji - bez separatora tysięcy (parsujKoszt); przecinek tylko po polsku.
 export function formatujKoszt(koszt) {
-  return typeof koszt === 'number' ? koszt.toFixed(2).replace('.', ',') : '';
+  if (typeof koszt !== 'number') return '';
+  return jezyk() === 'pl' ? koszt.toFixed(2).replace('.', ',') : koszt.toFixed(2);
 }
 
 // null = puste pole, undefined = błędna wartość.
@@ -59,6 +69,15 @@ function okresZDatWpisu(od, doDnia) {
   return okres === 'inny' ? '' : okres || 'M';
 }
 
+// Liczba całkowita z zakresu albo wartość domyślna (np. „co ile” okresów, na ile osób).
+const calkowita = (v, min, max, domyslna) => (Number.isInteger(v) && v >= min && v <= max ? v : domyslna);
+
+// Lista z pliku: tylko poprawne pozycje, najwyżej max ostatnich.
+const lista = (v, sprawdz, max) => (Array.isArray(v) ? v.map(sprawdz).filter(Boolean).slice(-max) : []);
+
+const MAKS_HISTORII = 240; // ok. 20 lat płatności miesięcznych
+const MAKS_CEN = 100;
+
 export function normalizuj(w) {
   const tekst = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
   const data = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
@@ -69,7 +88,9 @@ export function normalizuj(w) {
     do: data(w.do),
     // Stare wpisy: okres z różnicy dat „od” i „do”, a gdy jest tylko jedna z nich - miesięczny;
     // odstęp ani miesięczny, ani roczny (np. kwartał) - bez okresu, do wybrania przez użytkownika.
-    okres: w.okres === 'M' || w.okres === 'R' ? w.okres : okresZDatWpisu(data(w.od), data(w.do)),
+    // T - tygodnie (co tydzień, co 4 tygodnie).
+    okres: w.okres === 'M' || w.okres === 'R' || w.okres === 'T' ? w.okres : okresZDatWpisu(data(w.od), data(w.do)),
+    coIle: calkowita(w.coIle, 1, 99, 1), // co ile okresów: M + 3 = kwartał, R + 2 = co 2 lata
     nazwa: tekst(w.nazwa, 200),
     opis: tekst(w.opis, 300),
     koszt: kwota(w.koszt),
@@ -77,12 +98,30 @@ export function normalizuj(w) {
     link: tekst(w.link, 2000),
     przedluzac: w.przedluzac === 'tak' || w.przedluzac === 'nie' ? w.przedluzac : '',
     prognoza: kwota(w.prognoza), // cena od następnej płatności, wpisywana ręcznie
+    prognozaOd: data(w.prognozaOd), // dzień tej następnej płatności - wtedy cena staje się zapłaconą
     platnoscReczna: w.platnoscReczna === true, // „płacę sam” - nie pobiera się samo z konta
     zaplaconyTermin: data(w.zaplaconyTermin), // ostatni termin oznaczony jako zapłacony
     koniecMiesiaca: w.koniecMiesiaca === true, // płatność ręczna: termin w ostatnim dniu miesiąca
+    zmiennaKwota: w.zmiennaKwota === true, // płatność ręczna: przy „zapłacone” pytanie, ile zapłacono
+    // Zapłacone ręcznie: termin, dzień zapłaty i kwota (w walucie wpisu).
+    historia: lista(w.historia, (h) => (h && data(h.termin) && data(h.dnia) && kwota(h.kwota) !== null ? { termin: h.termin, dnia: h.dnia, kwota: h.kwota } : null), MAKS_HISTORII),
+    // Zmiany ceny: od kiedy obowiązuje (pusty = od początku) i kwota.
+    ceny: lista(w.ceny, (c) => (c && typeof c.od === 'string' && (c.od === '' || data(c.od)) && kwota(c.kwota) !== null ? { od: c.od, kwota: c.kwota } : null), MAKS_CEN),
+    osob: calkowita(w.osob, 1, 20, 1), // koszt dzielony na tyle osób - w sumach tylko moja część
+    ktoOddaje: tekst(w.ktoOddaje, 200), // komu przypominać o oddaniu części („Ania, Tomek”)
+    oddaneTermin: data(w.oddaneTermin), // ostatnia płatność, za którą inni już oddali
+    wstrzymanaOd: data(w.wstrzymanaOd), // pauza: od kiedy
+    wstrzymanaDo: data(w.wstrzymanaDo), // pauza: dzień wznowienia (pierwsza płatność po przerwie)
+    kategoria: KATEGORIE.some(([k]) => k === w.kategoria) ? w.kategoria : '', // D17
+    firmowa: w.firmowa === true, // D18: koszt firmowy (osobna suma, „pobierz fakturę”)
+    fakturaTermin: data(w.fakturaTermin), // D18: ostatnia płatność, za którą faktura już pobrana
+    anulowano: data(w.anulowano), // C15: wykreślona - w „Anulowanych” pod tabelą (do przywrócenia), poza sumami i alarmami
     zmieniono: czasIso(w.zmieniono),
   };
 }
+
+// Zmiana zapłaconej ceny zapamiętana w historii cen (od dziś) - do wykresu wydatków i zmian cen.
+export const zapiszZmianeCeny = (wpis, stara) => dopiszCene(wpis, stara, isoDnia(dzis()));
 
 // Czas zmiany albo usunięcia (ISO z toISOString) - inny tekst traktowany jak brak czasu.
 export function czasIso(v) {
@@ -151,19 +190,25 @@ export function usun(stan, wpis) {
 export function zastosujFormularz(wpisy, edytowany, p) {
   const koszt = parsujKoszt(p.koszt);
   const prognoza = parsujKoszt(p.prognoza);
-  if (koszt === undefined || prognoza === undefined) return { blad: 'Kwota musi być liczbą, np. 12,50' };
+  if (koszt === undefined || prognoza === undefined) return { blad: t('Kwota musi być liczbą, np. 12,50') };
   const wpis = edytowany ? (wpisy.find((w) => w.id === edytowany.id) ?? edytowany) : nowyWpis();
   const link = String(p.link ?? '').trim();
   // Płatność ręczna liczy zaległości od ostatniego zapłaconego terminu - po jej włączeniu albo zmianie
   // daty, okresu czy „przedłużać” liczy się od najbliższego terminu (jak na PC).
   const przed = `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.przedluzac}|${wpis.koniecMiesiaca}`;
+  const staraCena = wpis.koszt;
+  // Formularz bez wyboru tygodni (telefon) zostawia okres, którego nie zna (pole puste); „co ile” zostaje
+  // przy tym samym okresie, a przy zmianie okresu wraca do 1.
+  const okresWpisu = p.okres === 'M' || p.okres === 'R' || p.okres === 'T' ? p.okres : wpis.okres || 'M';
+  const coIle = p.coIle ?? (okresWpisu === wpis.okres ? wpis.coIle : 1);
   Object.assign(wpis, {
     nazwa: p.nazwa,
     opis: p.opis,
     koszt,
     waluta: WALUTY.includes(p.waluta) ? p.waluta : 'PLN',
     od: p.od,
-    okres: p.okres === 'R' ? 'R' : 'M',
+    okres: okresWpisu,
+    coIle,
     przedluzac: p.przedluzac,
     prognoza,
     platnoscReczna: p.platnosc === 'reczna',
@@ -172,6 +217,7 @@ export function zastosujFormularz(wpisy, edytowany, p) {
     zmieniono: new Date().toISOString(),
   });
   Object.assign(wpis, normalizuj(wpis));
+  zapiszZmianeCeny(wpis, staraCena);
   if (przed !== `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.przedluzac}|${wpis.koniecMiesiaca}`) ustawPoczatekZaplaty(wpis);
   if (!wpisy.includes(wpis)) wpisy.push(wpis);
   return { wpis };

@@ -3,6 +3,7 @@
 import { dzis, dodajMiesiace, roznicaDni, doPlatnosci, kiedyTekst, formatujDate } from './alarmy.js';
 import { nazwaWpisu } from './dane.js';
 import { element } from './dom.js';
+import { t, miesiac } from './teksty.js';
 
 const ODSTEP_ETYKIET = 10;
 
@@ -22,12 +23,17 @@ export function renderujMiarke(kontener, alarmy) {
     const pierwszy = new Date(poczatek.getFullYear(), poczatek.getMonth() + m, 1);
     const kreska = element('span', 'miarka__kreska miarka__kreska--miesiac');
     kreska.style.left = pozycja(pierwszy) + '%';
-    const nazwa = element('span', 'miarka__miesiac', pierwszy.toLocaleDateString('pl-PL', { month: 'long' }));
+    const nazwa = element('span', 'miarka__miesiac', miesiac(pierwszy, 'long'));
     // Miesiąc zaczynający się tuż po dziś nie wchodzi na napis „dziś” - najbliżej zaraz za nim (2,6em).
-    nazwa.style.left = `max(${pozycja(pierwszy)}%, 2.6em)`;
+    // Przy samym końcu miarki napis stoi przed kreską - długa nazwa („październik”, „February”)
+    // nie wychodzi poza kartkę.
+    if (pozycja(pierwszy) > 88) {
+      nazwa.classList.add('miarka__miesiac--przed');
+      nazwa.style.right = `${100 - pozycja(pierwszy)}%`;
+    } else nazwa.style.left = `max(${pozycja(pierwszy)}%, 2.6em)`;
     podzialka.append(kreska, nazwa);
   }
-  const dzisiaj = element('span', 'miarka__dzis', 'dziś');
+  const dzisiaj = element('span', 'miarka__dzis', t('dziś'));
   podzialka.append(dzisiaj);
 
   const terminy = alarmy
@@ -57,7 +63,7 @@ export function renderujMiarke(kontener, alarmy) {
 
   kontener.replaceChildren(podzialka, znaczniki);
   if (!terminy.length) {
-    znaczniki.append(element('p', 'miarka__spokoj', 'Spokojnie - w tym czasie nic nie wygasa i żadna roczna płatność nie przypada.'));
+    znaczniki.append(element('p', 'miarka__spokoj', t('Spokojnie - w tym czasie nic nie wygasa i żadna roczna płatność nie przypada.')));
   }
   ulozTory(znaczniki);
 }

@@ -5,6 +5,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as M from '../resources/js/magazyn.js';
 import { wczytajUstawienia, zapiszUstawienia } from '../resources/js/ustawienia.js';
+import { poprawneFunkcje } from '../resources/js/funkcje.js';
 
 const pliki = new Map();
 let bledy = {}; // nazwa funkcji -> błąd do rzucenia (np. getStats: { code: 'NE_FS_PERMISSION' })
@@ -127,11 +128,39 @@ test('blokada: świeża blokada innej kopii zatrzymuje start; stara, „z przysz
 
 test('ustawienia: domyślnie zapis lokalny włączony; zapis i odczyt; śmieci = domyślne', async () => {
   const U = F + '/ustawienia.json';
-  assert.deepEqual(await wczytajUstawienia(U), { lokalnie: true, motyw: '' });
-  await zapiszUstawienia(U, { lokalnie: false, motyw: 'jasny' });
-  assert.deepEqual(await wczytajUstawienia(U), { lokalnie: false, motyw: 'jasny' });
+  const domyslne = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, budzet: 0 };
+  assert.deepEqual(await wczytajUstawienia(U), domyslne);
+  await zapiszUstawienia(U, { lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
+  assert.deepEqual(await wczytajUstawienia(U), { ...domyslne, lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
   pliki.set(U, '{zepsute');
-  assert.deepEqual(await wczytajUstawienia(U), { lokalnie: true, motyw: '' });
-  pliki.set(U, JSON.stringify({ lokalnie: 'nie', motyw: '<script>' }));
-  assert.deepEqual(await wczytajUstawienia(U), { lokalnie: true, motyw: '' });
+  assert.deepEqual(await wczytajUstawienia(U), domyslne);
+  pliki.set(U, JSON.stringify({ lokalnie: 'nie', motyw: '<script>', prowizja: 99, funkcje: 'x', powiadomienia: 5, wTle: 'tak', jezyk: 'xx', wprowadzenie: 1 }));
+  assert.deepEqual(await wczytajUstawienia(U), domyslne);
+  // F27 / F25: język i notatki „pierwsze kroki” - zapis i odczyt.
+  await zapiszUstawienia(U, { lokalnie: true, jezyk: 'en', wprowadzenie: true });
+  assert.deepEqual(await wczytajUstawienia(U), { ...domyslne, jezyk: 'en', wprowadzenie: true });
+  // D19: budżet - zapis i odczyt; ujemny, za duży albo tekst = bez limitu.
+  await zapiszUstawienia(U, { lokalnie: true, budzet: 450.555 });
+  assert.equal((await wczytajUstawienia(U)).budzet, 450.56);
+  for (const zly of [-5, 1e9, '300', null]) {
+    pliki.set(U, JSON.stringify({ budzet: zly }));
+    assert.equal((await wczytajUstawienia(U)).budzet, 0);
+  }
+});
+
+test('ustawienia: funkcje, rodzaje powiadomień i „w tle” - zapis i odczyt; telefon zapisuje tylko „lokalnie”', async () => {
+  const U = F + '/ustawienia.json';
+  const powiadomienia = { wycofaj: true, zaplac: false, drogie: true, podwyzka: false, progDrogich: 250 };
+  await zapiszUstawienia(U, { lokalnie: true, funkcje: { pauza: false, historia: false }, powiadomienia, wTle: true });
+  const u = await wczytajUstawienia(U);
+  assert.equal(u.funkcje.pauza, false);
+  assert.equal(u.funkcje.historia, false);
+  assert.equal(u.funkcje.platnosc, true, 'brak wpisu = włączona');
+  assert.deepEqual(u.powiadomienia, powiadomienia);
+  assert.equal(u.wTle, true);
+  // Próg spoza zakresu - 100 zł; brak rodzaju = wyłączony.
+  pliki.set(U, JSON.stringify({ powiadomienia: { wycofaj: true, progDrogich: -5 } }));
+  assert.deepEqual((await wczytajUstawienia(U)).powiadomienia, { wycofaj: true, zaplac: false, drogie: false, podwyzka: false, progDrogich: 100 });
+  await zapiszUstawienia(U, { lokalnie: false });
+  assert.deepEqual(JSON.parse(pliki.get(U)), { lokalnie: false });
 });

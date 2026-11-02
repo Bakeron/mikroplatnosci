@@ -122,6 +122,22 @@ button { cursor: pointer; }
 .kursy__uwaga { font-style: italic; }
 .kursy__uwaga--offline { color: var(--pomarancz); }
 
+/* prowizja banku obok kursów - napis-przycisk; ustawiona (> 0) atramentem, żeby było widać, że działa */
+.prowizja {
+  anchor-name: --prowizja;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--olowek);
+  font: italic 13px var(--f-tytul);
+  white-space: nowrap;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+  transition: color 0.12s;
+}
+.prowizja:hover, .prowizja--ustawiona { color: var(--atrament); }
+.karteczka--prowizja { position-anchor: --prowizja; width: 300px; }
+
 /* Przyciski-napisy: odśwież, motyw, Dysk w stopce - wspólny wygląd, w klasach tylko różnice. */
 .odswiez, .motyw, .stopka__przycisk {
   padding: 2px 0;
@@ -161,13 +177,14 @@ button { cursor: pointer; }
 @media (max-width: 1420px) {
   .naglowek { flex-wrap: wrap; row-gap: 4px; }
   .naglowek::before { content: ''; order: 1; flex-basis: 100%; } /* łamanie wiersza */
-  .kursy, .odswiez, .motyw, .status { order: 2; }
-  /* Kursy zajmują resztę wiersza i nigdy nie spychają przycisków ani stanu zapisu w dół -
+  .kursy, .prowizja, .odswiez, .motyw, .status { order: 2; }
+  /* Kursy zajmują resztę wiersza, ale nie mniej niż ich treść (inaczej data NBP wchodziła pod „prowizję banku”) -
      za długi dopisek („bez internetu…”) skraca się wielokropkiem. */
-  .kursy { flex: 1 1 0; flex-wrap: nowrap; min-width: 0; margin-left: 0; white-space: nowrap; }
+  .kursy { flex: 1 1 0; flex-wrap: nowrap; margin-left: 0; white-space: nowrap; }
   .kursy > * { flex-shrink: 0; }
   .kursy > .kursy__uwaga { flex-shrink: 1; overflow: hidden; min-width: 0; text-overflow: ellipsis; }
-  .status { white-space: nowrap; }
+  /* Stan zapisu bierze tylko wolne miejsce - długa nazwa pliku skraca się wielokropkiem (pełna w podpowiedzi). */
+  .status { flex: 1 1 0; max-width: max-content; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 /* Najwęższe okno (np. przy skalowaniu ekranu 150%): z przycisku zostaje sama ikonka ↻. */
 @media (max-width: 860px) {
@@ -345,6 +362,7 @@ tr:hover .uchwyt::before,
   background: transparent;
   font: 14px var(--f-liczby);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap; /* „11 Oct 2026” po angielsku w jednej linijce */
 }
 .data::after {
   content: "";
@@ -429,6 +447,20 @@ tr:hover .uchwyt::before,
 
 .dopisek--uwaga { color: var(--czerwony); font: italic 12.5px var(--f-tytul); }
 .dopisek--termin { margin-top: 3px; padding: 0; font-variant-numeric: tabular-nums; }
+/* inny okres pod przełącznikiem (co kwartał, co 2 lata) i moja część wspólnej płatności pod kosztem */
+.dopisek--okres { margin-top: 3px; color: var(--atrament); font: italic 12px var(--f-tytul); }
+.dopisek--czesc { text-align: right; color: var(--atrament); white-space: nowrap; }
+
+/* pauza: wiersz przygaszony, zamiast lontu „wstrzymana” ze znakiem pauzy (dwie pionowe kreski) */
+.pauza { color: var(--olowek); font: 600 13px var(--f-liczby); letter-spacing: 0.06em; text-transform: uppercase; }
+.pauza::before { content: "\2016  "; color: var(--atrament); font-weight: 700; }
+.zeszyt tbody tr.wstrzymana td:not(.kol-akcje, .kol-lp, .kol-wiecej, .kol-termin) { opacity: 0.6; }
+
+/* wspólna płatność: „odbierz po … od: Ania” z polem ☐ oddane - zielonym atramentem (pieniądze wracają) */
+.odbierz[hidden] { display: none; }
+.odbierz { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 4px; padding-left: 6px; border-left: 2px solid var(--zielony); }
+.odbierz__tekst { color: var(--zielony); font: italic 600 12.5px var(--f-tytul); }
+.odbierz .zaplac__pole input { accent-color: var(--zielony); }
 
 /* płatność ręczna blisko terminu - czerwony długopis na marginesie, a cała linijka czerwienieje z każdym
    dniem (--czerwien z tabela.js: 6% tydzień przed → 24% w dniu terminu → 34% po terminie);
@@ -446,6 +478,12 @@ tr:hover .uchwyt::before,
 /* ☐ zapłacone - pole do zaznaczenia (nie informacja o stanie); po zaznaczeniu wiersz wraca do normy */
 .zaplac__pole { display: inline-flex; align-items: center; gap: 4px; color: var(--atrament); font: 600 11.5px var(--f-liczby); white-space: nowrap; cursor: pointer; }
 .zaplac__pole input { width: 14px; height: 14px; margin: 0; accent-color: var(--czerwony); cursor: pointer; }
+/* kwota za każdym razem inna: „ile? [230,00] PLN zapisz” po zaznaczeniu „zapłacone” */
+.zaplac__kwota[hidden] { display: none; }
+.zaplac__kwota { display: flex; align-items: center; gap: 4px; width: 100%; }
+.zaplac__pytanie { color: var(--atrament); font: italic 600 12.5px var(--f-tytul); }
+.pole--zaplacono { width: 64px; padding: 2px; font-size: 14px; box-shadow: inset 0 -1px 0 var(--atrament); }
+.zaplac__ok { padding: 0 2px; border: 0; background: transparent; color: var(--atrament); font: italic 600 12.5px var(--f-tytul); text-decoration: underline; text-underline-offset: 3px; }
 
 /* „⋯” na końcu wiersza i karteczka z ustawieniami (popover nad tabelą, przy przycisku) */
 .wiecej {
@@ -471,6 +509,8 @@ tr:hover .uchwyt::before,
   color: var(--atrament);
   box-shadow: 0 8px 22px rgb(0 0 0 / 0.28);
   text-align: left;
+  max-height: min(86vh, 620px);
+  overflow-y: auto;
 }
 .karteczka__tytul {
   margin-bottom: 10px;
@@ -487,6 +527,39 @@ tr:hover .uchwyt::before,
 .karteczka__wybor .okres-wybor__opcja { white-space: nowrap; }
 .karteczka__pole[hidden] { display: none; }
 .karteczka__opis { margin: 8px 0 0; color: var(--olowek); font: italic 12px/1.35 var(--f-tytul); }
+
+/* rzadziej zmieniane ustawienia (okres, dzielę koszt, pauza) - zwinięte; w zwiniętej nazwa i obecna wartość,
+   strzałka jak przy zakładce w zeszycie */
+.karteczka__grupa { border-bottom: 1px dotted var(--linia); }
+.karteczka__grupa[hidden] { display: none; }
+.karteczka__opis + .karteczka__grupa { margin-top: 10px; border-top: 1px solid var(--linia); }
+.karteczka__podsumowanie { border-bottom: 0; list-style: none; cursor: pointer; }
+.karteczka__podsumowanie::-webkit-details-marker { display: none; }
+.karteczka__podsumowanie:hover .karteczka__nazwa { color: var(--atrament); }
+.karteczka__wartosc { margin-left: auto; color: var(--atrament); font: italic 13px var(--f-tytul); white-space: nowrap; }
+.karteczka__wartosc::after { content: " \25B8"; color: var(--olowek); font-style: normal; }
+.karteczka__grupa[open] .karteczka__wartosc::after { content: " \25BE"; }
+/* rozwijanie i zwijanie grupy: krótkie, płynne przejście wysokości zamiast skoku - widać, skąd wyjeżdża treść
+   (a gdy karteczka musi się podnieść, żeby zmieścić się w oknie, podnosi się razem z nią, nie skokiem) */
+.karteczka { interpolate-size: allow-keywords; }
+.karteczka__grupa::details-content {
+  block-size: 0;
+  overflow: clip;
+  opacity: 0;
+  transition: block-size 0.16s ease-out, opacity 0.16s ease-out, content-visibility 0.16s allow-discrete;
+}
+.karteczka__grupa[open]::details-content { block-size: auto; opacity: 1; }
+.karteczka__tresc { padding: 2px 0 10px; }
+.karteczka__gotowe { flex-wrap: wrap; gap: 8px 14px; padding: 6px 0 8px; }
+.karteczka__wlasny { display: flex; align-items: center; gap: 6px; color: var(--olowek); font: 13px var(--f-liczby); }
+.karteczka__etykieta { color: var(--olowek); font: italic 12px var(--f-tytul); }
+.karteczka__male { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
+.pole--male { width: 56px; padding: 3px 2px; box-shadow: inset 0 -1px 0 var(--olowek); font: 500 14px var(--f-liczby); }
+.pole--jednostka { font-size: 12px; text-transform: none; letter-spacing: 0; }
+.pole--kto, .pole--data-pauzy { padding: 3px 2px; box-shadow: inset 0 -1px 0 var(--olowek); }
+.pole--data-pauzy { width: auto; font: 14px var(--f-liczby); }
+.karteczka__przyciski { display: flex; gap: 16px; margin-top: 6px; }
+.karteczka__przycisk { padding: 0; font-size: 13px; }
 
 /* Przełącznik tak / nie (np. „Przedłużać”): kółko w prawo = tak (atrament), w lewo = nie (czerwień jak „!”);
    napis w środku po stronie bez kółka, więc stan widać nie tylko po kolorze. Wspólny dla PC i telefonu. */
@@ -514,8 +587,9 @@ tr:hover .uchwyt::before,
   background: var(--czerwony);
   transition: transform 0.15s, background-color 0.15s;
 }
+/* Napisy „tak” / „nie” w języku aplikacji - zmienne ustawia main.js (zastosujJezyk). */
 .przelacznik::after {
-  content: "nie";
+  content: var(--napis-nie, "nie");
   position: absolute;
   top: 0;
   right: 8px;
@@ -529,7 +603,7 @@ tr:hover .uchwyt::before,
 }
 .przelacznik:checked { border-color: var(--atrament); }
 .przelacznik:checked::before { transform: translateX(34px); background: var(--atrament); }
-.przelacznik:checked::after { content: "tak"; right: auto; left: 8px; color: var(--atrament); }
+.przelacznik:checked::after { content: var(--napis-tak, "tak"); right: auto; left: 8px; color: var(--atrament); }
 .przelacznik:focus-visible { outline: 2px solid var(--atrament); outline-offset: 2px; }
 /* „nie” jako zwykły stan, nie ostrzeżenie (np. „Termin do końca miesiąca”) - ołówkiem zamiast czerwieni */
 .przelacznik--zwykly:not(:checked) { border-color: var(--olowek); }
@@ -643,6 +717,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.miarka__miesiac--przed { padding: 0 6px 0 0; }
 .miarka__dzis { left: 0; padding-left: 0; color: var(--czerwony); }
 .miarka__dzis::after {
   content: "";
@@ -705,15 +780,23 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 
 .miarka__spokoj { margin: 0; padding-top: 14px; color: var(--olowek); font: italic 15px var(--f-tytul); }
 
+/* Spisy i pod nimi historia wydatków - w lewej kolumnie, obok długiego paragonu (wolne miejsce pod spisami);
+   w wąskim oknie jedno pod drugim: spisy, paragon, historia. */
 .margines__dol {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 48px;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "spisy paragon" "historia paragon";
+  gap: 0 48px;
   align-items: start;
   margin-top: 30px;
 }
+.margines__dol > .spisy { grid-area: spisy; }
+.margines__dol > .paragon-cien { grid-area: paragon; }
+.margines__dol > .historia { grid-area: historia; margin-top: 10px; }
 @media (max-width: 1020px) {
-  .margines__dol { grid-template-columns: minmax(0, 1fr); }
+  .margines__dol { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "spisy" "paragon" "historia"; gap: 48px; }
+  .margines__dol > .historia { margin-top: 0; }
 }
 
 /* spisy terminów: nazwa ........ termin   kwota */
@@ -766,8 +849,61 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .paragon__pozycja--wycofanie .paragon__kwota { text-decoration: line-through; opacity: 0.7; }
 .paragon__pozycja--suma { font-size: 15px; font-weight: 700; }
 .paragon__pozycja--alarm { color: #b3261e; font-weight: 700; }
+.paragon__pozycja--wstrzymana .paragon__nazwa,
+.paragon__pozycja--wstrzymana .paragon__kwota { opacity: 0.6; }
 .paragon__waluta { font-size: 11px; text-align: right; opacity: 0.7; }
 .paragon__stopka { font-size: 11.5px; text-align: center; opacity: 0.7; }
+
+/* --- historia wydatków: 12 kolumn jak w księdze rachunkowej, słupki kreskowane piórem --- */
+
+.historia { margin-top: 40px; }
+.historia__naglowek { display: flex; align-items: baseline; gap: 18px; }
+.historia__rok { display: flex; align-items: baseline; gap: 6px; font: 600 16px var(--f-liczby); font-variant-numeric: tabular-nums; }
+.historia__strzalka { width: 26px; padding: 0; border: 0; background: transparent; color: var(--olowek); font: 700 20px/1 var(--f-tytul); }
+.historia__strzalka:hover:not(:disabled) { color: var(--atrament); }
+.historia__strzalka:disabled { opacity: 0.25; cursor: default; }
+.historia__odczyt { min-height: 1.45em; margin: 0 0 14px; color: var(--olowek); font: 14px var(--f-liczby); }
+.historia__odczyt strong { color: var(--atrament); font-weight: 600; }
+
+.historia__wykres { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; max-width: 760px; }
+/* oś: tylko górna granica i połowa - ołówkiem, w tle */
+.historia__os { position: relative; height: 160px; min-width: 52px; color: var(--olowek); font: 11px var(--f-liczby); text-align: right; font-variant-numeric: tabular-nums; }
+.historia__os-gora { position: absolute; right: 0; top: -0.6em; }
+.historia__os-pol { position: absolute; right: 0; top: calc(50% - 0.6em); }
+.historia__kolumny {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  height: 160px;
+  border-bottom: 2px solid var(--atrament);
+  /* linijki zeszytu: granica osi i połowa */
+  background: linear-gradient(var(--linia), var(--linia)) 0 0 / 100% 1px no-repeat, linear-gradient(var(--linia), var(--linia)) 0 50% / 100% 1px no-repeat;
+}
+.slupek { position: relative; display: flex; align-items: flex-end; justify-content: center; height: 100%; padding: 0 2px; border: 0; background: transparent; cursor: default; }
+.slupek:not(:disabled):hover, .slupek:focus-visible { background: var(--zakreslacz); }
+.slupek:focus-visible { outline-offset: -2px; }
+.slupek__kolumna {
+  width: min(70%, 34px);
+  height: calc(var(--wys, 0) * 100%);
+  border-top: 2px solid var(--atrament);
+  border-radius: 4px 4px 0 0;
+  /* kreskowanie piórem pod kątem zamiast pełnego koloru - jak zacieniowana rubryka w księdze */
+  background: repeating-linear-gradient(135deg, var(--atrament) 0 1.5px, transparent 1.5px 5px);
+}
+.slupek--biezacy .slupek__kolumna { border-top-style: dashed; border-top-color: var(--olowek); background: repeating-linear-gradient(135deg, var(--olowek) 0 1.5px, transparent 1.5px 5px); }
+.slupek__miesiac { position: absolute; bottom: -22px; left: 0; right: 0; color: var(--olowek); font: 600 11px var(--f-liczby); letter-spacing: 0.08em; text-align: center; text-transform: uppercase; }
+.slupek--biezacy .slupek__miesiac { color: var(--czerwony); }
+.slupek--przyszly .slupek__miesiac { opacity: 0.45; }
+.slupek--zero .slupek__kolumna { visibility: hidden; }
+
+.historia__dol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px; margin-top: 40px; }
+@media (max-width: 1020px) {
+  .historia__dol { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+.historia__podtytul { margin: 0 0 8px; font: italic 600 15px var(--f-tytul); }
+.historia .alarm__opis { color: var(--olowek); font-size: 13px; white-space: nowrap; } /* „1 płatność” w jednej linijce - historia stoi w węższej kolumnie obok paragonu */
+.historia .alarm--drozej .alarm__koszt { color: var(--czerwony-spis); font-weight: 700; }
+.historia .alarm--taniej .alarm__koszt { color: var(--zielony); font-weight: 700; }
+.historia__uwaga { margin: 0; color: var(--olowek); font: italic 12.5px/1.4 var(--f-tytul); }
 
 /* --- okno „Na pewno wykreślić?” - karteczka z pieczątką --- */
 
@@ -825,6 +961,55 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .okno__licencje summary { cursor: pointer; }
 .okno .okno__licencja { margin: 8px 0 0; font: 11.5px/1.45 var(--f-liczby); overflow-wrap: anywhere; }
 .okno__link { padding: 0; font-size: inherit; }
+
+/* „Ustawienia”: wewnętrzna strona okładki - dwie kolumny jak rozkładówka zeszytu (co widać / powiadomienia),
+   każda pod podwójną kreską jak nagłówek; wiersze na liniach w kropki, zależne wcięte za czerwonym marginesem. */
+.okno--ustawienia { max-width: 860px; width: calc(100vw - 48px); max-height: 90vh; overflow-y: auto; }
+.okno--ustawienia .okno__uwaga { margin-bottom: 18px; }
+/* „×” w prawym górnym rogu każdego okna - przyklejone do góry przy przewijaniu (Ustawienia, O aplikacji) */
+.okno__x {
+  position: sticky;
+  top: 0;
+  float: right;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  margin: -16px -18px 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--olowek);
+  font: 26px/1 var(--f-liczby);
+  cursor: pointer;
+}
+.okno__x:hover, .okno__x:focus-visible { color: var(--atrament); }
+.ustawienia__kolumny { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 36px; margin-bottom: 18px; }
+.ustawienia__naglowek {
+  margin: 0 0 4px;
+  padding-bottom: 6px;
+  border-bottom: 3px double var(--atrament);
+  font: 600 11.5px var(--f-liczby);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.ustawienia__wiersz { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px dotted var(--linia); cursor: pointer; }
+.ustawienia__teksty { display: flex; flex-direction: column; gap: 2px; }
+.ustawienia__nazwa { font: italic 600 15px var(--f-tytul); }
+.ustawienia__opis { color: var(--olowek); font: 12.5px/1.35 var(--f-tekst); }
+.ustawienia__wiersz:hover .ustawienia__nazwa { text-decoration: underline 1px var(--margines); text-underline-offset: 3px; }
+/* zależna od „Płacę sam” - wcięta za marginesem; bez „Płacę sam” przygaszona (przełącznik nieaktywny) */
+.ustawienia__wiersz--zalezny { margin-left: 10px; padding-left: 12px; border-left: 2px solid var(--margines); }
+.ustawienia__wiersz--wylaczony { opacity: 0.45; cursor: default; }
+.ustawienia__wiersz--wylaczony .przelacznik { cursor: default; }
+/* powiadomienia przy zamkniętej aplikacji - osobno, pod podwójną kreską: zmienia coś w Windows */
+.ustawienia__wiersz--tlo { margin-top: 14px; border-top: 3px double var(--linia); }
+.ustawienia__kwota { white-space: nowrap; color: var(--atrament); font: 13px var(--f-liczby); }
+.ustawienia__prog { width: 70px; text-align: right; }
+.okno .ustawienia__stan { min-height: 1.4em; margin: 6px 0 0; color: var(--olowek); font: italic 13px/1.4 var(--f-tytul); }
+.okno .ustawienia__stan--blad { color: var(--czerwony); font-style: normal; font-weight: 700; }
+@media (max-width: 860px) {
+  .ustawienia__kolumny { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+}
 .okno__pole { display: block; margin: 0 0 16px; color: var(--olowek); font: 13px var(--f-liczby); }
 .okno__pole input {
   display: block;
@@ -885,7 +1070,252 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 /* Systemowe „ogranicz animacje” (Windows: Ustawienia → Dostępność → Efekty wizualne; Android: Usuń animacje) -
    bez przejść, przesunięć i powiększeń przy najechaniu. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition: none !important; }
+  *, *::before, *::after, ::details-content { transition: none !important; }
   .otworz:hover:not(:disabled) { transform: none; }
   .pieczatka:hover, .pieczatka:focus-visible { transform: rotate(-4deg); }
 }
+
+/* --- F26: pomoc w miejscu - „?” obwiedzione ołówkiem jak dopisek na marginesie; okienko to karteczka
+   z ołówkową górną krawędzią (zwykła karteczka „⋯” ma czerwoną - tu nic nie jest ustawieniem). --- */
+.pomoc {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 3px;
+  padding: 0;
+  border: 1.4px solid currentColor;
+  border-radius: 52% 48% 55% 45%; /* kółko z ręki, nie z cyrkla */
+  background: transparent;
+  color: var(--olowek);
+  font: 700 10.5px/1 var(--f-liczby);
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: 1px;
+  cursor: help;
+}
+.pomoc:hover, .pomoc:focus-visible { color: var(--atrament); }
+.pomoc-okno {
+  width: 290px;
+  border-top: 3px solid var(--olowek);
+  font: italic 14px/1.45 var(--f-tytul);
+}
+.pomoc--paragon {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+  color: #5d5a52; /* paragon jest jasny w obu motywach */
+}
+.pomoc--paragon:hover, .pomoc--paragon:focus-visible { color: #1d1d1d; }
+.paragon-cien { position: relative; }
+
+/* --- F25: pierwsze kroki - notatki ołówkiem na pierwszej stronie zeszytu, numery w kółkach z ręki,
+   „×” w prawym górnym rogu chowa notatki. --- */
+.wprowadzenie {
+  position: relative;
+  max-width: 780px;
+  margin: 0 0 18px 8px;
+  padding: 12px 18px 10px;
+  border: 1.5px dashed var(--olowek);
+  border-radius: 4px 10px 6px 12px;
+  color: var(--olowek);
+  font: italic 15px/1.5 var(--f-tytul);
+}
+.wprowadzenie__tytul { margin: 0 0 6px; padding-right: 30px; font: italic 600 16px var(--f-tytul); }
+.wprowadzenie__kroki { margin: 0; padding: 0; list-style: none; counter-reset: krok; }
+.wprowadzenie__kroki li { position: relative; margin: 6px 0; padding-left: 34px; counter-increment: krok; }
+.wprowadzenie__kroki li::before {
+  content: counter(krok);
+  position: absolute;
+  left: 2px;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid currentColor;
+  border-radius: 55% 45% 50% 50% / 50% 55% 45% 50%;
+  font: 700 13px/1 var(--f-liczby);
+  font-style: normal;
+  transform: rotate(-8deg);
+}
+.wprowadzenie__kroki b { color: var(--atrament); font-style: normal; font-weight: 600; }
+.wprowadzenie__przyklad { margin: 8px 0 4px; }
+.wprowadzenie__zmaz {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--olowek);
+  font: 22px/1 var(--f-liczby);
+  cursor: pointer;
+}
+.wprowadzenie__zmaz:hover, .wprowadzenie__zmaz:focus-visible { color: var(--atrament); }
+
+/* --- C15: Anulowane - przekreślone czerwonym atramentem pod tabelą, zwinięte. --- */
+.anulowane { margin: 10px 0 0 8px; color: var(--olowek); }
+.anulowane__naglowek {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: baseline;
+  padding: 4px 0;
+  font: italic 15px var(--f-tytul);
+  cursor: pointer;
+}
+.anulowane__naglowek:hover .anulowane__tytul { color: var(--atrament); }
+.anulowane__tytul { font-weight: 600; }
+.anulowane__ile { font: 13px var(--f-liczby); }
+.anulowane__oszczednosc { color: var(--zielony); font: 600 13.5px var(--f-liczby); }
+.anulowane__lista { margin: 2px 0 6px; padding: 0 0 0 18px; list-style: none; }
+.anulowane__pozycja { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--linia); }
+.anulowane__nazwa { min-width: 160px; color: var(--atrament); font: 15px var(--f-tytul); text-decoration: line-through 2px var(--czerwony); }
+.anulowane__opis { font: 13px var(--f-liczby); }
+.anulowane__przycisk { padding: 0 2px; font-size: 13.5px; }
+.anulowane__przycisk--usun:hover, .anulowane__przycisk--usun:focus-visible { color: var(--czerwony); }
+.paragon__pozycja--oszczednosc { color: #1f6b28; }
+
+/* --- F27: wybór języka w „Ustawieniach” (lewa strona paska przycisków). --- */
+.ustawienia__jezyk { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+
+/* --- D17: kategorie - zakładki indeksowe wystające znad kartki (filtr) i fiszka w wierszu. Każda kategoria
+   ma swój kolor paska jak samoprzylepne zakładki, ale zawsze z nazwą - kolor tylko pomaga. --- */
+:root {
+  --kat-rozrywka: #b8466a;
+  --kat-praca: #9a6a00;
+  --kat-ai: #23756f;
+  --kat-dom: #a5432c;
+  --kat-nauka: #4f7a26;
+  --kat-zdrowie: #c0641a;
+  --kat-inne: var(--olowek);
+}
+:root[data-motyw="ciemny"] {
+  --kat-rozrywka: #e58aa8;
+  --kat-praca: #e3b440;
+  --kat-ai: #5fc4ba;
+  --kat-dom: #e48a70;
+  --kat-nauka: #9dcc6a;
+  --kat-zdrowie: #f2a35e;
+}
+[data-kategoria="rozrywka"] { --kat: var(--kat-rozrywka); }
+[data-kategoria="praca"] { --kat: var(--kat-praca); }
+[data-kategoria="ai"] { --kat: var(--kat-ai); }
+[data-kategoria="dom"] { --kat: var(--kat-dom); }
+[data-kategoria="nauka"] { --kat: var(--kat-nauka); }
+[data-kategoria="zdrowie"] { --kat: var(--kat-zdrowie); }
+[data-kategoria="inne"] { --kat: var(--kat-inne); }
+
+.zakladki {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 22px;
+  margin: 0 0 -2px 46px; /* zakładki stoją na linii nagłówka tabeli, od marginesu Lp. */
+  position: relative;
+  z-index: 3;
+}
+.zakladki__kategorie, .zakladki__tylko { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px; }
+.zakladki__etykieta { align-self: center; margin-right: 2px; color: var(--olowek); font: italic 13px var(--f-tytul); }
+.zakladka {
+  --kat: var(--atrament);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 10px 3px;
+  border: 1px solid var(--linia);
+  border-bottom: 0;
+  border-top: 4px solid color-mix(in srgb, var(--kat) 55%, transparent);
+  border-radius: 5px 5px 0 0;
+  background: var(--papier-2);
+  color: var(--olowek);
+  font: 600 11.5px var(--f-liczby);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: translateY(3px);
+  transition: transform 0.12s, color 0.12s;
+}
+.zakladka:hover { color: var(--atrament); transform: translateY(1px); }
+.zakladka[aria-pressed="true"] {
+  border-top-color: var(--kat);
+  background: var(--papier);
+  color: var(--atrament);
+  box-shadow: 0 -2px 6px rgb(0 0 0 / 0.12);
+  transform: translateY(0);
+}
+.zakladka__ile { font-weight: 400; letter-spacing: 0; opacity: 0.75; font-variant-numeric: tabular-nums; }
+/* „tylko …” - spinacz zamiast koloru: ✓ przed napisem, gdy włączone */
+.zakladka--tylko { --kat: var(--margines); text-transform: none; letter-spacing: 0.02em; font-size: 12.5px; }
+.zakladka--tylko[aria-pressed="true"] .zakladka__napis::before { content: "\2713  "; }
+.zakladki__licznik { align-self: center; margin-left: auto; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
+.zakladki__wyczysc { padding: 0 2px; font-size: 13.5px; }
+@media (prefers-reduced-motion: reduce) { .zakladka { transition: none; } }
+
+/* fiszka kategorii i pieczątka „na firmę” pod opisem pozycji */
+.znaczki { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; }
+.fiszka {
+  padding: 0 6px 0 5px;
+  border-left: 4px solid var(--kat, var(--olowek));
+  background: color-mix(in srgb, var(--kat, var(--olowek)) 12%, transparent);
+  color: var(--atrament);
+  font: 600 10px/1.6 var(--f-liczby);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* pieczątka księgowej - atramentem, lekko krzywo */
+.pieczatka-firma {
+  padding: 0 5px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  color: var(--atrament);
+  font: 700 9.5px/1.5 var(--f-liczby);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.8;
+  transform: rotate(-3deg);
+}
+/* D18: „pobierz fakturę” po płatności - atramentem (papier do segregatora), jak „odbierz” ma zielony */
+.faktura { border-left-color: var(--atrament); }
+.faktura .odbierz__tekst { color: var(--atrament); }
+.faktura .zaplac__pole input { accent-color: var(--atrament); }
+
+/* D19: budżet na paragonie */
+.paragon__pozycja--zostaje { color: #1f6b28; }
+.paragon__pozycja--ponad { font-size: 15px; }
+.paragon .paragon__ostrzezenie { color: #b3261e; font-weight: 700; opacity: 1; }
+.ustawienia__wiersz--budzet { margin-top: 10px; border-top: 3px double var(--linia); cursor: default; }
+
+/* --- E23, E24: „kopia i import…” w stopce - karteczka z czterema czynnościami --- */
+.stopka__plik { anchor-name: --plik; }
+.karteczka--plik { position-anchor: --plik; position-area: top span-right; width: 380px; }
+.plik__akcja {
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px dotted var(--linia);
+  background: transparent;
+  color: var(--atrament);
+  font: italic 600 15px var(--f-tytul);
+  text-align: left;
+}
+.plik__akcja:last-of-type { border-bottom: 0; }
+.plik__akcja:hover:not(:disabled) { text-decoration: underline 1px var(--margines); text-underline-offset: 3px; }
+.plik__akcja:disabled { opacity: 0.45; cursor: default; }
+.plik__opis { display: block; margin-top: 1px; color: var(--olowek); font: 12.5px/1.35 var(--f-tekst); }
+
+/* E24: okno z płatnościami znalezionymi w wyciągu */
+.okno--wyciag { max-width: 640px; width: calc(100vw - 48px); max-height: 90vh; overflow-y: auto; }
+.okno--wyciag .okno__uwaga { margin-bottom: 12px; font-size: 14px; }
+.wyciag { margin: 0 0 14px; padding: 0; list-style: none; border-top: 1px solid var(--linia); }
+.wyciag__pozycja { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px dotted var(--linia); }
+.wyciag__pozycja > input { width: 16px; height: 16px; margin: 6px 0 0; accent-color: var(--atrament); flex-shrink: 0; }
+.wyciag__pozycja--uwaga { color: var(--olowek); }
+.wyciag__teksty { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.wyciag__nazwa { width: 100%; padding: 2px 0; box-shadow: inset 0 -1px 0 var(--linia); font: italic 600 16px var(--f-tytul); }
+.wyciag__opis { color: var(--olowek); font: 13px var(--f-liczby); }
+.wyciag__uwaga { color: var(--pomarancz); font: italic 13px var(--f-tytul); }

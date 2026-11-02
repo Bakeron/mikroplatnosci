@@ -24,7 +24,7 @@ test('plik danych: zapis i ponowny odczyt dają to samo, dodatki PC przed wpisam
 });
 
 test('śmieci z pliku zamieniane na bezpieczne wartości', () => {
-  const w = normalizuj({ id: 5, od: '2026-13', okres: 'X', nazwa: 7, koszt: -3, waluta: 'GBP', przedluzac: 'może', prognoza: Infinity, zmieniono: 'wczoraj' });
+  const w = normalizuj({ id: 5, od: '2026-13', okres: 'X', nazwa: 7, koszt: -3, waluta: 'XYZ', przedluzac: 'może', prognoza: Infinity, zmieniono: 'wczoraj' });
   assert.equal(typeof w.id, 'string');
   assert.ok(w.id.length > 0);
   assert.deepEqual(

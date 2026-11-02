@@ -10,7 +10,8 @@ Aplikacja APK (Capacitor 8) z tymi samymi danymi co wersja PC, połączona przez
 | `../pc/resources/js/` | **wspólne obliczenia** - `dom.js`, `ustawienia.js`, `alarmy.js`, `waluty.js`, `podsumowanie.js`, `spisy.js`, `miarka.js`, `dane.js`, `scalanie.js`, `dysk.js`, `synchronizacja.js`, `powiadomienia.js` - kopiowane do telefonu przy budowaniu (jedno źródło dla obu aplikacji) |
 | `../pc/resources/css/wyglad.css` | kolory, paragon, listy terminów - też kopiowane |
 | `skrypty/przygotuj.mjs` | składa `www/` (nie w gicie) i wpisuje identyfikator projektu Google ze zmiennych środowiskowych |
-| `skrypty/apk.mjs` | buduje podpisany APK → `apk/Mikroplatnosci.apk` (nie w gicie) |
+| `skrypty/apk.mjs` | buduje podpisany APK → `apk/Mikroplatnosci-<numer>.apk` (nie w gicie) |
+| `numer-instalki.txt` | numer ostatniej zbudowanej instalki (1.1, 1.2, …) |
 | `skrypty/ikony.ps1` | ikony Androida i ekran startowy z rysunku ikony PC |
 | `android/` | projekt Androida z `npx cap add android` (wyniki budowania poza gitem) |
 | `../pc/testy/` | testy - także telefonu: wspólne obliczenia, zamiennik Neutralino, kompletność listy plików kopiowanych do `www/` (`cd pc && npm test`) |
@@ -21,10 +22,12 @@ Aplikacja APK (Capacitor 8) z tymi samymi danymi co wersja PC, połączona przez
 cd mobile
 npm install            # raz, po pobraniu repozytorium
 npm run apk            # testy + www/ + kopiowanie do Androida + podpisany APK
-npm run aab            # to samo, ale paczka AAB dla Google Play (mobile/apk/Mikroplatnosci.aab)
+npm run aab            # to samo, ale paczka AAB dla Google Play (mobile/apk/Mikroplatnosci-<numer>.aab)
 ```
 
 Gdy któryś test nie przechodzi, APK się nie buduje. Każde budowanie dostaje nowy numer wersji z daty i godziny (widoczny w zakładce Paragon, pod paragonem) i rosnący kod wersji dla Androida (`mobile/wersja.json`, poza gitem).
+
+**Numer instalki** (decyzja autora 01.11.2026): każda nowa instalka o 0.1 wyżej - 1.0 (pierwsza, `Mikroplatnosci.apk` bez numeru), 1.1, 1.2, … 1.9, 2.0. `apk.mjs` sam podbija numer z `numer-instalki.txt` i zapisuje go po udanym budowaniu. Numer jest w nazwie pliku i w Androidzie (Ustawienia → Aplikacje → Mikropłatności → wersja).
 
 Potrzebne (zainstalowane 30.10.2026 bez uprawnień administratora, w `%LOCALAPPDATA%\Android`):
 - `jdk\jdk-21…` - Java (Microsoft Build of OpenJDK 21),
@@ -49,6 +52,6 @@ Na telefonie: zmiany zapisują się w telefonie od razu, a przy włączonym Dysk
 
 ## Instalacja na telefonie
 
-1. Skopiuj `apk/Mikroplatnosci.apk` na telefon (kabel USB albo Dysk Google).
+1. Skopiuj najnowszy `apk/Mikroplatnosci-<numer>.apk` na telefon (kabel USB albo Dysk Google).
 2. Otwórz plik w telefonie (menedżer plików / Dysk) → zgoda „Instalowanie nieznanych aplikacji” dla tej aplikacji → Zainstaluj.
 3. Aktualizacja = zainstalowanie nowszego APK tak samo (dane zostają).

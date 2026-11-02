@@ -202,13 +202,16 @@ function utworzKarte(wpis) {
 }
 
 function renderuj() {
-  const posortowane = [...stan.wpisy].sort((a, b) => {
+  // Anulowane na PC (C15) - na telefonie na razie bez listy „Anulowane”, tylko ukryte; sumy, alarmy
+  // i powiadomienia pomijają je same (wspólne obliczenia).
+  const widoczne = stan.wpisy.filter((w) => !w.anulowano);
+  const posortowane = widoczne.sort((a, b) => {
     const [ka, da] = kolejnosc(a);
     const [kb, db] = kolejnosc(b);
     return ka - kb || da - db;
   });
   $('karty').replaceChildren(...posortowane.map(utworzKarte));
-  $('pusto').hidden = stan.wpisy.length > 0;
+  $('pusto').hidden = widoczne.length > 0;
 
   const { roczne, jednorazowe } = zbierzAlarmy(stan.wpisy);
   wypelnijListe($('alarmy-roczne'), roczne, 'Żadna roczna płatność w ciągu 3 miesięcy.', false);

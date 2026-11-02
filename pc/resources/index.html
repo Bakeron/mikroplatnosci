@@ -12,8 +12,17 @@
     <h1>Mikropłatności</h1>
     <p class="naglowek__data" id="dzisiaj"></p>
     <p class="kursy" id="kursy" aria-live="polite"></p>
+    <button type="button" class="prowizja" id="prowizja" popovertarget="prowizja-okno" title="Prowizja banku za przewalutowanie - doliczana do kursu NBP przy kwotach w walutach">prowizja banku <span id="prowizja-wartosc">0%</span></button>
+    <div class="karteczka karteczka--prowizja" id="prowizja-okno" popover role="dialog" aria-labelledby="prowizja-tytul">
+      <div class="karteczka__tytul" id="prowizja-tytul">Prowizja banku</div>
+      <label class="karteczka__male"><span class="karteczka__etykieta">mój bank dolicza do kursu NBP</span>
+        <span class="karteczka__wlasny"><input type="number" class="pole pole--male" id="prowizja-pole" min="0" max="10" step="0.1" autocomplete="off"> %</span>
+      </label>
+      <p class="karteczka__opis">Kurs NBP to kurs średni. Bank przy płatności kartą w obcej walucie liczy zwykle 2-4% drożej (karty wielowalutowe i Revolut - mniej). Wpisana prowizja zmienia wszystkie „≈ zł” i sumy. 0 = sam kurs NBP.</p>
+    </div>
     <button type="button" class="odswiez" id="odswiez" title="Pobierz od nowa kursy NBP" aria-label="Odśwież kursy NBP">↻<span class="odswiez__tekst"> odśwież</span></button>
     <button type="button" class="motyw" id="motyw" title="Przełącz tło: ciemne / jasne"><span class="motyw__noc">noc</span><span class="motyw__dzien">dzień</span></button>
+    <button type="button" class="odswiez ustawienia-przycisk" id="ustawienia" title="Co widać w zeszycie i które powiadomienia przychodzą">ustawienia</button>
     <span class="status" id="status" aria-live="polite"></span>
   </header>
 
@@ -21,18 +30,29 @@
   <div class="blad" id="bez-zapisu" role="status" hidden>Dane nie są nigdzie zapisywane - zaznacz na dole „Zapisuj lokalnie” albo „Synchronizuj z Google Dyskiem”. Inaczej znikną po zamknięciu aplikacji.</div>
 
   <main class="kartka">
+    <section class="wprowadzenie" id="wprowadzenie" aria-labelledby="wprowadzenie-tytul" hidden>
+      <h2 class="wprowadzenie__tytul" id="wprowadzenie-tytul">Pierwsze kroki - notatki ołówkiem</h2>
+      <button type="button" class="wprowadzenie__zmaz" id="wprowadzenie-zmaz" title="Schowaj pierwsze kroki" aria-label="Schowaj pierwsze kroki">×</button>
+      <ol class="wprowadzenie__kroki">
+        <li><b>Dopisz pozycję</b> - „+ dopisz nową pozycję…” pod tabelą: nazwa, koszt i data zakupu.</li>
+        <li><b>Ustaw okres</b> - przy dacie zakupu „mies.”, „rok” albo „inny”. Od niego liczy się lont w „Do płatności”.</li>
+        <li><b>Kliknij „⋯”</b> na końcu wiersza - czy płatność pobiera się sama, czy płacisz sam, i czy ją przedłużać.</li>
+      </ol>
+      <p class="wprowadzenie__przyklad">Pierwszy wiersz to przykład - wykreśl go „×”, gdy dopiszesz własne. Znaki „?” wyjaśniają, co znaczą kolory i znaki.</p>
+    </section>
+    <nav class="zakladki" id="filtr" aria-label="Filtr tabeli" hidden></nav>
     <div class="zeszyt-ramka">
     <table class="zeszyt">
       <thead>
         <tr>
           <th class="kol-lp" title="Kolejność - przeciągnij numer, aby przesunąć wiersz">Lp.</th>
           <th class="kol-akcje"><span class="sr">Wykreśl</span></th>
-          <th>Nazwa i opis<span class="naglowek-opis"><span class="wykrzyknik" aria-hidden="true">!</span> = jednorazowa, do wycofania</span></th>
+          <th>Nazwa i opis<span class="naglowek-opis"><span class="wykrzyknik" aria-hidden="true">!</span> = jednorazowa, do wycofania <button data-pomoc="Czerwony „!” przed nazwą - tej pozycji nie przedłużasz (w „⋯” Przedłużać: nie). Anuluj ją przed terminem, bo inaczej odnowi się i pobierze opłatę." data-pomoc-czego="wykrzyknik „!”">?</button></span></th>
           <th class="kol-koszt" title="Zapłacona cena, a pod nią - gdy wiadomo - cena od następnej płatności (koniec promocji, podwyżka)">Koszt<span class="naglowek-opis">zapłacona / następna</span></th>
-          <th class="kol-zakup" title="Data zakupu i okres płatności: miesięczna albo roczna">Zakup</th>
-          <th class="kol-termin">Do płatności</th>
+          <th class="kol-zakup" title="Data zakupu i okres płatności: miesięczna, roczna albo inny (tydzień, kwartał, 2 lata…)">Zakup</th>
+          <th class="kol-termin">Do płatności <button data-pomoc="Lont: liczba dni do płatności i pasek, który się skraca - od zielonego przez żółty do czerwonego, im bliżej terminu. Pod nim dzień płatności." data-pomoc-czego="lont">?</button></th>
           <th class="kol-link">Link</th>
-          <th class="kol-wiecej" title="Ustawienia pozycji: przedłużać, sposób płatności"><span class="sr">Ustawienia</span></th>
+          <th class="kol-wiecej" title="Ustawienia pozycji: płatność, przedłużać, okres, podział kosztu, pauza"><span class="sr">Ustawienia</span></th>
         </tr>
       </thead>
       <tbody id="wiersze"></tbody>
@@ -44,6 +64,7 @@
     </table>
     </div>
     <p class="pusto" id="pusto" hidden>Zeszyt jest pusty - dopisz pierwszą pozycję.</p>
+    <details class="anulowane" id="anulowane" hidden></details>
 
     <section class="margines" aria-label="Najbliższe terminy i podsumowanie">
       <div class="miarka-ramka">
@@ -58,7 +79,8 @@
           <h2 class="tytul-sekcji"><span class="wykrzyknik" aria-hidden="true">!</span> Do wycofania przed odnowieniem</h2>
           <ul class="spis spis--wycofanie" id="alarmy-jednorazowe"></ul>
         </div>
-        <aside class="paragon-cien"><div class="paragon" id="podsumowanie" aria-label="Podsumowanie kosztów"></div></aside>
+        <aside class="paragon-cien"><button class="pomoc--paragon" data-pomoc="Paragon liczy wszystko w złotych (waluty po kursie NBP). RAZEM / MIESIĄC to miesięczne plus roczne podzielone na 12. Pozycje do wycofania „!” i wstrzymane „‖” są na liście, ale poza sumą." data-pomoc-czego="paragon">?</button><div class="paragon" id="podsumowanie" aria-label="Podsumowanie kosztów"></div></aside>
+        <section class="historia" id="historia" aria-labelledby="historia-tytul"></section>
       </div>
     </section>
   </main>
@@ -70,25 +92,36 @@
     <button type="button" class="stopka__przycisk" id="dysk-pobierz" title="Pobierz zmiany z Dysku (np. z telefonu) i połącz z tymi na komputerze" hidden>↓ Pobierz z Dysku</button>
     <button type="button" class="stopka__przycisk" id="dysk-wyslij" title="Połącz ze zmianami z Dysku i wyślij wynik na Dysk" hidden>↑ Wyślij na Dysk</button>
     <button type="button" class="stopka__przycisk stopka__przycisk--usun" id="dysk-usun" title="Usuń plik z danymi z Google Dysku i wyłącz synchronizację" hidden>Usuń z Dysku</button>
+    <button type="button" class="stopka__przycisk stopka__plik" id="plik" popovertarget="plik-okno" title="Kopia na pendrive, eksport do Excela, import z wyciągu bankowego">kopia i import…</button>
+    <div class="karteczka karteczka--plik" id="plik-okno" popover role="dialog" aria-labelledby="plik-tytul">
+      <div class="karteczka__tytul" id="plik-tytul">Kopia, eksport, import</div>
+      <button type="button" class="plik__akcja" id="plik-zapisz">Zapisz kopię jako…<span class="plik__opis">cały zeszyt w jednym pliku - np. na pendrive albo inny dysk</span></button>
+      <button type="button" class="plik__akcja" id="plik-wczytaj">Wczytaj kopię…<span class="plik__opis">zastępuje obecne dane; one najpierw trafiają do kopii zapasowej</span></button>
+      <button type="button" class="plik__akcja" id="plik-csv">Eksport do Excela (CSV)…<span class="plik__opis">tabela ze wszystkimi pozycjami - do arkusza albo wydruku</span></button>
+      <button type="button" class="plik__akcja" id="plik-bank">Import z wyciągu bankowego…<span class="plik__opis">plik CSV z banku (mBank, PKO, ING, Pekao, Revolut…) - znajdę płatności, które się powtarzają; plik nie wychodzi z komputera</span></button>
+      <input type="file" id="plik-wybor" hidden>
+    </div>
     <span class="stopka__stan" id="dysk-stan" aria-live="polite"></span>
     <button type="button" class="stopka__przycisk stopka__o-aplikacji" id="o-aplikacji">o aplikacji</button>
     <span class="stopka__wersja" id="wersja"></span>
   </footer>
 
-  <dialog class="okno" id="okno-dysk">
+  <dialog class="okno" id="okno-dysk" closedby="any">
+    <button type="button" class="okno__x" title="Zamknij" aria-label="Zamknij">×</button>
     <p>W przeglądarce otwiera się <strong>google.com/device</strong> - wpisz tam ten kod i zgódź się na dostęp:</p>
-    <p class="okno__kod" id="okno-dysk-kod"></p>
+    <p class="okno__kod" id="okno-dysk-kod" data-bez-tlumaczenia></p>
     <p class="okno__uwaga">Aplikacja zobaczy tylko swój ukryty folder na Dysku, nie Twoje pliki. Czekam na zgodę…</p>
     <div class="okno__przyciski">
-      <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj">Anuluj</button>
+      <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj" autofocus>Anuluj</button>
       <button type="button" class="przycisk-tekst" id="okno-dysk-otworz">Kopiuj kod i otwórz Google jeszcze raz</button>
     </div>
   </dialog>
 
-  <dialog class="okno okno--szersze" id="okno-google">
+  <dialog class="okno okno--szersze" id="okno-google" closedby="any">
+    <button type="button" class="okno__x" title="Zamknij" aria-label="Zamknij">×</button>
     <p>Synchronizacja potrzebuje identyfikatora Twojego projektu w Google Cloud (raz, za darmo):</p>
     <label class="okno__pole">Identyfikator klienta
-      <input type="text" id="okno-google-id" autocomplete="off" spellcheck="false" maxlength="127" placeholder="…apps.googleusercontent.com">
+      <input type="text" id="okno-google-id" autofocus autocomplete="off" spellcheck="false" maxlength="127" placeholder="…apps.googleusercontent.com">
     </label>
     <label class="okno__pole">Tajny klucz klienta
       <input type="password" id="okno-google-sekret" autocomplete="off" spellcheck="false" maxlength="100" placeholder="GOCSPX-…">
@@ -114,10 +147,11 @@
     </div>
   </dialog>
 
-  <dialog class="okno" id="okno-usun">
+  <dialog class="okno" id="okno-usun" closedby="any">
+    <button type="button" class="okno__x" title="Zamknij" aria-label="Zamknij">×</button>
     <p id="okno-usun-tekst"></p>
     <div class="okno__przyciski">
-      <button type="button" class="przycisk-tekst" id="okno-anuluj">Zostaw</button>
+      <button type="button" class="przycisk-tekst" id="okno-anuluj" autofocus>Zostaw</button>
       <button type="button" class="pieczatka" id="okno-potwierdz">Wykreśl</button>
     </div>
   </dialog>

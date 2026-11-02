@@ -3,6 +3,8 @@
 // Identyfikator i tajny klucz projektu Google: wpisane w aplikacji (plik google.json obok danych,
 // nie w plikach projektu) albo ze zmiennych środowiskowych Windows.
 
+import { t } from './teksty.js';
+
 const ZAKRES = 'https://www.googleapis.com/auth/drive.appdata';
 const ADRES_TOKENU = 'https://oauth2.googleapis.com/token';
 export const STRONA_KODU = 'https://www.google.com/device';
@@ -47,8 +49,8 @@ async function zapiszPlik() {
 export async function ustawIdentyfikator(id, sekret) {
   id = String(id).trim();
   sekret = String(sekret).trim();
-  if (!WZOR_ID.test(id)) return 'identyfikator klienta kończy się na .apps.googleusercontent.com';
-  if (!WZOR_SEKRETU.test(sekret)) return 'tajny klucz to ciąg liter, cyfr i myślników (zwykle zaczyna się od GOCSPX-)';
+  if (!WZOR_ID.test(id)) return t('identyfikator klienta kończy się na .apps.googleusercontent.com');
+  if (!WZOR_SEKRETU.test(sekret)) return t('tajny klucz to ciąg liter, cyfr i myślników (zwykle zaczyna się od GOCSPX-)');
   Object.assign(dysk, { id, sekret, wpisane: true });
   await zapiszPlik();
   return '';
@@ -59,7 +61,7 @@ async function zlyIdentyfikator() {
   const byloWpisane = dysk.wpisane;
   Object.assign(dysk, { id: '', sekret: '', wpisane: false });
   if (byloWpisane) await zapiszPlik().catch(console.error);
-  return new Error('Google nie rozpoznał identyfikatora albo tajnego klucza - wpisz je jeszcze raz');
+  return new Error(t('Google nie rozpoznał identyfikatora albo tajnego klucza - wpisz je jeszcze raz'));
 }
 
 async function formularz(adres, pola) {
@@ -71,10 +73,10 @@ async function formularz(adres, pola) {
   return { ok: odp.ok, dane: await odp.json().catch(() => ({})) };
 }
 
-const opisBledu = (dane) => 'Google: ' + (typeof dane.error === 'string' ? dane.error.slice(0, 80) : 'nieznany błąd');
+const opisBledu = (dane) => 'Google: ' + (typeof dane.error === 'string' ? dane.error.slice(0, 80) : t('nieznany błąd'));
 
 function przyjmijToken(d) {
-  if (typeof d.access_token !== 'string') throw new Error('Google nie oddał dostępu');
+  if (typeof d.access_token !== 'string') throw new Error(t('Google nie oddał dostępu'));
   dysk.dostep = d.access_token;
   dysk.wazneDo = Date.now() + ((Number(d.expires_in) || 3600) - 60) * 1000;
   if (typeof d.refresh_token === 'string') dysk.odswiezajacy = d.refresh_token;
@@ -92,22 +94,22 @@ export async function zacznijLogowanie() {
     while (!anulowane && Date.now() < koniec) {
       await new Promise((r) => setTimeout(r, odstep));
       if (anulowane) break;
-      const t = await formularz(ADRES_TOKENU, {
+      const w = await formularz(ADRES_TOKENU, {
         client_id: dysk.id, client_secret: dysk.sekret, device_code: dane.device_code,
         grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
       });
-      if (t.ok) {
-        przyjmijToken(t.dane);
+      if (w.ok) {
+        przyjmijToken(w.dane);
         await zapiszPlik();
         return;
       }
-      if (t.dane.error === 'authorization_pending') continue;
-      if (t.dane.error === 'slow_down') { odstep += 5000; continue; }
-      if (t.dane.error === 'access_denied') throw new Error('w Google nie było zgody na dostęp');
-      if (t.dane.error === 'invalid_client') throw await zlyIdentyfikator();
-      throw new Error(opisBledu(t.dane));
+      if (w.dane.error === 'authorization_pending') continue;
+      if (w.dane.error === 'slow_down') { odstep += 5000; continue; }
+      if (w.dane.error === 'access_denied') throw new Error(t('w Google nie było zgody na dostęp'));
+      if (w.dane.error === 'invalid_client') throw await zlyIdentyfikator();
+      throw new Error(opisBledu(w.dane));
     }
-    throw new Error(anulowane ? '' : 'kod wygasł - włącz synchronizację jeszcze raz');
+    throw new Error(anulowane ? '' : t('kod wygasł - włącz synchronizację jeszcze raz'));
   };
   return { kod: dane.user_code.slice(0, 20), czekaj, anuluj: () => { anulowane = true; } };
 }
@@ -126,17 +128,17 @@ export async function rozlacz() {
 
 async function tokenDostepu() {
   if (dysk.dostep && Date.now() < dysk.wazneDo) return dysk.dostep;
-  const t = await formularz(ADRES_TOKENU, {
+  const w = await formularz(ADRES_TOKENU, {
     client_id: dysk.id, client_secret: dysk.sekret, refresh_token: dysk.odswiezajacy, grant_type: 'refresh_token',
   });
-  if (!t.ok) {
-    if (t.dane.error === 'invalid_grant') {
+  if (!w.ok) {
+    if (w.dane.error === 'invalid_grant') {
       await zapomnij();
-      throw new Error('Google cofnął dostęp - włącz synchronizację jeszcze raz');
+      throw new Error(t('Google cofnął dostęp - włącz synchronizację jeszcze raz'));
     }
-    throw new Error(opisBledu(t.dane));
+    throw new Error(opisBledu(w.dane));
   }
-  przyjmijToken(t.dane);
+  przyjmijToken(w.dane);
   return dysk.dostep;
 }
 
@@ -146,7 +148,7 @@ async function zapytanie(adres, opcje = {}) {
     // 401 - dostęp odrzucony (np. cofnięty na koncie Google): następnym razem po nowy, a gdy Google
     // odmówi odświeżenia (invalid_grant), aplikacja zapomni dostęp.
     if (odp.status === 401) Object.assign(dysk, { dostep: '', wazneDo: 0 });
-    throw new Error(`Google Dysk odpowiedział błędem ${odp.status}`);
+    throw new Error(t('Google Dysk odpowiedział błędem {kod}', { kod: odp.status }));
   }
   return odp;
 }
@@ -161,9 +163,9 @@ export async function pobierzZDysku() {
     return null;
   }
   dysk.idPliku = plik.id;
-  if (Number(plik.size) > MAKS_ROZMIAR) throw new Error('plik na Dysku jest za duży');
+  if (Number(plik.size) > MAKS_ROZMIAR) throw new Error(t('plik na Dysku jest za duży'));
   const tekst = await (await zapytanie(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(plik.id)}?alt=media`)).text();
-  if (tekst.length > MAKS_ROZMIAR) throw new Error('plik na Dysku jest za duży');
+  if (tekst.length > MAKS_ROZMIAR) throw new Error(t('plik na Dysku jest za duży'));
   return tekst;
 }
 

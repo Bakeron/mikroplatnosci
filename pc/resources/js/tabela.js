@@ -1,12 +1,37 @@
 // Tabela mikropłatności: wiersze z edycją w komórkach i przesuwaniem.
 
-import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, zakupBiezacegoOkresu, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, DNI_DO_ZAPLATY } from './alarmy.js';
+import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, zakupBiezacegoOkresu, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, DNI_DO_ZAPLATY, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
 import { WALUTY, waluta, przeliczNaPln, formatujKwote } from './waluty.js';
-import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu } from './dane.js';
+import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, nazwaKategorii } from './dane.js';
 import { element } from './dom.js';
+import { funkcja, reczna as recznaWpisu, zmiennaKwota, osobWpisu, kategoriaWpisu, firmowa } from './funkcje.js';
+import { przyciskPomocy } from './pomoc.js';
+import { t, tn, tekst, jezyk, liczba, region } from './teksty.js';
 
 const odswiezacze = new WeakMap();
 let numerKarteczki = 0; // nazwy kotwic CSS (anchor-name) - karteczka „⋯” wisi przy swoim przycisku
+
+// Gotowe okresy w karteczce „⋯”: [okres, co ile, napis].
+const OKRESY = [['T', 1, tekst('tydzień')], ['T', 4, tekst('4 tygodnie')], ['M', 1, tekst('miesiąc')], ['M', 3, tekst('kwartał')], ['M', 6, tekst('pół roku')], ['R', 1, tekst('rok')], ['R', 2, tekst('2 lata')]];
+
+// Rozwijana grupa w karteczce „⋯” (rzadziej zmieniane ustawienia): w zwiniętej widać nazwę i obecną wartość,
+// więc karteczka zostaje krótka, a i tak widać, co jest ustawione.
+function grupa(nazwa) {
+  const det = element('details', 'karteczka__grupa');
+  const podsumowanie = element('summary', 'karteczka__pole karteczka__podsumowanie');
+  const wartosc = element('span', 'karteczka__wartosc');
+  podsumowanie.append(element('span', 'karteczka__nazwa', nazwa), wartosc);
+  const tresc = element('div', 'karteczka__tresc');
+  det.append(podsumowanie, tresc);
+  return { det, wartosc, tresc };
+}
+
+// Małe pole w karteczce z etykietą nad nim.
+function poleKarteczki(etykieta, input) {
+  const label = element('label', 'karteczka__male');
+  label.append(element('span', 'karteczka__etykieta', etykieta), input);
+  return label;
+}
 
 function pole(typ, wartosc, etykieta, klasa) {
   const input = element('input', 'pole' + (klasa ? ' ' + klasa : ''));
@@ -45,14 +70,20 @@ function kwotaZPola(pole) {
 
 export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, onPrzesun }) {
   // Każda zmiana w wierszu zapisuje jej czas - potrzebny przy scalaniu z Google Dyskiem.
-  const onZmiana = () => { wpis.zmieniono = new Date().toISOString(); zglosZmiane(); };
+  // Przy tym dzień ceny następnej (A3) liczy się od nowa, gdy zmienił się termin; gdyby już minął -
+  // cena od razu staje się zapłaconą i wiersz się odświeża.
+  const onZmiana = () => {
+    wpis.zmieniono = new Date().toISOString();
+    if (przeniesNastepnaCene(wpis) === 'cena') odswiez();
+    zglosZmiane();
+  };
   const tr = element('tr');
   tr.dataset.id = wpis.id;
 
   // Lp. - numer jest też uchwytem do przesuwania wiersza (przeciąganie albo strzałki).
   const uchwyt = element('button', 'uchwyt');
   uchwyt.type = 'button';
-  uchwyt.title = 'Przeciągnij, aby przesunąć wiersz (albo strzałki ↑ ↓)';
+  uchwyt.title = t('Przeciągnij, aby przesunąć wiersz (albo strzałki ↑ ↓)');
   uchwyt.addEventListener('pointerdown', () => { tr.draggable = true; });
   uchwyt.addEventListener('pointerup', () => { tr.draggable = false; });
   // Strzałki na uchwycie albo Alt + strzałki w dowolnym polu wiersza.
@@ -65,31 +96,39 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   });
 
   const znak = element('span', 'wykrzyknik', '!');
-  znak.title = 'Jednorazowa - wycofaj przed odnowieniem';
-  znak.append(element('span', 'sr', ' jednorazowa, do wycofania')); // czytnik ekranu zamiast samego „!”
+  znak.title = t('Jednorazowa - wycofaj przed odnowieniem');
+  znak.append(element('span', 'sr', ' ' + t('jednorazowa, do wycofania'))); // czytnik ekranu zamiast samego „!”
 
   // Data zakupu: tekst z ikonką, kliknięcie otwiera kalendarz (pole daty jest pod spodem, niewidoczne).
-  const od = pole('date', wpis.od, 'Data zakupu', 'data__pole');
+  const od = pole('date', wpis.od, t('Data zakupu'), 'data__pole');
   od.tabIndex = -1;
   od.setAttribute('aria-hidden', 'true');
   const odPrzycisk = element('button', 'data');
   odPrzycisk.type = 'button';
-  odPrzycisk.title = 'Wybierz datę zakupu z kalendarza';
+  odPrzycisk.title = t('Wybierz datę zakupu z kalendarza');
   const dataRamka = element('div', 'data-ramka');
   dataRamka.append(od, odPrzycisk);
 
   // Okres płatności: miesięczna albo roczna - termin liczy się od daty zakupu.
   const okresWybor = element('div', 'okres-wybor');
   okresWybor.setAttribute('role', 'group');
-  okresWybor.setAttribute('aria-label', 'Okres płatności');
-  const okresOpcje = [['M', 'mies.'], ['R', 'rok']].map(([wartosc, tekst]) => {
+  okresWybor.setAttribute('aria-label', t('Okres płatności'));
+  const okresOpcje = [['M', t('mies.')], ['R', t('rok')]].map(([wartosc, tekst]) => {
     const opcja = element('button', 'okres-wybor__opcja', tekst);
     opcja.type = 'button';
-    opcja.addEventListener('click', () => { wpis.okres = wartosc; ustawPoczatekZaplaty(wpis); odswiez(); onZmiana(); });
+    opcja.addEventListener('click', () => { wpis.okres = wartosc; wpis.coIle = 1; ustawPoczatekZaplaty(wpis); odswiez(); onZmiana(); });
     okresWybor.append(opcja);
     return [wartosc, opcja];
   });
+  // „inny” - kwartał, tydzień, co 2 lata… wybierane w karteczce „⋯” (grupa „Okres” od razu rozwinięta).
+  const okresInny = element('button', 'okres-wybor__opcja', t('inny'));
+  okresInny.type = 'button';
+  okresInny.title = t('Inny okres: tydzień, 4 tygodnie, kwartał, pół roku, 2 lata…');
+  okresWybor.append(okresInny);
+  const okresDopisek = element('div', 'dopisek dopisek--okres');
   const terminData = element('div', 'dopisek dopisek--termin');
+  // Pauza: zamiast lontu „wstrzymana”, pod spodem dzień wznowienia.
+  const pauza = element('div', 'pauza', t('wstrzymana'));
 
   // Lont: liczba dni + pasek, który skraca się i czerwienieje w miarę zbliżania płatności.
   const lont = element('div', 'lont');
@@ -107,53 +146,81 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const zaplacPole = element('input');
   zaplacPole.type = 'checkbox';
   const zaplacEtykieta = element('label', 'zaplac__pole');
-  zaplacEtykieta.append(zaplacPole, ' zapłacone');
-  zaplac.append(zaplacTekst, zaplacEtykieta);
+  zaplacEtykieta.append(zaplacPole, ' ' + t('zapłacone'));
+  // Kwota za każdym razem inna: po zaznaczeniu „zapłacone” pytanie, ile zapłacono (podpowiedź - ostatnia kwota).
+  const zaplacKwota = element('div', 'zaplac__kwota');
+  zaplacKwota.hidden = true;
+  const zaplacKwotaPole = pole('text', '', t('Ile zapłacono'), 'pole--koszt pole--zaplacono');
+  zaplacKwotaPole.inputMode = 'decimal';
+  const zaplacKwotaWaluta = element('span', 'prognoza__waluta');
+  const zaplacKwotaOk = element('button', 'zaplac__ok', t('zapisz'));
+  zaplacKwotaOk.type = 'button';
+  zaplacKwota.append(element('span', 'zaplac__pytanie', t('ile?')), zaplacKwotaPole, zaplacKwotaWaluta, zaplacKwotaOk);
+  zaplac.append(zaplacTekst, zaplacEtykieta, zaplacKwota);
 
-  const nazwa = pole('text', wpis.nazwa, 'Nazwa', 'pole--nazwa');
+  // Wspólna płatność z imionami: po każdej płatności „odbierz po … : Ania, Tomek” i pole ☐ oddane.
+  const odbierz = element('div', 'odbierz');
+  const odbierzTekst = element('span', 'odbierz__tekst');
+  const odbierzPole = element('input');
+  odbierzPole.type = 'checkbox';
+  const odbierzEtykieta = element('label', 'zaplac__pole');
+  odbierzEtykieta.append(odbierzPole, ' ' + t('oddane'));
+  odbierz.append(odbierzTekst, odbierzEtykieta);
+
+  // D18: pozycja na firmę - po każdej płatności „pobierz fakturę” i pole ☐ pobrana.
+  const faktura = element('div', 'odbierz faktura');
+  const fakturaPole = element('input');
+  fakturaPole.type = 'checkbox';
+  const fakturaEtykieta = element('label', 'zaplac__pole');
+  fakturaEtykieta.append(fakturaPole, ' ' + t('pobrana'));
+  faktura.append(element('span', 'odbierz__tekst', t('pobierz fakturę')), fakturaEtykieta);
+
+  const nazwa = pole('text', wpis.nazwa, t('Nazwa'), 'pole--nazwa');
   nazwa.maxLength = 200;
 
-  const opis = poleWieloliniowe(wpis.opis, 'Krótki opis', 'pole--opis', 300);
-  opis.placeholder = 'krótki opis…';
+  const opis = poleWieloliniowe(wpis.opis, t('Krótki opis'), 'pole--opis', 300);
+  opis.placeholder = t('krótki opis…');
 
-  const koszt = pole('text', formatujKoszt(wpis.koszt), 'Koszt', 'pole--koszt');
+  const koszt = pole('text', formatujKoszt(wpis.koszt), t('Koszt'), 'pole--koszt');
   koszt.inputMode = 'decimal';
-  koszt.placeholder = '0,00';
+  koszt.placeholder = jezyk() === 'pl' ? '0,00' : '0.00';
   const walutaWybor = element('select', 'pole pole--waluta');
-  walutaWybor.setAttribute('aria-label', 'Waluta');
+  walutaWybor.setAttribute('aria-label', t('Waluta'));
   walutaWybor.append(...WALUTY.map((kod) => new Option(kod, kod)));
   walutaWybor.value = waluta(wpis);
   const wPln = element('div', 'dopisek dopisek--pln');
+  const czesc = element('div', 'dopisek dopisek--czesc'); // „÷ 4 = 15,00 zł” - moja część wspólnej płatności
+  czesc.title = t('Twoja część - w sumach na paragonie liczy się tylko ona (ustawienie w „⋯”)');
   const kosztRamka = element('div', 'koszt-ramka');
   kosztRamka.append(koszt, walutaWybor);
 
   // Cena od następnej płatności - pod zapłaconą, wpisywana ręcznie (np. koniec promocji, zapowiedziana
   // podwyżka). Pusta = zostaje zapłacona; wtedy w komórce tylko „+ następna cena”.
-  const prognoza = pole('text', formatujKoszt(wpis.prognoza), 'Cena od następnej płatności', 'pole--koszt pole--nastepna');
+  const prognoza = pole('text', formatujKoszt(wpis.prognoza), t('Cena od następnej płatności'), 'pole--koszt pole--nastepna');
   prognoza.inputMode = 'decimal';
-  prognoza.placeholder = 'wpisz…';
-  const prognozaEtykieta = element('span', 'nastepna__etykieta', 'następna');
+  prognoza.placeholder = t('wpisz…');
+  const prognozaEtykieta = element('span', 'nastepna__etykieta', t('następna'));
   prognozaEtykieta.setAttribute('aria-hidden', 'true'); // czytnik ekranu ma etykietę pola
   const prognozaWaluta = element('span', 'prognoza__waluta');
   const prognozaRamka = element('div', 'koszt-ramka nastepna');
-  prognozaRamka.title = 'Cena od następnej płatności - gdy kończy się promocja albo serwis zapowiedział podwyżkę. Pusta = zostaje zapłacona.';
+  prognozaRamka.title = t('Cena od następnej płatności - gdy kończy się promocja albo serwis zapowiedział podwyżkę. Pusta = zostaje zapłacona.');
   prognozaRamka.append(prognozaEtykieta, prognoza, prognozaWaluta);
   // „≈ … zł” i „▲ +6,00” w jednej linijce pod drugą ceną.
   const prognozaPln = element('span');
   const prognozaInfo = element('span', 'dopisek--prognoza');
   const prognozaDopisek = element('div', 'dopisek nastepna__dopisek');
   prognozaDopisek.append(prognozaPln, prognozaInfo);
-  const prognozaDodaj = element('button', 'nastepna-dodaj', '+ następna cena');
+  const prognozaDodaj = element('button', 'nastepna-dodaj', t('+ następna cena'));
   prognozaDodaj.type = 'button';
-  prognozaDodaj.title = 'Dopisz cenę od następnej płatności (koniec promocji, podwyżka)';
+  prognozaDodaj.title = t('Dopisz cenę od następnej płatności (koniec promocji, podwyżka)');
   let prognozaOtwarta = false; // kliknięte „+ następna cena”, pole jeszcze puste
 
-  const link = poleWieloliniowe(wpis.link, 'Link', 'pole--link', 2000);
+  const link = poleWieloliniowe(wpis.link, t('Link'), 'pole--link', 2000);
   link.inputMode = 'url';
   link.placeholder = 'https://';
   const otworz = element('button', 'otworz', '↗');
   otworz.type = 'button';
-  otworz.title = 'Otwórz link w przeglądarce';
+  otworz.title = t('Otwórz link w przeglądarce');
 
   // Przełącznik tak / nie (kółko w prawo = tak). Puste „-” liczy się jak „tak”, więc pokazuje „tak”.
   const przedluzac = element('input', 'przelacznik');
@@ -165,7 +232,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   // Okienko „popover”: nad tabelą, zamyka je Esc albo kliknięcie obok; przyklejone do przycisku kotwicą CSS.
   const wiecej = element('button', 'wiecej', '⋯');
   wiecej.type = 'button';
-  wiecej.title = 'Ustawienia pozycji: przedłużać, sposób płatności';
+  wiecej.title = t('Ustawienia pozycji: płatność, przedłużać, okres, podział kosztu, pauza');
   const karteczka = element('div', 'karteczka');
   karteczka.popover = 'auto';
   karteczka.setAttribute('role', 'dialog');
@@ -175,11 +242,11 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   karteczka.style.setProperty('position-anchor', kotwica);
   const karteczkaTytul = element('div', 'karteczka__tytul');
   const przedluzacEtykieta = element('label', 'karteczka__pole');
-  przedluzacEtykieta.append(element('span', 'karteczka__nazwa', 'Przedłużać'), przedluzac);
+  przedluzacEtykieta.append(element('span', 'karteczka__nazwa', t('Przedłużać')), przedluzac);
   const platnoscWybor = element('div', 'okres-wybor karteczka__wybor');
   platnoscWybor.setAttribute('role', 'group');
-  platnoscWybor.setAttribute('aria-label', 'Płatność');
-  const platnoscOpcje = [[false, 'pobiera się sama'], [true, 'płacę sam']].map(([reczna, tekst]) => {
+  platnoscWybor.setAttribute('aria-label', t('Płatność'));
+  const platnoscOpcje = [[false, t('pobiera się sama')], [true, t('płacę sam')]].map(([reczna, tekst]) => {
     const opcja = element('button', 'okres-wybor__opcja', tekst);
     opcja.type = 'button';
     opcja.addEventListener('click', () => {
@@ -196,21 +263,118 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     return [reczna, opcja];
   });
   const platnoscPole = element('div', 'karteczka__pole');
-  platnoscPole.append(element('span', 'karteczka__nazwa', 'Płatność'), platnoscWybor);
+  // F26: „?” przy „Płatność” - czym różni się „płacę sam” od „pobiera się sama”.
+  const platnoscNazwa = element('span', 'karteczka__nazwa', t('Płatność'));
+  platnoscNazwa.append(' ', przyciskPomocy(tekst('„Pobiera się sama” - karta albo konto płacą bez Ciebie. „Płacę sam” - rachunek, który płacisz ręcznie (np. prąd): tydzień przed terminem wiersz czerwienieje, a po zapłacie zaznaczasz „☐ zapłacone”.'), tekst('płacę sam')));
+  platnoscPole.append(platnoscNazwa, platnoscWybor);
   // Tylko przy „płacę sam”: termin w ostatnim dniu miesiąca (np. rachunki, których data zmienia się co miesiąc).
   const koniecPole = element('input', 'przelacznik przelacznik--zwykly');
   koniecPole.type = 'checkbox';
   koniecPole.setAttribute('role', 'switch');
   const koniecEtykieta = element('label', 'karteczka__pole');
-  koniecEtykieta.append(element('span', 'karteczka__nazwa', 'Termin do końca miesiąca'), koniecPole);
-  const platnoscOpis = element('p', 'karteczka__opis', `„Płacę sam” - od ${DNI_DO_ZAPLATY} dni przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.`);
-  karteczka.append(karteczkaTytul, platnoscPole, przedluzacEtykieta, koniecEtykieta, platnoscOpis);
+  koniecEtykieta.append(element('span', 'karteczka__nazwa', t('Termin do końca miesiąca')), koniecPole);
+  // Tylko przy „płacę sam”: kwota za każdym razem inna (prąd, gaz) - przy „zapłacone” pytanie, ile zapłacono.
+  const zmiennaPole = element('input', 'przelacznik przelacznik--zwykly');
+  zmiennaPole.type = 'checkbox';
+  zmiennaPole.setAttribute('role', 'switch');
+  const zmiennaEtykieta = element('label', 'karteczka__pole');
+  zmiennaEtykieta.title = t('Przy zaznaczaniu „zapłacone” aplikacja zapyta, ile zapłacono, i zapamięta to w historii');
+  zmiennaEtykieta.append(element('span', 'karteczka__nazwa', t('Kwota za każdym razem inna')), zmiennaPole);
+  const platnoscOpis = element('p', 'karteczka__opis', tn(DNI_DO_ZAPLATY, '„Płacę sam” - od {n} dnia przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.', '„Płacę sam” - od {n} dni przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.', '„Płacę sam” - od {n} dni przed terminem wiersz czerwienieje, pojawia się „zapłać do …”, pole „zapłacone” i powiadomienie.'));
+
+  // D18: na firmę - osobna suma na paragonie i przypomnienie o fakturze po każdej płatności.
+  const firmaPole = element('input', 'przelacznik przelacznik--zwykly');
+  firmaPole.type = 'checkbox';
+  firmaPole.setAttribute('role', 'switch');
+  const firmaEtykieta = element('label', 'karteczka__pole');
+  firmaEtykieta.title = t('Koszt działalności - osobna suma na paragonie i „pobierz fakturę” po każdej płatności');
+  firmaEtykieta.append(element('span', 'karteczka__nazwa', t('Na firmę')), firmaPole);
+
+  // D17: kategoria - do filtra nad tabelą i podziału na paragonie.
+  const kategoriaGrupa = grupa(t('Kategoria'));
+  const kategoriaWybor = element('div', 'okres-wybor karteczka__gotowe');
+  kategoriaWybor.setAttribute('role', 'group');
+  kategoriaWybor.setAttribute('aria-label', t('Kategoria'));
+  const kategoriaOpcje = [['', t('bez kategorii')], ...KATEGORIE.map(([k, n]) => [k, t(n)])].map(([klucz, napis]) => {
+    const opcja = element('button', 'okres-wybor__opcja', napis);
+    opcja.type = 'button';
+    opcja.addEventListener('click', () => {
+      wpis.kategoria = klucz;
+      odswiez();
+      onZmiana();
+    });
+    kategoriaWybor.append(opcja);
+    return [klucz, opcja];
+  });
+  kategoriaGrupa.tresc.append(kategoriaWybor);
+
+  // Okres: gotowe (tydzień … 2 lata) albo własny „co [N] [tygodni / miesięcy / lat]”.
+  const okresGrupa = grupa(t('Okres'));
+  const okresGotowe = element('div', 'okres-wybor karteczka__gotowe');
+  okresGotowe.setAttribute('role', 'group');
+  okresGotowe.setAttribute('aria-label', t('Gotowe okresy'));
+  const okresGotoweOpcje = OKRESY.map(([typ, ile, napis]) => {
+    const opcja = element('button', 'okres-wybor__opcja', t(napis));
+    opcja.type = 'button';
+    opcja.addEventListener('click', () => ustawOkres(typ, ile));
+    okresGotowe.append(opcja);
+    return [typ, ile, opcja];
+  });
+  const coIlePole = pole('number', '', t('Co ile'), 'pole--male');
+  coIlePole.min = '1';
+  coIlePole.max = '99';
+  const jednostka = element('select', 'pole pole--waluta pole--jednostka');
+  jednostka.setAttribute('aria-label', t('Jednostka okresu'));
+  jednostka.append(new Option(t('tygodni'), 'T'), new Option(t('miesięcy'), 'M'), new Option(t('lat'), 'R'));
+  const okresWlasny = element('div', 'karteczka__wlasny');
+  okresWlasny.append(element('span', 'karteczka__etykieta', t('albo co')), coIlePole, jednostka);
+  okresGrupa.tresc.append(okresGotowe, okresWlasny);
+
+  // Dzielę koszt: na ile osób (ze mną) i opcjonalnie kto oddaje - wtedy przypomnienie po każdej płatności.
+  const dzielGrupa = grupa(t('Dzielę koszt'));
+  const osobPole = pole('number', '', t('Na ile osób (razem ze mną)'), 'pole--male');
+  osobPole.min = '1';
+  osobPole.max = '20';
+  const ktoPole = pole('text', wpis.ktoOddaje, t('Kto oddaje swoją część'), 'pole--kto');
+  ktoPole.maxLength = 200;
+  ktoPole.placeholder = t('np. Ania, Tomek');
+  dzielGrupa.tresc.append(
+    poleKarteczki(t('na ile osób (ze mną)'), osobPole),
+    poleKarteczki(t('kto oddaje - przypomnę po każdej płatności'), ktoPole),
+    element('p', 'karteczka__opis', t('Na paragonie liczy się tylko Twoja część (koszt ÷ liczba osób).')),
+  );
+
+  // Pauza: do dnia wznowienia bez alarmów i poza sumami; w dniu wznowienia - pierwsza płatność.
+  const pauzaGrupa = grupa(t('Pauza'));
+  const pauzaPole = pole('date', '', t('Wstrzymana do (dzień wznowienia)'), 'pole--data-pauzy');
+  const pauzaKoniec = element('button', 'przycisk-tekst karteczka__przycisk', t('wznów od dziś'));
+  pauzaKoniec.type = 'button';
+  const pauzaUsun = element('button', 'przycisk-tekst karteczka__przycisk', t('bez pauzy'));
+  pauzaUsun.type = 'button';
+  pauzaUsun.title = t('Usuń pauzę - terminy jak przed nią, od daty zakupu');
+  const pauzaPrzyciski = element('div', 'karteczka__przyciski');
+  pauzaPrzyciski.append(pauzaKoniec, pauzaUsun);
+  pauzaGrupa.tresc.append(
+    poleKarteczki(t('wstrzymana do (dzień wznowienia)'), pauzaPole),
+    pauzaPrzyciski,
+    element('p', 'karteczka__opis', t('Np. siłownia zawieszona na wakacje. Do tego dnia bez alarmów i poza sumami, w dniu wznowienia - pierwsza płatność.')),
+  );
+
+  karteczka.append(karteczkaTytul, platnoscPole, przedluzacEtykieta, koniecEtykieta, zmiennaEtykieta, firmaEtykieta, platnoscOpis, kategoriaGrupa.det, okresGrupa.det, dzielGrupa.det, pauzaGrupa.det);
+
+  function ustawOkres(typ, ile) {
+    wpis.okres = typ;
+    wpis.coIle = ile;
+    ustawPoczatekZaplaty(wpis);
+    odswiez();
+    onZmiana();
+  }
 
   const usun = element('button', 'wykresl', '×');
   usun.type = 'button';
-  usun.title = 'Wykreśl pozycję';
+  usun.title = t('Wykreśl pozycję');
   // Czytnik ekranu słyszy, który wiersz wykreśla (nazwa zmienia się przy pisaniu).
-  const opiszUsun = () => usun.setAttribute('aria-label', 'Wykreśl: ' + nazwaWpisu(wpis));
+  const opiszUsun = () => usun.setAttribute('aria-label', t('Wykreśl: {nazwa}', { nazwa: nazwaWpisu(wpis) }));
   opiszUsun();
 
   const linkRamka = element('div', 'link-ramka');
@@ -219,21 +383,28 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const nazwaOpis = element('div', 'nazwa-opis');
   const nazwaLinia = element('div', 'nazwa-linia');
   nazwaLinia.append(znak, nazwa); // „!” (jednorazowa) tuż przed nazwą
-  nazwaOpis.append(nazwaLinia, opis);
+  // D17, D18: kategoria (fiszka indeksu) i „na firmę” (pieczątka) pod opisem - tekstem, nie samym kolorem.
+  const znaczki = element('div', 'znaczki');
+  const kategoriaZnak = element('span', 'fiszka');
+  const firmaZnak = element('span', 'pieczatka-firma', t('na firmę'));
+  firmaZnak.title = t('Koszt firmowy - osobna suma na paragonie');
+  znaczki.append(kategoriaZnak, firmaZnak);
+  nazwaOpis.append(nazwaLinia, opis, znaczki);
 
   tr.append(
     komorka(uchwyt),
     komorka(usun),
     komorka(nazwaOpis),
-    komorka(kosztRamka, wPln, prognozaDodaj, prognozaRamka, prognozaDopisek),
-    komorka(dataRamka, okresWybor),
-    komorka(lont, terminData, uwaga, zaplac),
+    komorka(kosztRamka, wPln, czesc, prognozaDodaj, prognozaRamka, prognozaDopisek),
+    komorka(dataRamka, okresWybor, okresDopisek),
+    komorka(lont, pauza, terminData, uwaga, zaplac, odbierz, faktura),
     komorka(linkRamka),
     komorka(wiecej, karteczka),
   );
   tr.cells[0].className = 'kol-lp';
   tr.cells[1].className = 'kol-akcje';
   tr.cells[3].className = 'kol-koszt';
+  tr.cells[5].className = 'kol-termin';
   tr.cells[7].className = 'kol-wiecej';
 
   function odswiez() {
@@ -244,20 +415,31 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     const kod = waluta(wpis);
     const adres = bezpiecznyLink(wpis.link);
 
+    const wstrzymana = czyWstrzymana(wpis);
     tr.classList.toggle('jednorazowa', jednorazowa);
     tr.classList.toggle('zakonczona', zakonczona);
+    tr.classList.toggle('wstrzymana', wstrzymana);
 
     const zakup = formatujDate(parsujDate(wpis.od));
-    odPrzycisk.textContent = zakup || 'wybierz datę';
+    odPrzycisk.textContent = zakup || t('wybierz datę');
     odPrzycisk.classList.toggle('data--pusta', !zakup);
-    odPrzycisk.setAttribute('aria-label', 'Data zakupu: ' + (zakup || 'brak') + ' - otwórz kalendarz');
-    for (const [wartosc, opcja] of okresOpcje) opcja.setAttribute('aria-pressed', String(wpis.okres === wartosc));
+    odPrzycisk.setAttribute('aria-label', t('Data zakupu: {data} - otwórz kalendarz', { data: zakup || t('brak') }));
+    // mies. / rok - tylko co 1; inny okres (kwartał, tydzień, 2 lata) - „inny” i nazwa okresu pod spodem.
+    const zwykly = (wpis.okres === 'M' || wpis.okres === 'R') && !(wpis.coIle > 1);
+    for (const [wartosc, opcja] of okresOpcje) opcja.setAttribute('aria-pressed', String(zwykly && wpis.okres === wartosc));
+    okresInny.setAttribute('aria-pressed', String(!zwykly && !!wpis.okres));
+    okresDopisek.textContent = zwykly ? '' : nazwaOkresu(wpis);
+    // Wyłączone „Inne okresy” - bez „inny” i grupy „Okres”, chyba że pozycja już ma inny okres (wtedy da się go zmienić).
+    const okresyWidoczne = funkcja('okresy') || (!zwykly && !!wpis.okres);
+    okresInny.hidden = !okresyWidoczne;
+    okresGrupa.det.hidden = !okresyWidoczne;
     // Płatność ręczna blisko terminu (albo po nim): czerwony wiersz, „zapłać do …” i pole ☐ zapłacone.
     // Dalej od terminu - tylko krótkie „· ręcznie” przy dacie (kolumna jest wąska).
     const dz = doZaplaty(wpis);
-    const reczna = wpis.platnoscReczna && !jednorazowa && !dz;
-    terminData.textContent = ter.data ? formatujDate(ter.data) + (reczna ? ' · ręcznie' : '') : '';
-    terminData.title = reczna ? 'Płacę sam - nie pobiera się z konta' : '';
+    const reczna = recznaWpisu(wpis) && !jednorazowa && !dz && !wstrzymana;
+    terminData.textContent = !ter.data ? '' : wstrzymana ? t('wraca {data}', { data: formatujDate(ter.data) }) : reczna ? t('{data} · ręcznie', { data: formatujDate(ter.data) }) : formatujDate(ter.data);
+    terminData.title = wstrzymana ? t('Pauza - w tym dniu pierwsza płatność po przerwie') : reczna ? t('Płacę sam - nie pobiera się z konta') : '';
+    pauza.hidden = !wstrzymana;
     // Cały wiersz czerwienieje z każdym dniem do terminu, po terminie - najmocniej (--czerwien w CSS).
     // Zakończona jednorazowa („nie”, termin minął) - tak samo mocno jak zaległa płatność: trzeba coś z nią zrobić.
     const poTerminie = !!dz?.zalegle || zakonczona;
@@ -266,44 +448,107 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     if (dz || zakonczona) tr.style.setProperty('--czerwien', czerwienZaplaty(zakonczona ? -1 : dz.dni) + '%');
     else tr.style.removeProperty('--czerwien');
     zaplac.hidden = !dz;
+    if (!dz) zaplacKwota.hidden = true;
     if (dz) {
-      zaplacTekst.textContent = 'zapłać do ' + formatujDate(dz.data).slice(0, 5);
-      zaplacPole.checked = false;
-      zaplacPole.setAttribute('aria-label', 'Zapłacone - termin ' + formatujDate(dz.data));
+      zaplacTekst.textContent = t('zapłać do {data}', { data: jezyk() === 'pl' ? formatujDate(dz.doDnia).slice(0, 5) : dz.doDnia.toLocaleDateString(region(), { day: 'numeric', month: 'short' }) });
+      // B8: termin w dzień wolny - „zapłać do” to ostatni dzień roboczy przed nim.
+      zaplacTekst.title = dz.doDnia < dz.data ? t('Termin {termin} wypada w dzień wolny - przelew zleć najpóźniej {data}', { termin: formatujDate(dz.data), data: formatujDate(dz.doDnia) }) : '';
+      zaplacPole.checked = !zaplacKwota.hidden; // otwarte pytanie „ile?” - pole zostaje zaznaczone
+      zaplacPole.setAttribute('aria-label', t('Zapłacone - termin {data}', { data: formatujDate(dz.data) }));
+      zaplacKwotaWaluta.textContent = kod;
     }
-    koniecEtykieta.hidden = !wpis.platnoscReczna;
+    // Wyłączone „Płacę sam” - bez wyboru płatności (wszystko liczone jak „pobiera się sama”).
+    platnoscPole.hidden = !funkcja('platnosc');
+    platnoscOpis.hidden = !funkcja('platnosc');
+    koniecEtykieta.hidden = !recznaWpisu(wpis);
     koniecPole.checked = !!wpis.koniecMiesiaca;
+    zmiennaEtykieta.hidden = !recznaWpisu(wpis) || !funkcja('kwotaZmienna');
+    zmiennaPole.checked = !!wpis.zmiennaKwota;
 
     const nazwaTekst = nazwaWpisu(wpis);
     karteczkaTytul.textContent = nazwaTekst;
-    wiecej.setAttribute('aria-label', 'Ustawienia: ' + nazwaTekst);
+    wiecej.setAttribute('aria-label', t('Ustawienia: {nazwa}', { nazwa: nazwaTekst }));
     for (const [wartosc, opcja] of platnoscOpcje) opcja.setAttribute('aria-pressed', String(!!wpis.platnoscReczna === wartosc));
 
-    lont.hidden = !dp;
+    // Grupy karteczki: obecna wartość widoczna także w zwiniętej.
+    okresGrupa.wartosc.textContent = nazwaOkresu(wpis) || '-';
+    for (const [typ, ile, opcja] of okresGotoweOpcje) opcja.setAttribute('aria-pressed', String(wpis.okres === typ && (wpis.coIle || 1) === ile));
+    if (document.activeElement !== coIlePole) coIlePole.value = String(wpis.coIle || 1);
+    jednostka.value = wpis.okres || 'M';
+    const osob = osobWpisu(wpis);
+    dzielGrupa.det.hidden = !funkcja('dzielenie');
+    dzielGrupa.wartosc.textContent = osob > 1 ? t('na {n} os.', { n: osob }) : t('nie');
+    if (document.activeElement !== osobPole) osobPole.value = String(osob);
+    pauzaGrupa.det.hidden = jednorazowa || !funkcja('pauza'); // jednorazowej się nie wstrzymuje - wycofuje się ją
+    pauzaGrupa.wartosc.textContent = wstrzymana ? t('do {data}', { data: formatujDate(parsujDate(wpis.wstrzymanaDo)) }) : t('nie');
+    pauzaPole.value = wstrzymana ? wpis.wstrzymanaDo : '';
+    pauzaPole.min = isoDnia(new Date(dzis().getTime() + 86400000));
+    pauzaKoniec.hidden = !wstrzymana;
+    pauzaUsun.hidden = !wpis.wstrzymanaDo;
+
+    // Moja część wspólnej płatności i przypomnienie „odbierz” po płatności (gdy wpisane imiona).
+    czesc.textContent = osob > 1 && typeof wpis.koszt === 'number' ? `÷ ${osob} = ${formatujKwote(wpis.koszt / osob, kod)}` : '';
+    const ostatnia = osob > 1 && wpis.ktoOddaje.trim() && !wstrzymana ? ostatniaPlatnosc(wpis) : null;
+    const doOdebrania = !!ostatnia && isoDnia(ostatnia) > wpis.oddaneTermin;
+    odbierz.hidden = !doOdebrania;
+    if (doOdebrania) {
+      const kto = wpis.ktoOddaje.trim();
+      odbierzTekst.textContent = typeof wpis.koszt === 'number' ? t('odbierz po {kwota}: {kto}', { kwota: formatujKwote(wpis.koszt / osob, kod), kto }) : t('odbierz: {kto}', { kto });
+      odbierzPole.checked = false;
+      odbierzPole.setAttribute('aria-label', t('Oddane - płatność z {data}', { data: formatujDate(ostatnia) }));
+      odbierz.title = t('Płatność z {data}', { data: formatujDate(ostatnia) });
+    }
+
+    // D17, D18: znaczki pod opisem, wybór w karteczce i „pobierz fakturę” po płatności.
+    const kategoria = kategoriaWpisu(wpis);
+    kategoriaZnak.textContent = nazwaKategorii(kategoria);
+    kategoriaZnak.dataset.kategoria = kategoria;
+    kategoriaZnak.hidden = !kategoria;
+    firmaZnak.hidden = !firmowa(wpis);
+    znaczki.hidden = kategoriaZnak.hidden && firmaZnak.hidden;
+    kategoriaGrupa.det.hidden = !funkcja('kategorie');
+    kategoriaGrupa.wartosc.textContent = nazwaKategorii(wpis.kategoria) || '-';
+    for (const [klucz, opcja] of kategoriaOpcje) opcja.setAttribute('aria-pressed', String((wpis.kategoria || '') === klucz));
+    firmaEtykieta.hidden = !funkcja('firma');
+    firmaPole.checked = !!wpis.firmowa;
+    const ostatniaFirmowa = firmowa(wpis) && !wstrzymana ? ostatniaPlatnosc(wpis) : null;
+    faktura.hidden = !ostatniaFirmowa || isoDnia(ostatniaFirmowa) <= wpis.fakturaTermin;
+    if (!faktura.hidden) {
+      fakturaPole.checked = false;
+      fakturaPole.setAttribute('aria-label', t('Faktura pobrana - płatność z {data}', { data: formatujDate(ostatniaFirmowa) }));
+      faktura.title = t('Płatność z {data}', { data: formatujDate(ostatniaFirmowa) });
+    }
+
+    lont.hidden = !dp || wstrzymana;
     lont.classList.toggle('lont--minal', !!dp?.minal);
     lont.classList.toggle('lont--zalegle', poTerminie); // po terminie (zaległa płatność, zakończona jednorazowa) - na czerwono
     if (dp?.minal) {
       // „2 dni po terminie” w jednej linii - „po terminie” mniejszym pismem (kolumna jest wąska).
-      if (poTerminie) lontLiczba.replaceChildren(dniTekst(-dp.dni), element('span', 'lont__po-terminie', ' po terminie'));
-      else lontLiczba.textContent = 'minęło ' + dniTekst(-dp.dni);
+      if (poTerminie) lontLiczba.replaceChildren(dniTekst(-dp.dni), element('span', 'lont__po-terminie', ' ' + t('po terminie')));
+      else lontLiczba.textContent = t('minęło {dni}', { dni: dniTekst(-dp.dni) });
       lont.style.setProperty('--zostalo', '0');
     } else if (dp) {
       lontLiczba.textContent = kiedyTekst(dp.dni);
       lont.style.setProperty('--odcien', String(dp.odcien));
       lont.style.setProperty('--zostalo', String(Math.max(dp.zostalo, 0.03)));
     }
-    uwaga.textContent = zakonczona ? 'sprawdź, czy anulowano' : '';
+    uwaga.textContent = zakonczona ? t('sprawdź, czy anulowano') : '';
 
     // „≈ … zł” pod kwotą w walucie obcej.
     const dopisekPln = (kwota) => {
       if (kod === 'PLN' || typeof kwota !== 'number') return '';
       const pln = przeliczNaPln(kwota, kod);
-      return pln === null ? 'brak kursu NBP' : '≈ ' + formatujKwote(pln);
+      return pln === null ? t('brak kursu NBP') : '≈ ' + formatujKwote(pln);
     };
     wPln.textContent = dopisekPln(wpis.koszt);
-    const nastepnaWidoczna = wpis.prognoza !== null || prognozaOtwarta || document.activeElement === prognoza;
+    // Wyłączone „Waluty obce” - wybór waluty tylko przy pozycjach, które już mają obcą.
+    walutaWybor.hidden = !funkcja('waluty') && kod === 'PLN';
+    // Koszt mógł się zmienić sam (cena następna stała się zapłaconą) - pole pokazuje aktualny.
+    if (document.activeElement !== koszt) koszt.value = formatujKoszt(wpis.koszt);
+    // Wyłączona „Cena następna” - bez pola i bez „+ następna cena” (wpisana cena czeka w pliku).
+    const nastepnaWidoczna = funkcja('nastepna') && (wpis.prognoza !== null || prognozaOtwarta || document.activeElement === prognoza);
     prognozaRamka.hidden = !nastepnaWidoczna;
-    prognozaDodaj.hidden = nastepnaWidoczna;
+    prognozaDodaj.hidden = nastepnaWidoczna || !funkcja('nastepna');
     prognozaWaluta.textContent = kod;
     prognozaPln.textContent = dopisekPln(wpis.prognoza);
     if (document.activeElement !== prognoza) prognoza.value = formatujKoszt(wpis.prognoza);
@@ -311,7 +556,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     let ocena = '';
     if (typeof wpis.prognoza === 'number' && typeof wpis.koszt === 'number') {
       const roznica = Math.round((wpis.prognoza - wpis.koszt) * 100) / 100;
-      info = roznica === 0 ? 'bez zmian' : (roznica > 0 ? '▲ +' : '▼ ') + formatujKoszt(roznica);
+      info = roznica === 0 ? t('bez zmian') : (roznica > 0 ? '▲ +' : '▼ ') + (jezyk() === 'pl' ? formatujKoszt(roznica) : liczba(roznica));
       ocena = roznica > 0 ? 'drozej' : roznica < 0 ? 'taniej' : '';
     }
     prognozaInfo.textContent = info;
@@ -346,6 +591,14 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     odswiez();
     onZmiana();
   });
+  // Zmiana zapłaconej ceny trafia do historii cen (wykres wydatków, „Zmiany cen”) po wyjściu z pola.
+  let cenaPrzedEdycja = wpis.koszt;
+  koszt.addEventListener('focus', () => { cenaPrzedEdycja = wpis.koszt; });
+  koszt.addEventListener('blur', () => {
+    const przed = JSON.stringify(wpis.ceny);
+    zapiszZmianeCeny(wpis, cenaPrzedEdycja);
+    if (JSON.stringify(wpis.ceny) !== przed) onZmiana();
+  });
   // Po wyjściu z pola widać zapisaną kwotę - także gdy wpisany tekst był błędny (np. „1.234,56”).
   for (const [pole, klucz] of [[koszt, 'koszt'], [prognoza, 'prognoza']]) {
     pole.addEventListener('blur', () => {
@@ -357,6 +610,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     const wartosc = kwotaZPola(prognoza);
     if (wartosc === undefined) return;
     wpis.prognoza = wartosc;
+    if (wartosc === null) wpis.prognozaOd = ''; // wpisana od nowa - dzień liczy się od nowa
     odswiez();
     onZmiana();
   });
@@ -394,8 +648,140 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     onZmiana();
   });
   // Zaznaczone „zapłacone” zapamiętuje termin - następny okres znowu do zapłaty; zaległość zdejmuje tylko to.
+  // Kwota za każdym razem inna - najpierw pytanie „ile?” (Enter zapisuje, Esc albo odznaczenie - rezygnacja).
   zaplacPole.addEventListener('change', () => {
+    if (zmiennaKwota(wpis)) {
+      zaplacKwota.hidden = !zaplacPole.checked;
+      if (zaplacPole.checked) {
+        const ostatnia = wpis.historia?.at(-1)?.kwota;
+        zaplacKwotaPole.value = formatujKoszt(ostatnia ?? wpis.prognoza ?? wpis.koszt);
+        zaplacKwotaPole.classList.remove('pole--blad');
+        zaplacKwotaPole.focus();
+        zaplacKwotaPole.select();
+      }
+      return;
+    }
     if (!zaplacPole.checked || !oznaczZaplate(wpis)) return;
+    odswiez();
+    onZmiana();
+  });
+  function zapiszZaplate() {
+    const kwota = kwotaZPola(zaplacKwotaPole);
+    if (typeof kwota !== 'number') {
+      zaplacKwotaPole.classList.add('pole--blad');
+      zaplacKwotaPole.focus();
+      return;
+    }
+    zaplacKwota.hidden = true;
+    if (!oznaczZaplate(wpis, kwota)) return;
+    if (document.activeElement !== koszt) koszt.value = formatujKoszt(wpis.koszt);
+    odswiez();
+    onZmiana();
+  }
+  zaplacKwotaOk.addEventListener('click', zapiszZaplate);
+  zaplacKwotaPole.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') zapiszZaplate();
+    else if (e.key === 'Escape') {
+      e.preventDefault();
+      zaplacKwota.hidden = true;
+      zaplacPole.checked = false;
+      zaplacPole.focus();
+    }
+  });
+  zaplacKwotaPole.addEventListener('input', () => kwotaZPola(zaplacKwotaPole));
+  zmiennaPole.addEventListener('change', () => {
+    wpis.zmiennaKwota = zmiennaPole.checked;
+    odswiez();
+    onZmiana();
+  });
+
+  // Okres własny: „co [N] [tygodni / miesięcy / lat]”.
+  coIlePole.addEventListener('change', () => {
+    const n = Math.round(Number(coIlePole.value));
+    if (!(n >= 1 && n <= 99)) {
+      coIlePole.value = String(wpis.coIle || 1);
+      return;
+    }
+    ustawOkres(wpis.okres || 'M', n);
+  });
+  jednostka.addEventListener('change', () => ustawOkres(jednostka.value, wpis.coIle || 1));
+  okresInny.addEventListener('click', () => {
+    okresGrupa.det.open = true;
+    karteczka.showPopover();
+    (okresGotoweOpcje.find(([, , o]) => o.getAttribute('aria-pressed') === 'true')?.[2] ?? okresGotoweOpcje[0][2]).focus();
+  });
+
+  // Dzielę koszt. Włączenie podziału albo przypomnień nie przypomina o płatnościach sprzed tej chwili.
+  const bezZaleglegoOdbioru = () => {
+    const ostatnia = ostatniaPlatnosc(wpis);
+    if (ostatnia) wpis.oddaneTermin = isoDnia(ostatnia);
+  };
+  osobPole.addEventListener('change', () => {
+    const n = Math.round(Number(osobPole.value));
+    if (!(n >= 1 && n <= 20)) {
+      osobPole.value = String(wpis.osob || 1);
+      return;
+    }
+    if (!(wpis.osob > 1) && n > 1) bezZaleglegoOdbioru();
+    wpis.osob = n;
+    odswiez();
+    onZmiana();
+  });
+  ktoPole.addEventListener('input', () => {
+    if (!wpis.ktoOddaje.trim() && ktoPole.value.trim()) bezZaleglegoOdbioru();
+    wpis.ktoOddaje = ktoPole.value;
+    odswiez();
+    onZmiana();
+  });
+  // ☐ oddane - za ostatnią płatność; przypomnienie wraca po następnej.
+  odbierzPole.addEventListener('change', () => {
+    if (!odbierzPole.checked) return;
+    bezZaleglegoOdbioru();
+    odswiez();
+    onZmiana();
+  });
+
+  // D18: ☐ pobrana - faktura za ostatnią płatność; przypomnienie wraca po następnej.
+  fakturaPole.addEventListener('change', () => {
+    if (!fakturaPole.checked) return;
+    const ostatnia = ostatniaPlatnosc(wpis);
+    if (ostatnia) wpis.fakturaTermin = isoDnia(ostatnia);
+    odswiez();
+    onZmiana();
+  });
+  firmaPole.addEventListener('change', () => {
+    wpis.firmowa = firmaPole.checked;
+    odswiez();
+    onZmiana();
+  });
+
+  // Pauza. Nowa pauza po zakończonej poprzedniej: terminy liczyły się od dnia wznowienia - ta data staje
+  // się datą zakupu, żeby nowa pauza nie cofnęła terminów do starego zakupu.
+  pauzaPole.addEventListener('change', () => {
+    const wznowienie = parsujDate(pauzaPole.value);
+    if (!wznowienie || wznowienie <= dzis()) {
+      odswiez(); // data z przeszłości - pole wraca do zapisanej
+      return;
+    }
+    if (!czyWstrzymana(wpis)) {
+      if (wpis.wstrzymanaDo && wpis.wstrzymanaDo > wpis.od && parsujDate(wpis.wstrzymanaDo) <= dzis()) wpis.od = wpis.wstrzymanaDo;
+      wpis.wstrzymanaOd = isoDnia(dzis());
+    }
+    wpis.wstrzymanaDo = pauzaPole.value;
+    wpis.prognozaOd = ''; // pauza przesuwa termin - dzień ceny następnej od nowa
+    odswiez();
+    onZmiana();
+  });
+  pauzaKoniec.addEventListener('click', () => {
+    wpis.wstrzymanaDo = isoDnia(dzis()); // wznowienie dziś = dziś pierwsza płatność po przerwie
+    wpis.prognozaOd = '';
+    odswiez();
+    onZmiana();
+  });
+  pauzaUsun.addEventListener('click', () => {
+    wpis.wstrzymanaOd = '';
+    wpis.wstrzymanaDo = '';
+    wpis.prognozaOd = '';
     odswiez();
     onZmiana();
   });

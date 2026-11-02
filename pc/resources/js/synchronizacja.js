@@ -4,18 +4,15 @@
 
 import { scal } from './scalanie.js';
 import { odczytajDane, doZapisu } from './dane.js';
+import { t, tn, godzina } from './teksty.js';
 import { czyPolaczony, czySkonfigurowany, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
 
 const $ = (id) => document.getElementById(id);
-const godzina = () => new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 // Bez internetu fetch rzuca TypeError z angielskim opisem.
-const opisBledu = (e) => (e instanceof TypeError ? 'brak połączenia z Google - sprawdź internet' : e.message);
+const opisBledu = (e) => (e instanceof TypeError ? t('brak połączenia z Google - sprawdź internet') : e.message);
 // „1 pozycję”, „3 pozycje”, „5 pozycji”, „22 pozycje” (polska liczba mnoga w bierniku).
 function ilePozycji(n) {
-  const r10 = n % 10;
-  const r100 = n % 100;
-  const forma = n === 1 ? 'pozycję' : r10 >= 2 && r10 <= 4 && (r100 < 12 || r100 > 14) ? 'pozycje' : 'pozycji';
-  return `${n} ${forma}`;
+  return tn(n, '{n} pozycję', '{n} pozycje', '{n} pozycji');
 }
 
 // stan: { wpisy, usuniete, zablokowany, synchronizacja }; poScaleniu: zapis i odświeżenie widoku;
@@ -47,7 +44,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     if (stan.zablokowany || stan.synchronizacja || !czyPolaczony()) return false;
     stan.synchronizacja = true;
     odswiez();
-    pokaz('pobieram z Dysku…');
+    pokaz(t('pobieram z Dysku…'));
     try {
       const tekst = await pobierzZDysku();
       const json = (t) => { try { return JSON.parse(t); } catch { return null; } };
@@ -55,8 +52,8 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
       // Nieczytelny plik na Dysku: dane na urządzeniu zostają; kliknięte „Wyślij” może go zastąpić -
       // inaczej synchronizacja byłaby zablokowana na stałe (ukrytego folderu nie widać w Dysku).
       if (tekst !== null && !zdalne) {
-        if (!wyslij || !klikniete || !confirm('Plik na Google Dysku jest uszkodzony albo ma nieznany format. Zastąpić go danymi z tego urządzenia?')) {
-          throw new Error('plik na Dysku jest uszkodzony - „Wyślij na Dysk” może go zastąpić');
+        if (!wyslij || !klikniete || !confirm(t('Plik na Google Dysku jest uszkodzony albo ma nieznany format. Zastąpić go danymi z tego urządzenia?'))) {
+          throw new Error(t('plik na Dysku jest uszkodzony - „Wyślij na Dysk” może go zastąpić'));
         }
       }
       if (zdalne) {
@@ -66,21 +63,22 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
         // mocno do przodu) - tylko po potwierdzeniu.
         const zostaja = new Set(wynik.wpisy.map((w) => w.id));
         const ileUsuwa = stan.wpisy.filter((w) => !zostaja.has(w.id)).length;
-        if (ileUsuwa > 2 && !confirm(`Dane z Google Dysku usuwają z tego urządzenia ${ilePozycji(ileUsuwa)}. Usunąć je?`)) {
-          throw new Error('przerwano - dane na tym urządzeniu bez zmian');
+        if (ileUsuwa > 2 && !confirm(t('Dane z Google Dysku usuwają z tego urządzenia {ile}. Usunąć je?', { ile: ilePozycji(ileUsuwa) }))) {
+          throw new Error(t('przerwano - dane na tym urządzeniu bez zmian'));
         }
         Object.assign(stan, wynik);
         // Zapis i odświeżenie widoku tylko, gdy Dysk coś zmienił (zwykle nic - pobranie przy każdym starcie telefonu).
         if (JSON.stringify([stan.wpisy, stan.usuniete]) !== przed) await poScaleniu();
       }
       if (wyslij) {
-        pokaz('wysyłam na Dysk…');
+        pokaz(t('wysyłam na Dysk…'));
         await wyslijNaDysk(JSON.stringify(doZapisu(stan)));
       }
-      pokaz((wyslij ? 'wysłano na Dysk ✓ ' : tekst === null ? 'na Dysku jeszcze nic nie ma · ' : 'pobrano z Dysku ✓ ') + godzina());
+      const teraz = { godzina: godzina(new Date()) };
+      pokaz(wyslij ? t('wysłano na Dysk ✓ {godzina}', teraz) : tekst === null ? t('na Dysku jeszcze nic nie ma · {godzina}', teraz) : t('pobrano z Dysku ✓ {godzina}', teraz));
       return true;
     } catch (e) {
-      pokaz(opisBledu(e) || 'błąd połączenia z Google Dyskiem', true);
+      pokaz(opisBledu(e) || t('błąd połączenia z Google Dyskiem'), true);
       console.error(e);
       return false;
     } finally {
@@ -92,7 +90,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
   async function polacz() {
     if (stan.zablokowany) return odswiez();
     if (!czySkonfigurowany()) {
-      pokaz('wpisz identyfikator projektu Google');
+      pokaz(t('wpisz identyfikator projektu Google'));
       $('okno-google-blad').hidden = true;
       $('okno-google').showModal();
       odswiez();
@@ -100,7 +98,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     }
     stan.synchronizacja = true;
     odswiez();
-    pokaz('łączę z Google…');
+    pokaz(t('łączę z Google…'));
     try {
       logowanie = await zacznijLogowanie();
       $('okno-dysk-kod').textContent = logowanie.kod;
@@ -122,7 +120,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
   }
 
   // Wyłączenie synchronizacji: aplikacja zapomina dostęp do Google (także przy „Usuń z komputera”).
-  async function wylacz(tekst = 'synchronizacja wyłączona') {
+  async function wylacz(tekst = t('synchronizacja wyłączona')) {
     await rozlacz();
     pokaz(tekst);
     odswiez();
@@ -132,20 +130,20 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
   async function usunDysk() {
     if (stan.zablokowany || stan.synchronizacja || !czyPolaczony()) return;
     const lokalnie = czyLokalnie();
-    const pytanie = 'Usunąć dane z Google Dysku? Synchronizacja na tym urządzeniu zostanie wyłączona. '
-      + (lokalnie ? 'Dane na tym urządzeniu zostają. ' : 'Włączy się zapis na tym urządzeniu, żeby dane z niego nie zniknęły. ')
-      + 'Na drugim urządzeniu też wyłącz synchronizację - inaczej wyśle swoje dane na Dysk od nowa.';
+    const pytanie = t('Usunąć dane z Google Dysku? Synchronizacja na tym urządzeniu zostanie wyłączona.') + ' '
+      + (lokalnie ? t('Dane na tym urządzeniu zostają.') : t('Włączy się zapis na tym urządzeniu, żeby dane z niego nie zniknęły.')) + ' '
+      + t('Na drugim urządzeniu też wyłącz synchronizację - inaczej wyśle swoje dane na Dysk od nowa.');
     if (!confirm(pytanie)) return;
     stan.synchronizacja = true;
     odswiez();
-    pokaz('usuwam z Dysku…');
+    pokaz(t('usuwam z Dysku…'));
     try {
       if (!lokalnie) await wlaczLokalnie();
       await usunZDysku();
       stan.synchronizacja = false;
-      await wylacz('usunięto z Dysku · synchronizacja wyłączona');
+      await wylacz(t('usunięto z Dysku · synchronizacja wyłączona'));
     } catch (e) {
-      pokaz(opisBledu(e) || 'nie udało się usunąć z Dysku', true);
+      pokaz(opisBledu(e) || t('nie udało się usunąć z Dysku'), true);
       console.error(e);
     } finally {
       stan.synchronizacja = false;
@@ -156,7 +154,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
   $('dysk-wlacz').addEventListener('change', async (e) => {
     if (e.target.checked) {
       await polacz();
-    } else if (czyLokalnie() || confirm('Zapis na tym urządzeniu jest wyłączony - bez synchronizacji dane będą tylko w pamięci i znikną po zamknięciu aplikacji. Wyłączyć synchronizację?')) {
+    } else if (czyLokalnie() || confirm(t('Zapis na tym urządzeniu jest wyłączony - bez synchronizacji dane będą tylko w pamięci i znikną po zamknięciu aplikacji. Wyłączyć synchronizację?'))) {
       await wylacz();
     } else {
       e.target.checked = true;
@@ -175,7 +173,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
   // Okno identyfikatora projektu Google: po zapisaniu od razu logowanie kodem.
   $('okno-google-zapisz').addEventListener('click', async () => {
     const blad = await ustawIdentyfikator($('okno-google-id').value, $('okno-google-sekret').value)
-      .catch(() => 'nie udało się zapisać identyfikatora');
+      .catch(() => t('nie udało się zapisać identyfikatora'));
     $('okno-google-blad').textContent = blad;
     $('okno-google-blad').hidden = !blad;
     if (blad) return;

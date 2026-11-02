@@ -50,3 +50,7 @@ Name: "{userdesktop}\Mikropłatności"; Filename: "{app}\Mikroplatnosci.exe"; Wo
 
 [Run]
 Filename: "{app}\Mikroplatnosci.exe"; WorkingDir: "{app}"; Description: "Uruchom Mikropłatności"; Flags: nowait postinstall skipifsilent
+
+; Powiadomienia przy zamkniętej aplikacji (Ustawienia, harmonogram.js) - zadanie znika razem z programem.
+[UninstallRun]
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""Mikroplatnosci - powiadomienia"""; Flags: runhidden; RunOnceId: "UsunZadanie"

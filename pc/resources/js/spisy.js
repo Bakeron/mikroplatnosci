@@ -3,15 +3,20 @@
 import { formatujDate, roznicaDni, dzis } from './alarmy.js';
 import { waluta, naPln, formatujKwote } from './waluty.js';
 import { nazwaWpisu } from './dane.js';
+import { t, tn } from './teksty.js';
+
+// Przetłumaczony szablon pocięty na części: {nazwa} zastąpione wartością (tekst, { w } albo lista części).
+const czesci = (szablon, wartosci) => szablon.split(/\{(\w+)\}/).flatMap((s, i) => (i % 2 ? wartosci[s] ?? [] : s ? [s] : []));
 
 // Części opisu: zwykły tekst albo { w: tekst } - wyróżnione (data i liczba dni).
 function opisAlarmu(a, jednorazowa) {
-  if (!a.data) return ['brak daty zakupu - uzupełnij'];
+  if (!a.data) return [t('brak daty zakupu - uzupełnij')];
   const data = { w: formatujDate(a.data) };
   const dni = roznicaDni(dzis(), a.data);
-  if (a.poziom === 'minal') return ['termin minął ', data, ' - sprawdź, czy anulowano'];
-  const za = dni === 0 ? ['dziś'] : dni === 1 ? ['jutro'] : ['za ', { w: String(dni) }, ' dni'];
-  return [jednorazowa ? 'wycofaj przed ' : 'płatność ', data, ' (', ...za, ')'];
+  if (a.poziom === 'minal') return czesci(t('termin minął {data} - sprawdź, czy anulowano'), { data });
+  // { n: '{n}' } - liczba zostaje w szablonie, żeby wstawić ją jako wyróżnioną część.
+  const za = dni === 0 ? [t('dziś')] : dni === 1 ? [t('jutro')] : czesci(tn(dni, 'za {n} dzień', 'za {n} dni', 'za {n} dni', { n: '{n}' }), { n: { w: String(dni) } });
+  return czesci(jednorazowa ? t('wycofaj przed {data} ({kiedy})') : t('płatność {data} ({kiedy})'), { data, kiedy: za });
 }
 
 export function wypelnijListe(lista, alarmy, pustyTekst, jednorazowe) {

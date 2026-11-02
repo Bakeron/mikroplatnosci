@@ -10,7 +10,7 @@ import { zmienna } from './zmienna.mjs';
 const mobile = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pc = join(mobile, '..', 'pc', 'resources');
 const www = join(mobile, 'www');
-const WSPOLNE = ['dom.js', 'oAplikacji.js', 'ustawienia.js', 'magazyn.js', 'alarmy.js', 'waluty.js', 'podsumowanie.js', 'spisy.js', 'miarka.js', 'dane.js', 'scalanie.js', 'dysk.js', 'synchronizacja.js', 'powiadomienia.js'];
+const WSPOLNE = ['dom.js', 'teksty.js', 'teksty-en.js', 'funkcje.js', 'swieta.js', 'oAplikacji.js', 'ustawienia.js', 'magazyn.js', 'alarmy.js', 'waluty.js', 'podsumowanie.js', 'spisy.js', 'miarka.js', 'dane.js', 'scalanie.js', 'dysk.js', 'synchronizacja.js', 'powiadomienia.js'];
 
 // Własne kopiowanie zamiast cpSync - cpSync w Node 24 wywraca się na ścieżce z polskimi literami.
 function kopiuj(z, doCelu) {

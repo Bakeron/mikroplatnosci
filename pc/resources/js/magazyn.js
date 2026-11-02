@@ -101,4 +101,14 @@ export async function zajmijBlokade(plik, pid) {
   return true;
 }
 
+// Czy okno aplikacji jest otwarte (świeża blokada) - bez zajmowania blokady (uruchomienie w tle, B10).
+export async function czyBlokadaZajeta(plik) {
+  try {
+    const blokada = JSON.parse(await Neutralino.filesystem.readFile(plik));
+    return Math.abs(Date.now() - blokada.czas) < BLOKADA_WAZNA;
+  } catch {
+    return false;
+  }
+}
+
 export const odswiezBlokade = (plik, pid) => Neutralino.filesystem.writeFile(plik, JSON.stringify({ pid, czas: Date.now() }));

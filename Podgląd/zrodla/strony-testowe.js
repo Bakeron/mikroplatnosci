@@ -19,6 +19,11 @@
         console.log('[powiadomienie testowe]', tytul, '-', tresc);
         return Promise.resolve();
       };
+      // Harmonogram zadań Windows (B10) - w testach żadnych poleceń systemu, tylko zapis w konsoli.
+      v.os.execCommand = (polecenie) => {
+        console.log('[polecenie testowe]', polecenie);
+        return Promise.resolve({ exitCode: 1, stdOut: '', stdErr: 'zablokowane w teście' });
+      };
       for (const [klucz, f] of Object.entries(v.filesystem)) {
         if (typeof f !== 'function') continue;
         v.filesystem[klucz] = (...a) => (!folder || a.some((x) => typeof x === 'string' && /roaming/i.test(x))

@@ -1,10 +1,10 @@
-// Buduje podpisany plik APK (Gradle) i kładzie go w mobile/apk/Mikroplatnosci.apk.
+// Buduje podpisany plik APK (Gradle) i kładzie go w mobile/apk/Mikroplatnosci-<numer instalki>.apk.
 // Użycie: npm run apk (w folderze mobile/) - najpierw składa www/ i kopiuje je do projektu Androida.
-// npm run aab - to samo, ale paczka AAB dla Google Play (mobile/apk/Mikroplatnosci.aab); Play przyjmuje
+// npm run aab - to samo, ale paczka AAB dla Google Play (mobile/apk/Mikroplatnosci-<numer>.aab); Play przyjmuje
 // od nowych aplikacji tylko AAB. Ten sam klucz podpisu (w Play: klucz przesyłania).
 // Java i Android SDK z %LOCALAPPDATA%\Android (instalacja bez uprawnień administratora).
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,8 +30,17 @@ const aab = process.argv.includes('--aab');
 const wersja = JSON.parse(readFileSync(join(mobile, 'wersja.json'), 'utf8'));
 if (!Number.isInteger(wersja.kod) || !/^\d{4}\.\d{2}\.\d{2}\.\d{4}$/.test(wersja.nazwa)) throw new Error('Zły mobile/wersja.json - uruchom npm run apk od nowa');
 
+// Numer instalki (decyzja autora 01.11.2026): każda nowa instalka o 0.1 wyżej (1.0 → 1.1 → … → 1.9 → 2.0).
+// Ostatni zbudowany numer w numer-instalki.txt - zapisywany dopiero po udanym budowaniu.
+// Widać go w nazwie pliku (Mikroplatnosci-1.1.apk) i w Androidzie (Ustawienia → Aplikacje).
+const plikNumeru = join(mobile, 'numer-instalki.txt');
+const ostatni = readFileSync(plikNumeru, 'utf8').trim();
+if (!/^\d+\.\d$/.test(ostatni)) throw new Error('Zły mobile/numer-instalki.txt - ma być np. 1.0');
+const dziesiate = Number(ostatni.replace('.', '')) + 1;
+const numer = `${Math.floor(dziesiate / 10)}.${dziesiate % 10}`;
+
 // Pełna ścieżka: przy NoDefaultCurrentDirectoryInExePath cmd nie szuka programów w bieżącym folderze.
-execFileSync('cmd', ['/c', join(android, 'gradlew.bat'), aab ? 'bundleRelease' : 'assembleRelease', '--console=plain', '-q', `-PwersjaKod=${wersja.kod}`, `-PwersjaNazwa=${wersja.nazwa}`], {
+execFileSync('cmd', ['/c', join(android, 'gradlew.bat'), aab ? 'bundleRelease' : 'assembleRelease', '--console=plain', '-q', `-PwersjaKod=${wersja.kod}`, `-PwersjaNazwa=${numer}`], {
   cwd: android,
   stdio: 'inherit',
   // Certyfikaty z magazynu Windows: antywirus (Avast) sprawdza HTTPS i podstawia swój certyfikat,
@@ -42,7 +51,8 @@ execFileSync('cmd', ['/c', join(android, 'gradlew.bat'), aab ? 'bundleRelease' :
 const wynik = aab
   ? join(android, 'app', 'build', 'outputs', 'bundle', 'release', 'app-release.aab')
   : join(android, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
-const cel = aab ? 'Mikroplatnosci.aab' : 'Mikroplatnosci.apk';
+const cel = `Mikroplatnosci-${numer}.${aab ? 'aab' : 'apk'}`;
 mkdirSync(join(mobile, 'apk'), { recursive: true });
 copyFileSync(wynik, join(mobile, 'apk', cel));
-console.log(`${aab ? 'AAB' : 'APK'} gotowe: mobile/apk/${cel} (wersja ${wersja.nazwa})`);
+writeFileSync(plikNumeru, numer + '\n');
+console.log(`${aab ? 'AAB' : 'APK'} gotowe: mobile/apk/${cel} (instalka ${numer}, wersja ${wersja.nazwa})`);

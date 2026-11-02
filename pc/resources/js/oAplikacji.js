@@ -1,7 +1,8 @@
 // Okno „O aplikacji” (PC i telefon): wersja, prywatność w skrócie, kontakt, licencje użytych bibliotek.
 // Treść wstawiana przez textContent (element z dom.js) - bez innerHTML.
 
-import { element } from './dom.js';
+import { element, krzyzykOkna } from './dom.js';
+import { t, tekst } from './teksty.js';
 
 export const KONTAKT = 'szymon.bakonis@gmail.com';
 // Adres pełnej polityki prywatności (polityka-prywatnosci.md) - uzupełnić po publikacji na stronie www.
@@ -14,11 +15,11 @@ const OFL = 'https://openfontlicense.org/open-font-license-official-text/';
 const BIBLIOTEKI = {
   pc: [['Neutralinojs 6.10', 'MIT', 'Copyright (c) 2019 Neutralinojs']],
   telefon: [
-    ['Capacitor 8 i wtyczki (App, Browser, Filesystem, Local Notifications)', 'MIT', 'Copyright (c) 2017-present Drifty Co. / Ionic'],
+    [tekst('Capacitor 8 i wtyczki (App, Browser, Filesystem, Local Notifications)'), 'MIT', 'Copyright (c) 2017-present Drifty Co. / Ionic'],
     ['AndroidX, Kotlin', 'Apache 2.0', 'Copyright The Android Open Source Project / JetBrains s.r.o.'],
-    ['Czcionka Gelasio', 'SIL OFL 1.1', 'Copyright 2022 The Gelasio Project Authors (https://github.com/SorkinType/Gelasio)'],
-    ['Czcionka Barlow Semi Condensed', 'SIL OFL 1.1', 'Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)'],
-    ['Czcionka Cascadia Mono', 'SIL OFL 1.1', 'Copyright (c) 2019 - Present, Microsoft Corporation, with Reserved Font Name Cascadia Code'],
+    [tekst('Czcionka Gelasio'), 'SIL OFL 1.1', 'Copyright 2022 The Gelasio Project Authors (https://github.com/SorkinType/Gelasio)'],
+    [tekst('Czcionka Barlow Semi Condensed'), 'SIL OFL 1.1', 'Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)'],
+    [tekst('Czcionka Cascadia Mono'), 'SIL OFL 1.1', 'Copyright (c) 2019 - Present, Microsoft Corporation, with Reserved Font Name Cascadia Code'],
   ],
 };
 
@@ -27,6 +28,7 @@ export function pokazOAplikacji(platforma, otworz) {
   document.getElementById('okno-o-aplikacji')?.remove();
   const okno = element('dialog', 'okno okno--szersze okno--o-aplikacji');
   okno.id = 'okno-o-aplikacji';
+  okno.setAttribute('closedby', 'any'); // kliknięcie w tło obok okna zamyka je (jak Esc)
   const link = (tekst, adres) => {
     const przycisk = element('button', 'przycisk-tekst okno__link', tekst);
     przycisk.type = 'button';
@@ -36,38 +38,39 @@ export function pokazOAplikacji(platforma, otworz) {
 
   okno.append(
     element('h2', 'okno__tytul', 'Mikropłatności'),
-    element('p', 'okno__uwaga', 'wersja ' + (window.WERSJA_APLIKACJI || 'robocza')),
-    element('p', 'okno__tekst', 'Pilnuje subskrypcji i drobnych płatności. Dane są na tym urządzeniu, a jeśli włączysz synchronizację - także na Twoim Google Dysku, w ukrytym folderze aplikacji. Autor aplikacji nie dostaje żadnych Twoich danych; bez reklam i bez śledzenia.'),
+    element('p', 'okno__uwaga', t('wersja {numer}', { numer: window.WERSJA_APLIKACJI || t('robocza') })),
+    element('p', 'okno__tekst', t('Pilnuje subskrypcji i drobnych płatności. Dane są na tym urządzeniu, a jeśli włączysz synchronizację - także na Twoim Google Dysku, w ukrytym folderze aplikacji. Autor aplikacji nie dostaje żadnych Twoich danych; bez reklam i bez śledzenia.')),
   );
   // Adres jako tekst do zaznaczenia - telefon otwiera tylko strony https (bez mailto:).
-  okno.append(element('p', 'okno__tekst okno__kontakt', 'Kontakt: ' + KONTAKT));
+  okno.append(element('p', 'okno__tekst okno__kontakt', t('Kontakt: {adres}', { adres: KONTAKT })));
   if (ADRES_POLITYKI) {
     const polityka = element('p', 'okno__tekst');
-    polityka.append(link('Polityka prywatności', ADRES_POLITYKI));
+    polityka.append(link(t('Polityka prywatności'), ADRES_POLITYKI));
     okno.append(polityka);
   }
 
   const licencje = element('details', 'okno__licencje');
-  licencje.append(element('summary', '', 'Licencje użytych bibliotek'));
+  licencje.append(element('summary', '', t('Licencje użytych bibliotek')));
   for (const [nazwa, licencja, prawa] of BIBLIOTEKI[platforma] ?? BIBLIOTEKI.pc) {
-    licencje.append(element('p', 'okno__licencja', `${nazwa} - licencja ${licencja}. ${prawa}.`));
+    licencje.append(element('p', 'okno__licencja', t('{nazwa} - licencja {licencja}. {prawa}.', { nazwa: t(nazwa), licencja, prawa })));
   }
-  licencje.append(element('p', 'okno__licencja', 'Licencja MIT: ' + MIT));
+  licencje.append(element('p', 'okno__licencja', t('Licencja MIT: {tekst}', { tekst: MIT })));
   if (platforma === 'telefon') {
-    const apache = element('p', 'okno__licencja', 'Licencja Apache 2.0: ');
+    const apache = element('p', 'okno__licencja', t('Licencja Apache 2.0:') + ' ');
     apache.append(link(APACHE, APACHE));
-    const ofl = element('p', 'okno__licencja', 'Licencja SIL Open Font License 1.1 (pełny tekst także w plikach czcionek aplikacji): ');
+    const ofl = element('p', 'okno__licencja', t('Licencja SIL Open Font License 1.1 (pełny tekst także w plikach czcionek aplikacji):') + ' ');
     ofl.append(link(OFL, OFL));
     licencje.append(apache, ofl);
   }
   okno.append(licencje);
 
   const przyciski = element('div', 'okno__przyciski');
-  const zamknij = element('button', 'przycisk-tekst', 'Zamknij');
+  const zamknij = element('button', 'przycisk-tekst', t('Zamknij'));
   zamknij.type = 'button';
   zamknij.addEventListener('click', () => okno.close());
   przyciski.append(zamknij);
   okno.append(przyciski);
+  krzyzykOkna(okno, t('Zamknij'));
   okno.addEventListener('close', () => okno.remove());
   document.body.append(okno);
   okno.showModal();
