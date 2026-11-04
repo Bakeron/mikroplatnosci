@@ -20,8 +20,39 @@ dist/
 *.jks
 *.keystore
 
-# Lokalne ustawienia Claude Code
-.claude/settings.local.json
+# Narzędzia Claude (skille, ustawienia) - nie część aplikacji; zostają tylko na dysku
+.claude/
+CLAUDE.local.md
+# Wszystkie pliki .md poza README - notatki, audyty, założenia, plany; zostają tylko na dysku
+*.md
+!/README.md
+!/mobile/README.md
+!/Podgląd/README.md
+
+# Klucze, hasła i konta usług - nigdy w repozytorium
+*.p12
+*.pfx
+*.pem
+*.key
+*.der
+*.crt
+HASLO*
+*haslo*
+*password*
+*secret*
+.env
+.env.*
+google-services.json
+GoogleService-Info.plist
+*service-account*.json
+*credentials*.json
+client_secret*.json
+# Dzienniki, zrzuty pamięci, kopie i paczki repozytorium
+*.log
+*.dmp
+*.bundle
+*.orig
+*.bak
 
 # Rzeczy spoza aplikacji
 Vibersi/

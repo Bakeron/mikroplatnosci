@@ -129,3 +129,18 @@ test('uszkodzony plik dostępu - ignorowany', async () => {
   assert.equal(D.czyPolaczony(), false);
   assert.equal(D.czySkonfigurowany(), false);
 });
+
+test('zapytanie do Google bez pamięci podręcznej i z limitem czasu; brak odpowiedzi - zrozumiały błąd', async () => {
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
+  await D.przygotujDysk('test');
+  const zwykly = globalThis.fetch;
+  let opcje;
+  globalThis.fetch = async (adres, o) => { opcje = o; throw new DOMException('signal timed out', 'TimeoutError'); };
+  try {
+    await assert.rejects(D.zacznijLogowanie(), /Google nie odpowiada/);
+  } finally {
+    globalThis.fetch = zwykly;
+  }
+  assert.equal(opcje.cache, 'no-store');
+  assert.ok(opcje.signal instanceof AbortSignal);
+});

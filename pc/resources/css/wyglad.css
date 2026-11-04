@@ -7,7 +7,7 @@
   --linia: #d8ceb6;
   --margines: #d0574a;
   --atrament: #1f2b4d;
-  --olowek: #706856;
+  --olowek: #6b6352;
   --czerwony: #b92a1a;
   --czerwony-spis: var(--czerwony);
   --bursztyn: #8f5b00;
@@ -22,6 +22,11 @@
   --znacznik-ciemniej: 0.27%;
   --lont-ogien: 47%;
   --cien-paragonu: rgb(60 40 10 / 0.22);
+  /* Napisy w czerwieniejącym wierszu „zapłać” - min. 4,5:1 nawet na najmocniejszej czerwieni (34% + 6% pod kursorem). */
+  --olowek-na-czerwieni: #454034;
+  --czerwony-na-czerwieni: #7d1c11;
+  --zielony-na-czerwieni: #1b491f;
+  --lont-tekst-na-czerwieni: 24%;
 
   /* Gelasio i Barlow Semi Condensed - zastępstwo w telefonie (pliki czcionek w mobile/src/czcionki, @font-face w telefon.css);
      na PC wygrywają czcionki Windows, a tych nazw nie ma, więc nic się nie zmienia. */
@@ -53,6 +58,10 @@
   --znacznik-ciemniej: 0%;
   --lont-ogien: 52%;
   --cien-paragonu: rgb(0 0 0 / 0.55);
+  --olowek-na-czerwieni: #c3bfb2;
+  --czerwony-na-czerwieni: #ffa99d;
+  --zielony-na-czerwieni: #8dcd90;
+  --lont-tekst-na-czerwieni: 82%;
   color-scheme: dark;
 }
 
@@ -311,7 +320,7 @@ tr:hover .uchwyt::before,
   background: transparent;
 }
 .pole:focus { outline: none; box-shadow: inset 0 -2px 0 var(--atrament); }
-.pole::placeholder { color: var(--olowek); opacity: 0.8; font-style: italic; }
+.pole::placeholder { color: var(--olowek); font-style: italic; }
 .pole--nazwa { font-weight: 600; font-size: 15px; }
 .pole--opis, .pole--link {
   display: block;
@@ -432,7 +441,7 @@ tr:hover .uchwyt::before,
   white-space: nowrap;
   opacity: 0; /* widoczne dopiero przy wierszu pod kursorem albo z fokusem - bez 14 takich samych napisów */
 }
-.zeszyt tbody tr:hover .nastepna-dodaj, .zeszyt tbody tr:focus-within .nastepna-dodaj { opacity: 0.75; }
+.zeszyt tbody tr:hover .nastepna-dodaj, .zeszyt tbody tr:focus-within .nastepna-dodaj { opacity: 1; }
 .zeszyt tbody tr .nastepna-dodaj:hover, .nastepna-dodaj:focus-visible { color: var(--atrament); opacity: 1; }
 .prognoza__waluta {
   flex-shrink: 0;
@@ -465,10 +474,18 @@ tr:hover .uchwyt::before,
 /* płatność ręczna blisko terminu - czerwony długopis na marginesie, a cała linijka czerwienieje z każdym
    dniem (--czerwien z tabela.js: 6% tydzień przed → 24% w dniu terminu → 34% po terminie);
    tekst „zapłać do …” i „N dni po terminie” mówi to samo słowami (nie tylko kolor) */
-.zeszyt tbody tr.do-zaplaty td { background: color-mix(in srgb, var(--czerwony) var(--czerwien, 7%), transparent); }
+/* --czerwien-tla: czerwień motywu zapamiętana w wierszu, bo w komórkach --czerwony to już mocniejszy napis */
+.zeszyt tbody tr.do-zaplaty { --czerwien-tla: var(--czerwony); }
+.zeszyt tbody tr.do-zaplaty td {
+  --olowek: var(--olowek-na-czerwieni);
+  --czerwony: var(--czerwony-na-czerwieni);
+  --zielony: var(--zielony-na-czerwieni);
+  --lont-tekst: var(--lont-tekst-na-czerwieni);
+  background: color-mix(in srgb, var(--czerwien-tla) var(--czerwien, 7%), transparent);
+}
 /* po .zeszyt tbody tr:hover - podświetlenie wiersza pod kursorem nie gasi czerwieni, tylko ją wzmacnia */
-.zeszyt tbody tr.do-zaplaty:is(:hover, :focus-within) td { background: color-mix(in srgb, var(--czerwony) calc(var(--czerwien, 7%) + 6%), transparent); }
-.zeszyt tbody tr.do-zaplaty td.kol-lp { box-shadow: inset 4px 0 0 var(--czerwony); } /* jeden, cienki pasek - także po terminie */
+.zeszyt tbody tr.do-zaplaty:is(:hover, :focus-within) td { background: color-mix(in srgb, var(--czerwien-tla) calc(var(--czerwien, 7%) + 6%), transparent); }
+.zeszyt tbody tr.do-zaplaty td.kol-lp { box-shadow: inset 4px 0 0 var(--czerwien-tla); } /* jeden, cienki pasek - także po terminie */
 /* po terminie na mocno czerwonym tle: napisy atramentem (czerwony na czerwonym byłby nieczytelny) */
 .po-terminie .zaplac__tekst { color: var(--atrament); font-weight: 800; }
 .po-terminie .lont--zalegle .lont__liczba { color: var(--atrament); }
@@ -509,8 +526,6 @@ tr:hover .uchwyt::before,
   color: var(--atrament);
   box-shadow: 0 8px 22px rgb(0 0 0 / 0.28);
   text-align: left;
-  max-height: min(86vh, 620px);
-  overflow-y: auto;
 }
 .karteczka__tytul {
   margin-bottom: 10px;
@@ -952,7 +967,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 /* okno identyfikatora projektu Google - pola „na linijce”, instrukcja wysuwana w dół po zaznaczeniu */
 .okno--szersze { max-width: 540px; }
 /* „O aplikacji”: strona tytułowa zeszytu - tytuł, metryczka, licencje drobnym drukiem na końcu. */
-.okno--o-aplikacji { max-height: 86vh; overflow-y: auto; }
+.okno--o-aplikacji > .okno__tresc { max-height: calc(86vh - 5px); }
 .okno .okno__tytul { margin: 0 0 2px; font: italic 700 26px var(--f-tytul); }
 .okno--o-aplikacji .okno__uwaga { margin-bottom: 16px; }
 .okno .okno__tekst { margin: 0 0 14px; font: 16px/1.45 var(--f-tytul); }
@@ -964,26 +979,41 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 
 /* „Ustawienia”: wewnętrzna strona okładki - dwie kolumny jak rozkładówka zeszytu (co widać / powiadomienia),
    każda pod podwójną kreską jak nagłówek; wiersze na liniach w kropki, zależne wcięte za czerwonym marginesem. */
-.okno--ustawienia { max-width: 860px; width: calc(100vw - 48px); max-height: 90vh; overflow-y: auto; }
+.okno--ustawienia { max-width: 860px; width: calc(100vw - 48px); }
+.okno--ustawienia > .okno__tresc { max-height: calc(90vh - 5px); }
 .okno--ustawienia .okno__uwaga { margin-bottom: 18px; }
-/* „×” w prawym górnym rogu każdego okna - przyklejone do góry przy przewijaniu (Ustawienia, O aplikacji) */
+/* „×” na prawym górnym rogu okna i karteczki „⋯”, do połowy poza nimi - jak pinezka wbita w róg kartki,
+   nie zasłania treści. Przewija się sama treść (.okno__tresc, dom.js), bo przewijanie całego okna obcięłoby „×”.
+   Ujemne marginesy treści = pasek przewijania przy brzegu okna, nie w środku odstępu. */
+.okno:has(> .okno__x), .karteczka:has(> .okno__x) { overflow: visible; }
+.okno__tresc {
+  max-height: calc(100vh - 2em - 11px);
+  margin: -26px -28px -22px;
+  padding: 26px 28px 22px;
+  overflow-y: auto;
+}
+.karteczka > .okno__tresc { max-height: calc(min(86vh, 620px) - 4px); margin: -12px -14px -10px; padding: 12px 14px 10px; }
 .okno__x {
-  position: sticky;
-  top: 0;
-  float: right;
+  position: absolute;
+  top: -5px;
+  right: 0;
   z-index: 1;
+  display: grid;
+  place-items: center;
   width: 32px;
   height: 32px;
-  margin: -16px -18px 0 8px;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 0 0 2px;
+  border: 1px solid var(--linia);
+  border-radius: 50%;
+  background: var(--papier);
   color: var(--olowek);
-  font: 26px/1 var(--f-liczby);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.28);
+  font: 22px/1 var(--f-liczby);
+  translate: 50% -50%;
   cursor: pointer;
 }
-.okno__x:hover, .okno__x:focus-visible { color: var(--atrament); }
-.karteczka .okno__x { width: 28px; height: 28px; margin: -10px -12px 0 6px; font-size: 22px; }
+.okno__x:hover, .okno__x:focus-visible { border-color: var(--atrament); color: var(--atrament); }
+.karteczka .okno__x { top: -3px; right: -1px; width: 28px; height: 28px; font-size: 19px; }
 .ustawienia__kolumny { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 36px; margin-bottom: 18px; }
 .ustawienia__naglowek {
   margin: 0 0 4px;
@@ -1292,7 +1322,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   box-shadow: 0 -2px 6px rgb(0 0 0 / 0.12);
   transform: translateY(0);
 }
-.zakladka__ile { font-weight: 400; letter-spacing: 0; opacity: 0.75; font-variant-numeric: tabular-nums; }
+.zakladka__ile { font-weight: 400; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 /* „tylko …” - spinacz zamiast koloru: ✓ przed napisem, gdy włączone */
 .zakladka--tylko { --kat: var(--margines); text-transform: none; letter-spacing: 0.02em; font-size: 12.5px; }
 .zakladka--tylko[aria-pressed="true"] .zakladka__napis::before { content: "\2713  "; }
@@ -1354,7 +1384,8 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .plik__opis { display: block; margin-top: 1px; color: var(--olowek); font: 12.5px/1.35 var(--f-tekst); }
 
 /* E24: okno z płatnościami znalezionymi w wyciągu */
-.okno--wyciag { max-width: 640px; width: calc(100vw - 48px); max-height: 90vh; overflow-y: auto; }
+.okno--wyciag { max-width: 640px; width: calc(100vw - 48px); }
+.okno--wyciag > .okno__tresc { max-height: calc(90vh - 5px); }
 .okno--wyciag .okno__uwaga { margin-bottom: 12px; font-size: 14px; }
 .wyciag { margin: 0 0 14px; padding: 0; list-style: none; border-top: 1px solid var(--linia); }
 .wyciag__pozycja { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px dotted var(--linia); }

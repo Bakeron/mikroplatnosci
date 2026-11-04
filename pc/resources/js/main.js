@@ -23,6 +23,7 @@ import { pustyFiltr, pasuje, poprawFiltr, renderujFiltr } from './filtr.js';
 import { doCsv } from './eksport.js';
 import { dekoduj, odczytajWyciag, znajdzPowtarzajace } from './wyciag.js';
 import { pokazWyciag } from './wyciagOkno.js';
+import { trescObokKrzyzyka } from './dom.js';
 import { t, tn, ustawJezyk, jezyk, przetlumaczStrone, dataDluga, godzina, liczba, liczbaKrotka } from './teksty.js';
 
 const NAZWA_PLIKU = 'mikroplatnosci.json';
@@ -804,7 +805,10 @@ function usunWpis(wpis, naZawsze) {
 }
 $('okno-usun').addEventListener('close', () => { stan.doUsuniecia = null; });
 // „×” w rogu okien z index.html (pytanie o wykreślenie, Google) - zamyka jak Esc albo kliknięcie w tło.
-for (const x of document.querySelectorAll('dialog > .okno__x')) x.addEventListener('click', () => x.closest('dialog').close());
+for (const x of document.querySelectorAll('dialog > .okno__x')) {
+  x.addEventListener('click', () => x.closest('dialog').close());
+  trescObokKrzyzyka(x.closest('dialog'), x);
+}
 
 // Nagłówek tabeli zostaje na górze przy przewijaniu kartki w pionie. Samo position: sticky tu nie
 // działa, bo tabela ma własny poziomy pasek przewijania (.zeszyt-ramka).

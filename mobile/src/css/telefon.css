@@ -85,6 +85,13 @@
 .karta__brak { font: italic 13px var(--f-tytul); }
 /* płatność ręczna blisko terminu - czerwony margines jak na PC, tekst mówi to samo słowami */
 .karta--do-zaplaty { padding-left: 10px; background: color-mix(in srgb, var(--czerwony) var(--czerwien, 7%), transparent); box-shadow: inset 4px 0 0 var(--czerwony); } /* jeden, cienki pasek - także po terminie */
+/* napisy na czerwieni karty - mocniejsze odcienie (kolory w wyglad.css), sam pasek i tło zostają w czerwieni motywu */
+.karta--do-zaplaty > * {
+  --olowek: var(--olowek-na-czerwieni);
+  --czerwony: var(--czerwony-na-czerwieni);
+  --zielony: var(--zielony-na-czerwieni);
+  --lont-tekst: var(--lont-tekst-na-czerwieni);
+}
 .karta__zaplac { color: var(--czerwony); font: italic 600 13.5px var(--f-tytul); }
 /* po terminie na mocno czerwonym tle: napis atramentem (czerwony na czerwonym byłby nieczytelny) */
 .karta--po-terminie .karta__zaplac, .karta--po-terminie .lont--zalegle .lont__liczba { color: var(--atrament); font-weight: 800; font-style: normal; }
@@ -191,7 +198,7 @@
 }
 .t-pole input:focus, .t-pole select:focus { outline: none; border-color: var(--atrament); }
 .t-pole select option { background: var(--papier); color: var(--atrament); }
-.t-pole input::placeholder { color: var(--olowek); opacity: 0.6; font-style: italic; }
+.t-pole input::placeholder { color: var(--olowek); font-style: italic; }
 .t-wybor { display: flex; flex-wrap: wrap; gap: 0 14px; }
 .t-wybor legend { width: 100%; }
 .t-wybor label { display: flex; align-items: center; gap: 6px; min-height: 44px; color: var(--atrament); font: italic 16px var(--f-tytul); letter-spacing: normal; text-transform: none; }

@@ -13,6 +13,7 @@ import { pokazOAplikacji } from './oAplikacji.js';
 import { polaczSynchronizacje } from './synchronizacja.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
 import { rozplanuj, tytul, tresc, wczytajPamiec, zapiszPamiec } from './powiadomienia.js';
+import { element } from './dom.js';
 
 const FOLDER = 'Mikroplatnosci';
 const PLIK = FOLDER + '/mikroplatnosci.json';
@@ -34,13 +35,6 @@ const stan = {
 };
 
 const $ = (id) => document.getElementById(id);
-
-function element(tag, klasa, tekst) {
-  const el = document.createElement(tag);
-  if (klasa) el.className = klasa;
-  if (tekst !== undefined) el.textContent = tekst;
-  return el;
-}
 
 function pokazBlad(tekst) {
   $('blad').textContent = tekst;

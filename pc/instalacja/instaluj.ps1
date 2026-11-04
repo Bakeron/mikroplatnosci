@@ -50,6 +50,15 @@ $klucze = [ordered]@{
 }
 [IO.File]::WriteAllText((Join-Path $projekt 'resources\js\google.js'), "window.GOOGLE_KLUCZE = $($klucze | ConvertTo-Json -Compress);`n")
 
+# Program Neutralino (pc\bin, pobierany przez „neu update” bez sprawdzania) musi być tym z oficjalnego wydania:
+# suma programu z paczki neutralinojs-v6.10.0.zip, której skrót zgadza się z podanym przez GitHub (sprawdzone 4.11.2026).
+# Przy zmianie wersji (binaryVersion w neutralino.config.json) wpisz nową sumę, sprawdzoną tak samo.
+$sumaNeutralino = '1B3F87C0DD1B53015F8B33AAE17EA2FA806CCEBA18AFE2737B9F522438ED043D'
+$program = Join-Path $projekt 'bin\neutralino-win_x64.exe'
+if (-not (Test-Path $program) -or (Get-FileHash $program -Algorithm SHA256).Hash -ne $sumaNeutralino) {
+  throw 'Program Neutralino (pc\bin) różni się od oficjalnego wydania 6.10.0 - instalacja przerwana. Pobierz go jeszcze raz: npx neu update'
+}
+
 Push-Location $projekt
 try {
   & (Join-Path $projekt 'node_modules\.bin\neu.cmd') build

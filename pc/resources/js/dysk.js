@@ -64,8 +64,20 @@ async function zlyIdentyfikator() {
   return new Error(t('Google nie rozpoznał identyfikatora albo tajnego klucza - wpisz je jeszcze raz'));
 }
 
+// Każde zapytanie do Google: bez pamięci podręcznej przeglądarki i z limitem czasu -
+// zawieszone połączenie nie blokuje przycisków Dysku aż do ponownego uruchomienia aplikacji.
+const LIMIT_CZASU = 30000;
+async function siec(adres, opcje) {
+  try {
+    return await fetch(adres, { cache: 'no-store', signal: AbortSignal.timeout(LIMIT_CZASU), ...opcje });
+  } catch (e) {
+    if (e?.name === 'TimeoutError') throw new Error(t('Google nie odpowiada - spróbuj za chwilę'));
+    throw e;
+  }
+}
+
 async function formularz(adres, pola) {
-  const odp = await fetch(adres, {
+  const odp = await siec(adres, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(pola),
@@ -143,7 +155,7 @@ async function tokenDostepu() {
 }
 
 async function zapytanie(adres, opcje = {}) {
-  const odp = await fetch(adres, { ...opcje, headers: { ...opcje.headers, Authorization: 'Bearer ' + await tokenDostepu() } });
+  const odp = await siec(adres, { ...opcje, headers: { ...opcje.headers, Authorization: 'Bearer ' + await tokenDostepu() } });
   if (!odp.ok) {
     // 401 - dostęp odrzucony (np. cofnięty na koncie Google): następnym razem po nowy, a gdy Google
     // odmówi odświeżenia (invalid_grant), aplikacja zapomni dostęp.

@@ -397,6 +397,7 @@ export default {
   "kod wygasł - włącz synchronizację jeszcze raz": "the code has expired - turn sync on again",
   "Google cofnął dostęp - włącz synchronizację jeszcze raz": "Google revoked access - turn sync on again",
   "Google Dysk odpowiedział błędem {kod}": "Google Drive returned error {kod}",
+  "Google nie odpowiada - spróbuj za chwilę": "Google is not responding - try again in a moment",
   "plik na Dysku jest za duży": "the file on Drive is too large",
   "brak połączenia z Google - sprawdź internet": "no connection to Google - check your internet",
   "{n} pozycję": ["{n} item","{n} items"],

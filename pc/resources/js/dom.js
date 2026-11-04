@@ -14,5 +14,13 @@ export function krzyzykOkna(okno, napis) {
   x.title = napis;
   x.setAttribute('aria-label', napis);
   x.addEventListener('click', () => okno.close());
-  okno.prepend(x);
+  trescObokKrzyzyka(okno, x);
+}
+
+// „×” wystaje za róg okna, więc przewija się sama treść (.okno__tresc), nie całe okno -
+// przewijanie okna obcięłoby wszystko, co wychodzi poza jego brzeg.
+export function trescObokKrzyzyka(okno, x) {
+  const tresc = element('div', 'okno__tresc');
+  tresc.append(...[...okno.childNodes].filter((n) => n !== x));
+  okno.replaceChildren(x, tresc);
 }

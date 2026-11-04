@@ -30,8 +30,6 @@ Wygląd wynika z jednego pomysłu: **zeszyt rachunkowy** - liniatura, czerwony m
 | Synchronizacja | Google Dysk, ukryty folder aplikacji, logowanie kodem | za darmo, bez własnego serwera; aplikacja widzi tylko swój plik, nie dokumenty użytkownika |
 | Testy | `node --test` (wbudowany w Node.js) | bez dodatkowych bibliotek, bez sieci i bez prawdziwych danych |
 
-Pełne uzasadnienia z porównaniem alternatyw: [`zalozenia.md`](zalozenia.md).
-
 ## Jak to jest zbudowane
 
 ```
@@ -51,11 +49,6 @@ Telefon nie ma własnej kopii obliczeń - przy budowaniu bierze pliki z `pc/reso
 |---|---|
 | `pc/` | aplikacja na Windows, testy (`pc/testy/`), instalacja (`pc/instalacja/instaluj.ps1`) |
 | `mobile/` | aplikacja na Androida - opis budowania w [`mobile/README.md`](mobile/README.md) |
-| `zalozenia.md` | założenia: wybór technologii, format danych, bezpieczeństwo, wygląd |
-| `robota.md` | lista zadań z decyzjami autora |
-| `google-cloud.md` | jak założyć projekt Google do synchronizacji |
-| `polityka-prywatnosci.md` | polityka prywatności (do opublikowania na stronie www przed wydaniem) |
-| `microsoft.md` | Microsoft Store w skrócie - propozycja na wersję PC |
 | `Podgląd/` | obrazki aplikacji z danymi przykładowymi i źródła do ich odtworzenia |
 
 ## Uruchomienie
@@ -76,12 +69,12 @@ Instalacja na stałe ze skrótem na pulpicie: `powershell -NoProfile -ExecutionP
 
 Projekt powstał w parze z [Claude Code](https://claude.com/claude-code) (AI). Podział ról:
 
-- **Autor:** wymagania, wszystkie decyzje produktowe i architektoniczne, testy na prawdziwym sprzęcie i koncie Google, akceptacja każdej zmiany. Przykłady decyzji: Google Dysk zamiast własnego serwera i Firebase (porównanie 5 wariantów w `robota.md`), bez dodatkowego szyfrowania hasłem, APK bez sklepu, bez sortowania tabeli (własna kolejność), nowa pozycja domyślnie „przedłużać: tak”.
+- **Autor:** wymagania, wszystkie decyzje produktowe i architektoniczne, testy na prawdziwym sprzęcie i koncie Google, akceptacja każdej zmiany. Przykłady decyzji: Google Dysk zamiast własnego serwera i Firebase (porównanie 5 wariantów), bez dodatkowego szyfrowania hasłem, APK bez sklepu, bez sortowania tabeli (własna kolejność), nowa pozycja domyślnie „przedłużać: tak”.
 - **Claude:** kod, testy, skrypty budowania, dokumentacja, propozycje rozwiązań z kosztami. Drobne decyzje techniczne podejmuje sam i zapisuje je w raportach.
 
 Zasady pracy (wspólne dla projektów autora): minimalne zmiany, prawdziwych danych użytkownika AI nigdy nie dotyka, sekrety tylko w zmiennych środowiskowych, każda zmiana sprawdzana testami, a wygląd - zrzutem ekranu.
 
-**Audyty.** W `.claude/skills/` są audyty uruchamiane jak polecenia. 4 są napisane pod ten projekt: `/code-review` (poprawność), `/simplify` (uproszczenia), `/better` (wydajność), `/bezpieczenstwo` (uprawnienia Neutralino, CSP, dane). 7 jest wspólnych dla projektów autora: wydanie, testy, portfolio, dostępność, wygląd, teksty, zależności. Audyt tylko zapisuje raport (`code-review*.md`, `audyt-*.md`). Poprawki trafiają do kodu dopiero po decyzji autora, a raport dostaje stan wdrożenia - widać, co poprawiono, co odrzucono i dlaczego. Po wdrożeniu raport jest usuwany z katalogu (zostaje w historii gita), a to, co jeszcze otwarte (decyzje, sprawdzenie na telefonie), przechodzi do `robota.md`.
+**Audyty.** Kod regularnie sprawdzają audyty Claude Code uruchamiane jak polecenia (to narzędzia pracy, nie część aplikacji, więc nie ma ich w repozytorium). 4 są napisane pod ten projekt: `/code-review` (poprawność), `/simplify` (uproszczenia), `/better` (wydajność), `/bezpieczenstwo` (uprawnienia Neutralino, CSP, dane). 4 są wspólne dla projektów autora: interfejs (czytelność, dostępność, wygląd), teksty, sprawy techniczne (zależności, testy, bezpieczeństwo zmian, spójność) i publikacja. Poprawki, które nie wymagają decyzji, trafiają do kodu od razu, z testami i zrzutem ekranu. Sprawy do decyzji (zmiana założeń, koszt, prywatność) czekają na autora.
 
 **Testy:** `pc/testy/` - format danych, scalanie, przebieg synchronizacji, Google Dysk na udawanym serwerze, terminy i powiadomienia ze stałą datą, kursy NBP, ochrona przed złośliwymi linkami, kompletność plików telefonu.
 

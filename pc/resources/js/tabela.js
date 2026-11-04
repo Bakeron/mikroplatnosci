@@ -3,7 +3,7 @@
 import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, zakupBiezacegoOkresu, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
 import { WALUTY, waluta, przeliczNaPln, formatujKwote } from './waluty.js';
 import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, nazwaKategorii } from './dane.js';
-import { element } from './dom.js';
+import { element, trescObokKrzyzyka } from './dom.js';
 import { funkcja, reczna as recznaWpisu, zmiennaKwota, osobWpisu, kategoriaWpisu, firmowa } from './funkcje.js';
 import { przyciskPomocy } from './pomoc.js';
 import { t, tekst, jezyk, liczba, region } from './teksty.js';
@@ -367,6 +367,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   );
 
   karteczka.append(karteczkaX, karteczkaTytul, platnoscPole, przedluzacEtykieta, koniecEtykieta, zmiennaEtykieta, firmaEtykieta, kategoriaGrupa.det, okresGrupa.det, dzielGrupa.det, pauzaGrupa.det);
+  trescObokKrzyzyka(karteczka, karteczkaX);
 
   function ustawOkres(typ, ile) {
     wpis.okres = typ;
