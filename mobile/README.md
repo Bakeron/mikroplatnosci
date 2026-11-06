@@ -1,6 +1,6 @@
 # Mikropłatności - wersja na Androida
 
-Aplikacja APK (Capacitor 8) z tymi samymi danymi co wersja PC, połączona przez Google Dysk. Plan i stan prac: `robota.md`, pkt 3.
+Aplikacja APK (Capacitor 8) z tymi samymi danymi co wersja PC, połączona przez Google Dysk. Plan i stan prac: `robota.md`, pkt 2 i 8.
 
 ## Co jest gdzie
 

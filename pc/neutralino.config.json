@@ -9,6 +9,10 @@
   "enableServer": true,
   "enableNativeAPI": true,
   "tokenSecurity": "one-time",
+  "serverHeaders": {
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:* https://api.nbp.pl https://oauth2.googleapis.com https://www.googleapis.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff"
+  },
   "logging": {
     "enabled": false,
     "writeToLogFile": false

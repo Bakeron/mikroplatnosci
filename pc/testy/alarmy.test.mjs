@@ -106,7 +106,7 @@ test('zakupBiezacegoOkresu: „nie” po kilku okresach - termin to najbliższe 
   assert.equal(r.getDate(), Math.min(31, new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate()));
 });
 
-// Znany błąd W7 (robota.md pkt 5, do decyzji autora): przy „nie” zakup przesuwa się na początek bieżącego
+// Znany błąd W7 (robota.md pkt 3, do decyzji autora): przy „nie” zakup przesuwa się na początek bieżącego
 // okresu, a w krótszym miesiącu dzień się obcina - termin wypada 1-3 dni wcześniej. Oznaczony jako „todo”,
 // żeby był widoczny w wyniku, ale nie czerwony; po decyzji autora zdjąć „todo”.
 test('zakupBiezacegoOkresu: zakup 31. dnia - termin po „nie” taki sam jak przed', { todo: 'W7 - do decyzji autora' }, () => {
