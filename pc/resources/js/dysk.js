@@ -1,11 +1,13 @@
-// Google Dysk: logowanie kodem (google.com/device) i plik danych w ukrytym folderze aplikacji.
-// Zakres drive.appdata - aplikacja widzi tylko swój plik, nie dokumenty na Dysku.
+// Google Dysk: logowanie kodem (google.com/device) i plik danych w „Moim dysku”.
+// Zakres drive.file - aplikacja widzi tylko pliki, które sama utworzyła, nie dokumenty na Dysku.
+// Nie drive.appdata (ukryty folder aplikacji): logowanie kodem odrzuca go błędem „invalid_scope”
+// (sprawdzone 5.11.2026 w Tablicy Ofert), choć dokumentacja Google wymienia go jako dozwolony.
 // Identyfikator i tajny klucz projektu Google: wpisane w aplikacji (plik google.json obok danych,
-// nie w plikach projektu) albo ze zmiennych środowiskowych Windows.
+// nie w plikach projektu) albo wbudowane przy budowaniu ze zmiennych MIKROPLATNOSCI_GOOGLE_* (google.js).
 
 import { t } from './teksty.js';
 
-const ZAKRES = 'https://www.googleapis.com/auth/drive.appdata';
+const ZAKRES = 'https://www.googleapis.com/auth/drive.file';
 const ADRES_TOKENU = 'https://oauth2.googleapis.com/token';
 export const STRONA_KODU = 'https://www.google.com/device';
 const NAZWA_PLIKU = 'mikroplatnosci.json';
@@ -37,6 +39,10 @@ export async function przygotujDysk(folder) {
 
 export const czyPolaczony = () => Boolean(dysk.odswiezajacy);
 export const czySkonfigurowany = () => Boolean(dysk.id && dysk.sekret);
+// Projekt Google wpisany w aplikacji (nie wbudowany) - można go zmienić, a Google w trybie
+// testowym kończy połączenie co ok. 7 dni.
+export const czyWpisany = () => dysk.wpisane;
+export const wpisanyProjekt = () => (dysk.wpisane ? { id: dysk.id, sekret: dysk.sekret } : { id: '', sekret: '' });
 
 async function zapiszPlik() {
   const d = { odswiezajacy: dysk.odswiezajacy || undefined };
@@ -46,11 +52,13 @@ async function zapiszPlik() {
 }
 
 // Identyfikator wpisany w aplikacji; zwraca opis błędu albo '' po zapisaniu.
+// Połączenie z Dyskiem należy do jednego projektu - inny identyfikator albo klucz najpierw rozłącza konto Google.
 export async function ustawIdentyfikator(id, sekret) {
   id = String(id).trim();
   sekret = String(sekret).trim();
   if (!WZOR_ID.test(id)) return t('identyfikator klienta kończy się na .apps.googleusercontent.com');
   if (!WZOR_SEKRETU.test(sekret)) return t('tajny klucz to ciąg liter, cyfr i myślników (zwykle zaczyna się od GOCSPX-)');
+  if (dysk.odswiezajacy && (id !== dysk.id || sekret !== dysk.sekret)) await rozlacz();
   Object.assign(dysk, { id, sekret, wpisane: true });
   await zapiszPlik();
   return '';
@@ -144,9 +152,10 @@ async function tokenDostepu() {
     client_id: dysk.id, client_secret: dysk.sekret, refresh_token: dysk.odswiezajacy, grant_type: 'refresh_token',
   });
   if (!w.ok) {
+    // Połączenie skończyło się (cofnięte na koncie Google albo 7 dni projektu w trybie testowym).
     if (w.dane.error === 'invalid_grant') {
       await zapomnij();
-      throw new Error(t('Google cofnął dostęp - włącz synchronizację jeszcze raz'));
+      throw new Error(t('Połączenie z Google Dyskiem wygasło (własny projekt Google w trybie testowym kończy je co ok. 7 dni). Włącz synchronizację jeszcze raz i wpisz kod - dane na tym urządzeniu i na Dysku są bezpieczne.'));
     }
     throw new Error(opisBledu(w.dane));
   }
@@ -165,10 +174,13 @@ async function zapytanie(adres, opcje = {}) {
   return odp;
 }
 
-// Treść pliku z Dysku albo null, gdy jeszcze go tam nie ma.
+// Szukanie pliku danych w „Moim dysku” (z drive.file Google pokazuje tylko pliki utworzone przez aplikację).
+const SZUKAJ = 'https://www.googleapis.com/drive/v3/files?spaces=drive&q='
+  + encodeURIComponent(`name = '${NAZWA_PLIKU}' and trashed = false`) + '&orderBy=modifiedTime%20desc';
+
+// Treść pliku z Dysku albo null, gdy jeszcze go tam nie ma. Kilka plików (np. skopiowany) - najnowszy.
 export async function pobierzZDysku() {
-  const q = encodeURIComponent(`name = '${NAZWA_PLIKU}'`);
-  const lista = await (await zapytanie(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&orderBy=modifiedTime%20desc&fields=files(id,size)`)).json();
+  const lista = await (await zapytanie(`${SZUKAJ}&fields=files(id,size)`)).json();
   const plik = Array.isArray(lista.files) ? lista.files[0] : null;
   if (!plik || typeof plik.id !== 'string') {
     dysk.idPliku = '';
@@ -181,17 +193,16 @@ export async function pobierzZDysku() {
   return tekst;
 }
 
-// „Usuń z Dysku”: kasuje plik danych z ukrytego folderu aplikacji (każdą kopię o tej nazwie).
+// „Usuń z Dysku”: kasuje plik danych z Dysku (każdą kopię o tej nazwie utworzoną przez aplikację).
 export async function usunZDysku() {
-  const q = encodeURIComponent(`name = '${NAZWA_PLIKU}'`);
-  const lista = await (await zapytanie(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id)`)).json();
+  const lista = await (await zapytanie(`${SZUKAJ}&fields=files(id)`)).json();
   for (const plik of Array.isArray(lista.files) ? lista.files : []) {
     if (typeof plik?.id === 'string') await zapytanie(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(plik.id)}`, { method: 'DELETE' });
   }
   dysk.idPliku = '';
 }
 
-// Nadpisuje plik znaleziony przy ostatnim pobraniu albo zakłada nowy w ukrytym folderze aplikacji.
+// Nadpisuje plik znaleziony przy ostatnim pobraniu albo zakłada nowy w „Moim dysku”.
 export async function wyslijNaDysk(tekst) {
   if (dysk.idPliku) {
     await zapytanie(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(dysk.idPliku)}?uploadType=media`, {
@@ -200,7 +211,7 @@ export async function wyslijNaDysk(tekst) {
     return;
   }
   const granica = 'mikroplatnosci-' + Math.random().toString(36).slice(2);
-  const opis = JSON.stringify({ name: NAZWA_PLIKU, parents: ['appDataFolder'] });
+  const opis = JSON.stringify({ name: NAZWA_PLIKU });
   const cialo = `--${granica}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${opis}\r\n`
     + `--${granica}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${tekst}\r\n--${granica}--`;
   const odp = await zapytanie('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {

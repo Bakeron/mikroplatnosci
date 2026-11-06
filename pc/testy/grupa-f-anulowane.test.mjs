@@ -5,9 +5,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { zbierzAlarmy, przeniesNastepnaCene, formatujDate } from '../resources/js/alarmy.js';
+import { zbierzAlarmy, przeniesNastepnaCene, formatujDate, doPlatnosci } from '../resources/js/alarmy.js';
 import { policz, oszczednoscRoczna } from '../resources/js/podsumowanie.js';
-import { normalizuj } from '../resources/js/dane.js';
+import { normalizuj, dodajPrzyklad, nicDoStracenia } from '../resources/js/dane.js';
 import { przypomnienia } from '../resources/js/powiadomienia.js';
 import { wydatkiRoku } from '../resources/js/historia.js';
 import { scal } from '../resources/js/scalanie.js';
@@ -50,20 +50,34 @@ test('C15: przywrócenie po anulowaniu na drugim urządzeniu - wygrywa nowsza zm
   assert.equal(scal({ wpisy: [przywrocona], usuniete: [] }, { wpisy: [anulowana], usuniete: [] }).wpisy[0].anulowano, '');
 });
 
+test('F25: przykład z własnym opisem (PC, telefon) - płatność za 9 dni, wykreślany od razu; pusty wpis tak samo', () => {
+  const wpisy = [];
+  dodajPrzyklad(wpisy, 'opis telefonu');
+  assert.equal(wpisy[0].opis, 'opis telefonu');
+  assert.equal(wpisy[0].nazwa, t('Przykład: serwis muzyczny'));
+  assert.equal(doPlatnosci(wpisy[0]).dni, 9);
+  assert.equal(nicDoStracenia(wpisy[0]), true);
+  assert.equal(nicDoStracenia(normalizuj({ id: 'p', przedluzac: 'tak' })), true);
+  assert.equal(nicDoStracenia(normalizuj({ id: 'p', przedluzac: 'nie' })), false);
+  assert.equal(nicDoStracenia(wpis({ koszt: 5 })), false);
+});
+
 // --- F27: słownik angielski ---------------------------------------------------------------------
 
 const js = join(dirname(fileURLToPath(import.meta.url)), '..', 'resources', 'js');
+const telefon = join(js, '..', '..', '..', 'mobile', 'src'); // własne teksty telefonu - ten sam słownik
 const POMIJANE = new Set(['neutralino.js', 'teksty.js', 'teksty-en.js', 'szyfrowanie.js', 'google.js', 'wersja.js']);
 const LITERAL = String.raw`('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")`;
 const odLiteralu = (s) => s.slice(1, -1).replace(/\\(.)/g, '$1');
-const BEZ_TLUMACZENIA = new Set(['Mikropłatności']); // nazwa aplikacji
+const BEZ_TLUMACZENIA = new Set(['Mikropłatności', 'https://']); // nazwa aplikacji, podpowiedź w polu linku
 
 // Klucze z kodu: t('…'), tekst('…') (napisy), tn(n, '…', …) (liczba mnoga - klucz to pierwsza forma).
 function kluczeKodu() {
   const napisy = new Set();
   const mnogie = new Set();
-  for (const plik of readdirSync(js).filter((p) => p.endsWith('.js') && !POMIJANE.has(p))) {
-    const kod = readFileSync(join(js, plik), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+  const pliki = readdirSync(js).filter((p) => p.endsWith('.js') && !POMIJANE.has(p)).map((p) => join(js, p));
+  for (const plik of [...pliki, join(telefon, 'js', 'aplikacja.js')]) {
+    const kod = readFileSync(plik, 'utf8').replace(/^\s*\/\/.*$/gm, '');
     for (const m of kod.matchAll(new RegExp(String.raw`\b(?:t|tekst)\(\s*` + LITERAL, 'g'))) napisy.add(odLiteralu(m[1]));
     for (const m of kod.matchAll(new RegExp(String.raw`\btn\((?:[^'"()]|\([^()]*\))*?,\s*` + LITERAL, 'g'))) mnogie.add(odLiteralu(m[1]));
   }
@@ -72,8 +86,8 @@ function kluczeKodu() {
 
 // Klucze z index.html tak, jak buduje je przetlumaczStrone (teksty.js): tekst między znacznikami
 // (bez <script>, <style> i <code>), przycięty, spacje złączone; atrybuty title, aria-label, placeholder, data-pomoc*.
-function kluczeStrony() {
-  const html = readFileSync(join(js, '..', 'index.html'), 'utf8')
+function kluczeStrony(plik) {
+  const html = readFileSync(plik, 'utf8')
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<(script|style|code|title)\b[\s\S]*?<\/\1>/g, '<x>');
   const klucze = new Set();
@@ -88,9 +102,9 @@ function kluczeStrony() {
 
 const zmienne = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
 
-test('F27: każdy tekst z kodu i z index.html ma tłumaczenie angielskie, z tymi samymi {parametrami}', () => {
+test('F27: każdy tekst z kodu i z index.html (PC i telefon) ma tłumaczenie angielskie, z tymi samymi {parametrami}', () => {
   const { napisy, mnogie } = kluczeKodu();
-  for (const k of kluczeStrony()) napisy.add(k);
+  for (const plik of [join(js, '..', 'index.html'), join(telefon, 'index.html')]) for (const k of kluczeStrony(plik)) napisy.add(k);
   const brak = [...napisy, ...mnogie].filter((k) => !(k in EN));
   assert.deepEqual(brak, [], 'brak tłumaczenia');
   for (const k of napisy) {

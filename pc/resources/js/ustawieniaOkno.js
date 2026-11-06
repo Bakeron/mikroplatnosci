@@ -1,5 +1,6 @@
-// Okno „Ustawienia” (PC): wewnętrzna strona okładki zeszytu - co widać w zeszycie (funkcje.js),
-// które powiadomienia przychodzą i czy także przy zamkniętej aplikacji (harmonogram.js).
+// Okno „Ustawienia” (PC i telefon): wewnętrzna strona okładki zeszytu - co widać w zeszycie (funkcje.js),
+// które powiadomienia przychodzą i czy także przy zamkniętej aplikacji (harmonogram.js, tylko PC).
+// Czego urządzenie nie obsługuje, tego nie przekazuje - zdarzenie bez funkcji = brak tej części okna.
 // Treść wstawiana przez textContent (element z dom.js) - bez innerHTML.
 
 import { element, krzyzykOkna } from './dom.js';
@@ -13,6 +14,16 @@ const RODZAJE = [
   ['drogie', tekst('Przygotuj pieniądze'), tekst('Tydzień przed płatnością, która pobiera się sama, gdy wynosi co najmniej:')],
   ['podwyzka', tekst('Podwyżka'), tekst('Przed płatnością, od której obowiązuje wyższa cena następna - „dalej chcesz?”.')],
 ];
+
+// Na telefonie nie ma „⋯”, tabeli ani nagłówka z kursami - te opisy funkcji mówią o jego ekranie.
+const OPISY_TELEFONU = {
+  platnosc: tekst('Wybór „pobiera się sama / płacę sam” przy edycji pozycji. Wyłączone - wszystko liczone jak „pobiera się sama”.'),
+  waluty: tekst('Waluta przy kwocie, kursy NBP i prowizja banku pod paragonem.'),
+  historia: tekst('Wykres i zmiany cen pod paragonem.'),
+  archiwum: tekst('Wykreślone pozycje trafiają do „Anulowanych” pod listą (do przywrócenia), a paragon liczy, ile oszczędzasz. Wyłączone - wykreślenie usuwa na zawsze.'),
+  kategorie: tekst('Kategoria przy edycji pozycji (rozrywka, praca, AI…), zakładki z filtrem nad listą i paragon z podziałem na kategorie.'),
+  firma: tekst('Znacznik „na firmę” przy edycji pozycji, osobna suma kosztów firmowych na paragonie i „pobierz fakturę” po każdej płatności.'),
+};
 
 // Wiersz: nazwa i opis po lewej, przełącznik tak / nie po prawej. Etykieta wskazuje przełącznik przez id -
 // pole kwoty w opisie (próg „drogiej” płatności) nie przejmuje kliknięć w etykietę.
@@ -32,7 +43,8 @@ function wiersz(id, nazwa, opis, zaznaczone, onZmiana, klasa = '') {
   return { label, pole, teksty, opisEl };
 }
 
-// stan: { funkcje, powiadomienia, wTle, jezyk, budzet }; zdarzenia: naFunkcje(funkcje), naPowiadomienia(p), naJezyk(kod), naBudzet(kwota),
+// stan: { telefon, funkcje, powiadomienia, wTle, jezyk, budzet }; zdarzenia: naFunkcje(funkcje), naJezyk(kod), naBudzet(kwota),
+// naPowiadomienia(p) (może zwrócić Promise<false>: urządzenie nie pozwala na powiadomienia),
 // naWprowadzenie(), naWTle(wlacz) -> Promise<string> (pusty tekst = udało się, inaczej opis błędu),
 // sprawdzWTle() -> Promise<boolean|null>.
 export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle }) {
@@ -43,7 +55,9 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   okno.setAttribute('aria-labelledby', 'ustawienia-tytul');
   const tytul = element('h2', 'okno__tytul', t('Ustawienia'));
   tytul.id = 'ustawienia-tytul';
-  okno.append(tytul, element('p', 'okno__uwaga', t('Tylko na tym komputerze. Wyłączona funkcja znika z ekranu, a to, co już wpisane, zostaje w pliku - po ponownym włączeniu wraca.')));
+  okno.append(tytul, element('p', 'okno__uwaga', stan.telefon
+    ? t('Tylko na tym telefonie. Wyłączona funkcja znika z ekranu, a to, co już wpisane, zostaje w pliku - po ponownym włączeniu wraca.')
+    : t('Tylko na tym komputerze. Wyłączona funkcja znika z ekranu, a to, co już wpisane, zostaje w pliku - po ponownym włączeniu wraca.')));
 
   // --- co widać w zeszycie ---
   const funkcje = { ...stan.funkcje };
@@ -51,7 +65,7 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   sekcjaFunkcji.append(element('h3', 'ustawienia__naglowek', t('Co widać w zeszycie')));
   const zalezne = [];
   for (const [klucz, nazwa, opis, zalezy] of FUNKCJE) {
-    const w = wiersz(klucz, t(nazwa), t(opis), funkcje[klucz] !== false, (wlacz) => {
+    const w = wiersz(klucz, t(nazwa), t((stan.telefon && OPISY_TELEFONU[klucz]) || opis), funkcje[klucz] !== false, (wlacz) => {
       funkcje[klucz] = wlacz;
       odswiezZalezne();
       naFunkcje({ ...funkcje });
@@ -91,16 +105,23 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   const budzetKwota = element('span', 'ustawienia__kwota');
   budzetKwota.append(budzetPole, ' ' + t('zł'));
   budzet.append(budzetTeksty, budzetKwota);
-  sekcjaFunkcji.append(budzet);
+  if (naBudzet) sekcjaFunkcji.append(budzet);
 
   // --- powiadomienia ---
   const powiadomienia = { ...stan.powiadomienia };
   const sekcjaPowiadomien = element('section', 'ustawienia__sekcja');
-  sekcjaPowiadomien.append(element('h3', 'ustawienia__naglowek', t('Powiadomienia Windows')));
+  sekcjaPowiadomien.append(element('h3', 'ustawienia__naglowek', stan.telefon ? t('Powiadomienia') : t('Powiadomienia Windows')));
+  const stanPowiadomien = element('p', 'ustawienia__stan ustawienia__stan--blad');
+  stanPowiadomien.setAttribute('aria-live', 'polite');
+  // Przełącznik bez zgody Androida nic by nie dał - lepiej to powiedzieć niż milczeć.
+  async function zmienPowiadomienia() {
+    const wolno = await naPowiadomienia({ ...powiadomienia });
+    stanPowiadomien.textContent = wolno === false ? t('Android nie pozwala tej aplikacji na powiadomienia - włącz je w ustawieniach telefonu.') : '';
+  }
   for (const [klucz, nazwa, opis] of RODZAJE) {
     const w = wiersz('p-' + klucz, t(nazwa), t(opis), powiadomienia[klucz] === true, (wlacz) => {
       powiadomienia[klucz] = wlacz;
-      naPowiadomienia({ ...powiadomienia });
+      zmienPowiadomienia();
     });
     if (klucz === 'drogie') {
       // Próg „drogiej” płatności w złotych (waluta obca po kursie NBP).
@@ -113,7 +134,7 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
         const kwota = parsujKoszt(prog.value);
         if (typeof kwota === 'number') {
           powiadomienia.progDrogich = kwota;
-          naPowiadomienia({ ...powiadomienia });
+          zmienPowiadomienia();
         }
         prog.value = formatujKoszt(powiadomienia.progDrogich);
       });
@@ -124,24 +145,27 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
     sekcjaPowiadomien.append(w.label);
   }
 
-  // B10: także przy zamkniętej aplikacji - zadanie w Harmonogramie zadań Windows.
-  const tlo = wiersz('tlo', t('Także przy zamkniętej aplikacji'), t('Codziennie o 9:00 (albo zaraz po włączeniu komputera, jeśli był wyłączony) Harmonogram zadań Windows uruchamia aplikację bez okna. Pokazuje zaległe powiadomienia i sama się zamyka. Wyłączenie usuwa zadanie z Windows.'), stan.wTle === true, async (wlacz, pole) => {
-    pole.disabled = true;
-    tloStan.textContent = wlacz ? t('dodaję zadanie…') : t('usuwam zadanie…');
-    tloStan.classList.remove('ustawienia__stan--blad');
-    const blad = await naWTle(wlacz);
-    if (blad) pole.checked = !wlacz;
-    tloStan.textContent = blad || (pole.checked ? t('zadanie w Harmonogramie zadań: „Mikroplatnosci - powiadomienia”') : t('zadanie usunięte'));
-    tloStan.classList.toggle('ustawienia__stan--blad', !!blad);
-    pole.disabled = false;
-  }, 'ustawienia__wiersz--tlo');
-  const tloStan = element('p', 'ustawienia__stan');
-  tloStan.setAttribute('aria-live', 'polite');
-  sekcjaPowiadomien.append(tlo.label, tloStan);
-  // Stan zadania w Windows (np. usunięte ręcznie albo przy odinstalowaniu) - przełącznik pokazuje prawdę.
-  sprawdzWTle().then((jest) => {
-    if (jest !== null) tlo.pole.checked = jest;
-  }).catch(console.error);
+  // B10: także przy zamkniętej aplikacji - zadanie w Harmonogramie zadań Windows. Telefon planuje z wyprzedzeniem - tam tylko komunikat o zgodzie Androida.
+  if (!naWTle) sekcjaPowiadomien.append(stanPowiadomien);
+  else {
+    const tlo = wiersz('tlo', t('Także przy zamkniętej aplikacji'), t('Codziennie o 9:00 (albo zaraz po włączeniu komputera, jeśli był wyłączony) Harmonogram zadań Windows uruchamia aplikację bez okna. Pokazuje zaległe powiadomienia i sama się zamyka. Wyłączenie usuwa zadanie z Windows.'), stan.wTle === true, async (wlacz, pole) => {
+      pole.disabled = true;
+      tloStan.textContent = wlacz ? t('dodaję zadanie…') : t('usuwam zadanie…');
+      tloStan.classList.remove('ustawienia__stan--blad');
+      const blad = await naWTle(wlacz);
+      if (blad) pole.checked = !wlacz;
+      tloStan.textContent = blad || (pole.checked ? t('zadanie w Harmonogramie zadań: „Mikroplatnosci - powiadomienia”') : t('zadanie usunięte'));
+      tloStan.classList.toggle('ustawienia__stan--blad', !!blad);
+      pole.disabled = false;
+    }, 'ustawienia__wiersz--tlo');
+    const tloStan = element('p', 'ustawienia__stan');
+    tloStan.setAttribute('aria-live', 'polite');
+    sekcjaPowiadomien.append(tlo.label, tloStan);
+    // Stan zadania w Windows (np. usunięte ręcznie albo przy odinstalowaniu) - przełącznik pokazuje prawdę.
+    sprawdzWTle().then((jest) => {
+      if (jest !== null) tlo.pole.checked = jest;
+    }).catch(console.error);
+  }
 
   const kolumny = element('div', 'ustawienia__kolumny');
   kolumny.append(sekcjaFunkcji, sekcjaPowiadomien);
@@ -163,7 +187,8 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
     okno.close();
     naWprowadzenie();
   });
-  przyciski.append(jezykPole, wprowadzenie);
+  if (naJezyk) przyciski.append(jezykPole);
+  if (naWprowadzenie) przyciski.append(wprowadzenie);
   const zamknij = element('button', 'przycisk-tekst', t('Zamknij'));
   zamknij.type = 'button';
   zamknij.addEventListener('click', () => okno.close());

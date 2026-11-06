@@ -44,7 +44,7 @@ beforeEach(async () => {
   await D.przygotujDysk('test');
 });
 
-test('pusty Dysk: pobranie = null, wysyłka zakłada plik w ukrytym folderze aplikacji, druga wysyłka go nadpisuje', async () => {
+test('pusty Dysk: pobranie = null, wysyłka zakłada plik w „Moim dysku”, druga wysyłka go nadpisuje', async () => {
   serwer = (z) => {
     if (token(z)) return tokenOk;
     if (lista(z)) return [200, { files: [] }];
@@ -60,7 +60,7 @@ test('pusty Dysk: pobranie = null, wysyłka zakłada plik w ukrytym folderze apl
   // Treść multipart rozkłada się na opis pliku i dane według granicy z nagłówka.
   const granica = post.naglowki['Content-Type'].match(/boundary=(.+)$/)[1];
   const czesci = post.tresc.split(`--${granica}`).slice(1, -1).map((c) => c.split('\r\n\r\n')[1].trim());
-  assert.deepEqual(JSON.parse(czesci[0]), { name: 'mikroplatnosci.json', parents: ['appDataFolder'] });
+  assert.deepEqual(JSON.parse(czesci[0]), { name: 'mikroplatnosci.json' }, 'bez appDataFolder - zakres drive.file go nie widzi');
   assert.equal(czesci[1], '{"wpisy":[]}');
   assert.ok(post.tresc.endsWith(`--${granica}--`));
 
@@ -82,7 +82,11 @@ test('plik na Dysku: pobranie zwraca treść, a wysyłka nadpisuje znaleziony pl
     return [500, {}];
   };
   assert.equal(await D.pobierzZDysku(), '{"wpisy":["z telefonu"]}');
-  assert.ok(zapytania.find(lista).adres.includes('spaces=appDataFolder'));
+  // Szukanie w „Moim dysku”, bez plików z kosza; kilka kopii - najnowsza.
+  const szukanie = new URL(zapytania.find(lista).adres).searchParams;
+  assert.equal(szukanie.get('spaces'), 'drive');
+  assert.equal(szukanie.get('q'), "name = 'mikroplatnosci.json' and trashed = false");
+  assert.equal(szukanie.get('orderBy'), 'modifiedTime desc');
   await D.wyslijNaDysk('{}');
   assert.ok(zapytania.at(-1).adres.includes('/files/STARY?uploadType=media'));
 });
@@ -97,9 +101,9 @@ test('za duży plik na Dysku - błąd bez pobierania treści', async () => {
   assert.equal(zapytania.some((z) => z.adres.includes('alt=media')), false);
 });
 
-test('Google cofnął dostęp (invalid_grant) - aplikacja zapomina dostęp, identyfikator zostaje', async () => {
-  serwer = (z) => (token(z) ? [400, { error: 'invalid_grant' }] : [500, {}]);
-  await assert.rejects(D.pobierzZDysku(), /cofnął dostęp/);
+test('połączenie wygasło (invalid_grant, np. 7 dni trybu testowego) - komunikat, aplikacja zapomina dostęp, identyfikator zostaje', async () => {
+  serwer = (z) => (token(z) ? [400, { error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }] : [500, {}]);
+  await assert.rejects(D.pobierzZDysku(), /wygasło.*7 dni.*bezpieczne/);
   assert.equal(D.czyPolaczony(), false);
   const zapisany = JSON.parse(pliki.get(PLIK));
   assert.equal(zapisany.odswiezajacy, undefined);
@@ -119,4 +123,16 @@ test('401 przy pobraniu - przy następnym zapytaniu nowy dostęp', async () => {
   await assert.rejects(D.pobierzZDysku(), /401/);
   assert.equal(await D.pobierzZDysku(), null);
   assert.equal(zapytania.filter(token).length, 2);
+});
+
+test('„Usuń z Dysku” szuka w „Moim dysku” i kasuje każdą kopię', async () => {
+  serwer = (z) => {
+    if (token(z)) return tokenOk;
+    if (lista(z)) return [200, { files: [{ id: 'P1' }, { id: 'P2' }] }];
+    if (z.metoda === 'DELETE') return [204, {}];
+    return [500, {}];
+  };
+  await D.usunZDysku();
+  assert.equal(new URL(zapytania.find(lista).adres).searchParams.get('spaces'), 'drive');
+  assert.deepEqual(zapytania.filter((z) => z.metoda === 'DELETE').map((z) => z.adres.split('/').at(-1)), ['P1', 'P2']);
 });

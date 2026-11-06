@@ -6,8 +6,8 @@ Aplikacja APK (Capacitor 8) z tymi samymi danymi co wersja PC, połączona przez
 
 | Ścieżka | Co to |
 |---|---|
-| `src/` | pliki telefonu: `index.html`, `css/telefon.css`, `js/aplikacja.js`, `js/neutralino-telefon.js` (zamiennik zapisu plików i otwierania stron na wtyczki Capacitora), `czcionki/` (Gelasio, Barlow Semi Condensed, Cascadia Mono - SIL OFL, z licencjami `OFL-*.txt`) |
-| `../pc/resources/js/` | **wspólne obliczenia** - `dom.js`, `ustawienia.js`, `alarmy.js`, `waluty.js`, `podsumowanie.js`, `spisy.js`, `miarka.js`, `dane.js`, `scalanie.js`, `dysk.js`, `synchronizacja.js`, `powiadomienia.js` - kopiowane do telefonu przy budowaniu (jedno źródło dla obu aplikacji) |
+| `src/` | pliki telefonu: `index.html`, `css/telefon.css`, `js/aplikacja.js`, `js/neutralino-telefon.js` (zamiennik zapisu plików i otwierania stron na wtyczki Capacitora), `czcionki/` (Gelasio, Barlow Semi Condensed, Cascadia Mono - SIL OFL, z licencjami `OFL-*.txt`; pobrane 31.10.2026 z repozytorium [google/fonts](https://github.com/google/fonts) - `ofl/gelasio`, `ofl/barlowsemicondensed`, `ofl/cascadiamono`; Gelasio i Barlow przycięte narzędziem fontTools do łaciny z polskimi znakami i kilku symboli (strzałki, ▲ ▼, ✓, €), Cascadia Mono tylko zamieniona na woff2) |
+| `../pc/resources/js/` | **wspólne obliczenia** - `dom.js`, `teksty.js`, `teksty-en.js`, `funkcje.js`, `swieta.js`, `oAplikacji.js`, `ustawienia.js`, `ustawieniaOkno.js`, `magazyn.js`, `alarmy.js`, `waluty.js`, `podsumowanie.js`, `spisy.js`, `miarka.js`, `dane.js`, `scalanie.js`, `dysk.js`, `synchronizacja.js`, `powiadomienia.js`, `anulowane.js`, `historia.js`, `pomoc.js`, `filtr.js`, `eksport.js`, `wyciag.js`, `wyciagOkno.js` - kopiowane do telefonu przy budowaniu (jedno źródło dla obu aplikacji) |
 | `../pc/resources/css/wyglad.css` | kolory, paragon, listy terminów - też kopiowane |
 | `skrypty/przygotuj.mjs` | składa `www/` (nie w gicie) i wpisuje identyfikator projektu Google ze zmiennych środowiskowych |
 | `skrypty/apk.mjs` | buduje podpisany APK → `apk/Mikroplatnosci-<numer>.apk` (nie w gicie) |
@@ -48,7 +48,7 @@ Dwie rzeczy, które `apk.mjs` obchodzi sam (31.10.2026):
 
 Telefon używa tego samego identyfikatora co PC (typ „Telewizory i urządzenia z ograniczonym wprowadzaniem danych”) i loguje się kodem przez `google.com/device` - instrukcja projektu: `../google-cloud.md`. Identyfikator wpisuje się w aplikacji (okno po zaznaczeniu „Google Dysk”, z instrukcją pod „Nie wiem, skąd to wziąć”) - zapamiętany w prywatnym folderze aplikacji. Gdy przy budowaniu są zmienne `MIKROPLATNOSCI_GOOGLE_ID` / `_SECRET`, trafiają do APK i okno się nie pokazuje.
 
-Na telefonie: zmiany zapisują się w telefonie od razu, a przy włączonym Dysku wysyłają się same po 3 s. Przy uruchomieniu i powrocie do aplikacji pobierają się zmiany z PC.
+Na telefonie: zmiany zapisują się w telefonie od razu, a przy włączonym Dysku wysyłają się same po 3 s. Przy uruchomieniu i powrocie do aplikacji pobierają się zmiany wysłane z PC (PC z zapisem lokalnym wysyła je przyciskiem „↑ Wyślij na Dysk”).
 
 ## Instalacja na telefonie
 

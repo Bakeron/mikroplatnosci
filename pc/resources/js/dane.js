@@ -1,6 +1,6 @@
 // Format danych wspólny dla PC i telefonu: nowy wpis i sprawdzanie danych z pliku (także z Google Dysku).
 
-import { okresZDat, ustawPoczatekZaplaty, isoDnia, dzis, dopiszCene } from './alarmy.js';
+import { okresZDat, ustawPoczatekZaplaty, isoDnia, dzis, dopiszCene, parsujDate, czyWstrzymana, ostatniaPlatnosc, dodajMiesiace, MAKS_HISTORII, MAKS_CEN } from './alarmy.js';
 import { WALUTY } from './waluty.js';
 import { t, tekst, jezyk } from './teksty.js';
 
@@ -11,6 +11,9 @@ export const KATEGORIE = [
 ];
 export const nazwaKategorii = (klucz) => t(KATEGORIE.find(([k]) => k === klucz)?.[1] ?? '');
 
+// A1: gotowe okresy [okres, co ile, napis] - napis po polsku, tłumaczony przy wyświetleniu (t()).
+export const OKRESY = [['T', 1, tekst('tydzień')], ['T', 4, tekst('4 tygodnie')], ['M', 1, tekst('miesiąc')], ['M', 3, tekst('kwartał')], ['M', 6, tekst('pół roku')], ['R', 1, tekst('rok')], ['R', 2, tekst('2 lata')]];
+
 export function noweId() {
   return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
@@ -19,6 +22,27 @@ export function noweId() {
 export const nowyWpis = () => normalizuj({ id: noweId(), przedluzac: 'tak', zmieniono: new Date().toISOString() });
 
 export const nazwaWpisu = (w) => w.nazwa.trim() || t('(bez nazwy)');
+
+// F25: przykładowy wpis z pierwszego uruchomienia. opis - inny na PC i na telefonie.
+const PRZYKLAD = 'przyklad-';
+export function dodajPrzyklad(wpisy, opis) {
+  const zakup = dodajMiesiace(dzis(), -1);
+  zakup.setDate(zakup.getDate() + 9); // płatność za 9 dni - lont już trochę wypalony
+  wpisy.push(normalizuj({
+    id: PRZYKLAD + noweId(),
+    nazwa: t('Przykład: serwis muzyczny'),
+    opis,
+    koszt: 23.99,
+    od: isoDnia(zakup),
+    okres: 'M',
+    przedluzac: 'tak',
+    zmieniono: new Date().toISOString(),
+  }));
+}
+
+// Pusty, niewypełniony wpis i przykład (F25) wykreślają się od razu, bez pytania i bez „Anulowanych” - nie ma czego tracić.
+export const nicDoStracenia = (w) => w.id.startsWith(PRZYKLAD)
+  || (!w.nazwa.trim() && !w.opis.trim() && !w.link.trim() && !w.od && w.przedluzac !== 'nie' && w.koszt === null && w.prognoza === null);
 
 // Zwraca bezpieczny adres http(s) albo null. „example.com” → „https://example.com/”.
 export function bezpiecznyLink(tekst) {
@@ -75,8 +99,6 @@ const calkowita = (v, min, max, domyslna) => (Number.isInteger(v) && v >= min &&
 // Lista z pliku: tylko poprawne pozycje, najwyżej max ostatnich.
 const lista = (v, sprawdz, max) => (Array.isArray(v) ? v.map(sprawdz).filter(Boolean).slice(-max) : []);
 
-const MAKS_HISTORII = 240; // ok. 20 lat płatności miesięcznych
-const MAKS_CEN = 100;
 
 export function normalizuj(w) {
   const tekst = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -122,6 +144,40 @@ export function normalizuj(w) {
 
 // Zmiana zapłaconej ceny zapamiętana w historii cen (od dziś) - do wykresu wydatków i zmian cen.
 export const zapiszZmianeCeny = (wpis, stara) => dopiszCene(wpis, stara, isoDnia(dzis()));
+
+// A5: pauza do dnia wznowienia (RRRR-MM-DD, tylko dzień z przyszłości - inaczej false). Nowa pauza po zakończonej
+// poprzedniej: terminy liczyły się od dnia wznowienia - ta data staje się datą zakupu, żeby nowa pauza nie cofnęła
+// terminów do starego zakupu. Pauza przesuwa termin - dzień ceny następnej liczy się od nowa.
+export function ustawPauze(wpis, dzien) {
+  const wznowienie = parsujDate(dzien);
+  if (!wznowienie || wznowienie <= dzis()) return false;
+  if (!czyWstrzymana(wpis)) {
+    if (wpis.wstrzymanaDo && wpis.wstrzymanaDo > wpis.od && parsujDate(wpis.wstrzymanaDo) <= dzis()) wpis.od = wpis.wstrzymanaDo;
+    wpis.wstrzymanaOd = isoDnia(dzis());
+  }
+  wpis.wstrzymanaDo = dzien;
+  wpis.prognozaOd = '';
+  return true;
+}
+
+// Wznowienie dziś = dziś pierwsza płatność po przerwie.
+export function wznowDzis(wpis) {
+  wpis.wstrzymanaDo = isoDnia(dzis());
+  wpis.prognozaOd = '';
+}
+
+// Bez pauzy - terminy jak przed nią, od daty zakupu.
+export function usunPauze(wpis) {
+  wpis.wstrzymanaOd = '';
+  wpis.wstrzymanaDo = '';
+  wpis.prognozaOd = '';
+}
+
+// A4: włączenie podziału albo przypomnień nie przypomina o płatnościach sprzed tej chwili; to samo przy „☐ oddane”.
+export function bezZaleglegoOdbioru(wpis) {
+  const ostatnia = ostatniaPlatnosc(wpis);
+  if (ostatnia) wpis.oddaneTermin = isoDnia(ostatnia);
+}
 
 // Czas zmiany albo usunięcia (ISO z toISOString) - inny tekst traktowany jak brak czasu.
 export function czasIso(v) {
@@ -184,6 +240,16 @@ export function usun(stan, wpis) {
   stan.usuniete.push({ id: wpis.id, kiedy: new Date(kiedy).toISOString() });
 }
 
+// E23: dane z kopii zastępują obecne. Pozycje, których w kopii nie ma, są usuwane jak zwykle (zapamiętane
+// dla scalania z Dyskiem), a wczytane dostają czas zmiany „teraz” - wygrywają na Dysku.
+export function zastapZKopii(stan, dane, teraz = new Date().toISOString()) {
+  const wKopii = new Set(dane.wpisy.map((w) => w.id));
+  for (const w of [...stan.wpisy]) if (!wKopii.has(w.id)) usun(stan, w);
+  stan.usuniete = stan.usuniete.filter((u) => !wKopii.has(u.id));
+  for (const w of dane.wpisy) w.zmieniono = teraz;
+  stan.wpisy = dane.wpisy;
+}
+
 // Formularz edycji (telefon): wartości pól (tekst) do wpisu. W trakcie edycji mogły przyjść zmiany
 // z Dysku - wpis szukany po id w bieżącej liście, a nie stary obiekt. Nowy wpis trafia na koniec listy.
 // Zwraca { wpis } albo { blad } (zła kwota - nic się nie zmienia).
@@ -195,17 +261,23 @@ export function zastosujFormularz(wpisy, edytowany, p) {
   const link = String(p.link ?? '').trim();
   // Płatność ręczna liczy zaległości od ostatniego zapłaconego terminu - po jej włączeniu albo zmianie
   // daty, okresu czy „przedłużać” liczy się od najbliższego terminu (jak na PC).
-  const przed = `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.przedluzac}|${wpis.koniecMiesiaca}`;
+  const stan = () => `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.coIle}|${wpis.przedluzac}|${wpis.koniecMiesiaca}`;
+  const przed = stan();
   const staraCena = wpis.koszt;
+  const bezPodzialu = !(wpis.osob > 1);
+  const bezOddajacych = !wpis.ktoOddaje.trim();
   // Formularz bez wyboru tygodni (telefon) zostawia okres, którego nie zna (pole puste); „co ile” zostaje
   // przy tym samym okresie, a przy zmianie okresu wraca do 1.
   const okresWpisu = p.okres === 'M' || p.okres === 'R' || p.okres === 'T' ? p.okres : wpis.okres || 'M';
   const coIle = p.coIle ?? (okresWpisu === wpis.okres ? wpis.coIle : 1);
+  // Pola, których formularz nie podaje albo podaje źle (np. liczba osób spoza zakresu), zostają jak były.
+  const osob = Number.isInteger(p.osob) && p.osob >= 1 && p.osob <= 20 ? p.osob : wpis.osob;
   Object.assign(wpis, {
     nazwa: p.nazwa,
     opis: p.opis,
     koszt,
-    waluta: WALUTY.includes(p.waluta) ? p.waluta : 'PLN',
+    // Pole bez waluty wpisu (telefon ma krótszą listę) zostawia jego walutę - kwota się nie zmienia.
+    waluta: WALUTY.includes(p.waluta) ? p.waluta : WALUTY.includes(wpis.waluta) ? wpis.waluta : 'PLN',
     od: p.od,
     okres: okresWpisu,
     coIle,
@@ -213,12 +285,22 @@ export function zastosujFormularz(wpisy, edytowany, p) {
     prognoza,
     platnoscReczna: p.platnosc === 'reczna',
     koniecMiesiaca: p.platnosc === 'reczna' && p.koniecMiesiaca === true,
+    zmiennaKwota: p.zmiennaKwota ?? wpis.zmiennaKwota,
+    osob,
+    ktoOddaje: p.ktoOddaje ?? wpis.ktoOddaje,
+    kategoria: p.kategoria ?? wpis.kategoria,
+    firmowa: p.firmowa ?? wpis.firmowa,
     link,
     zmieniono: new Date().toISOString(),
   });
   Object.assign(wpis, normalizuj(wpis));
   zapiszZmianeCeny(wpis, staraCena);
-  if (przed !== `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.przedluzac}|${wpis.koniecMiesiaca}`) ustawPoczatekZaplaty(wpis);
+  if (przed !== stan()) ustawPoczatekZaplaty(wpis);
+  if ((bezPodzialu && wpis.osob > 1) || (bezOddajacych && wpis.ktoOddaje.trim())) bezZaleglegoOdbioru(wpis);
+  // Pauza: undefined - bez zmian, pusty tekst - bez pauzy, dziś - wznowienie, dzień z przyszłości - pauza do tego dnia.
+  if (p.wstrzymanaDo === '') usunPauze(wpis);
+  else if (p.wstrzymanaDo === isoDnia(dzis()) && czyWstrzymana(wpis)) wznowDzis(wpis);
+  else if (p.wstrzymanaDo) ustawPauze(wpis, p.wstrzymanaDo);
   if (!wpisy.includes(wpis)) wpisy.push(wpis);
   return { wpis };
 }

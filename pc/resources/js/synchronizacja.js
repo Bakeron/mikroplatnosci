@@ -5,10 +5,17 @@
 import { scal } from './scalanie.js';
 import { odczytajDane, doZapisu } from './dane.js';
 import { t, tn, godzina } from './teksty.js';
-import { czyPolaczony, czySkonfigurowany, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
+import { czyPolaczony, czySkonfigurowany, czyWpisany, wpisanyProjekt, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
 
 const $ = (id) => document.getElementById(id);
 // Bez internetu fetch rzuca TypeError z angielskim opisem.
+// Kilka zmian = jedna wysyłka na Dysk (PC bez zapisu lokalnego i telefon).
+export const OPOZNIENIE_WYSYLKI = 3000;
+
+// Czeka, aż skończy się trwająca wymiana z Dyskiem (pobranie albo inna wysyłka) - przy zamykaniu okna.
+export async function poWymianie(stan, co = 100) {
+  while (stan.synchronizacja) await new Promise((r) => setTimeout(r, co));
+}
 const opisBledu = (e) => (e instanceof TypeError ? t('brak połączenia z Google - sprawdź internet') : e.message);
 // „1 pozycję”, „3 pozycje”, „5 pozycji”, „22 pozycje” (polska liczba mnoga w bierniku).
 function ilePozycji(n) {
@@ -35,6 +42,9 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
       $(id).hidden = !polaczony;
       $(id).disabled = stan.zablokowany || stan.synchronizacja;
     }
+    // „Zmień projekt Google” - tylko przy projekcie wpisanym w aplikacji (wbudowanego się nie zmienia).
+    $('dysk-projekt').hidden = !polaczony || !czyWpisany();
+    $('dysk-projekt').disabled = stan.zablokowany || stan.synchronizacja;
     naOdswiez();
   }
 
@@ -50,7 +60,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
       const json = (t) => { try { return JSON.parse(t); } catch { return null; } };
       const zdalne = tekst === null ? null : odczytajDane(json(tekst), true);
       // Nieczytelny plik na Dysku: dane na urządzeniu zostają; kliknięte „Wyślij” może go zastąpić -
-      // inaczej synchronizacja byłaby zablokowana na stałe (ukrytego folderu nie widać w Dysku).
+      // inaczej synchronizacja byłaby zablokowana na stałe.
       if (tekst !== null && !zdalne) {
         if (!wyslij || !klikniete || !confirm(t('Plik na Google Dysku jest uszkodzony albo ma nieznany format. Zastąpić go danymi z tego urządzenia?'))) {
           throw new Error(t('plik na Dysku jest uszkodzony - „Wyślij na Dysk” może go zastąpić'));
@@ -87,12 +97,21 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     }
   }
 
+  // Okno identyfikatora projektu Google; zmiana = pola wypełnione obecnym projektem i uwaga o rozłączeniu.
+  function oknoProjektu(zmiana) {
+    const { id, sekret } = zmiana ? wpisanyProjekt() : { id: $('okno-google-id').value, sekret: '' };
+    $('okno-google-id').value = id;
+    $('okno-google-sekret').value = sekret;
+    $('okno-google-zmiana').hidden = !zmiana;
+    $('okno-google-blad').hidden = true;
+    $('okno-google').showModal();
+  }
+
   async function polacz() {
     if (stan.zablokowany) return odswiez();
     if (!czySkonfigurowany()) {
       pokaz(t('wpisz identyfikator projektu Google'));
-      $('okno-google-blad').hidden = true;
-      $('okno-google').showModal();
+      oknoProjektu(false);
       odswiez();
       return;
     }
@@ -102,6 +121,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     try {
       logowanie = await zacznijLogowanie();
       $('okno-dysk-kod').textContent = logowanie.kod;
+      $('okno-dysk-7dni').hidden = !czyWpisany();
       $('okno-dysk').showModal();
       if (otworzOdRazu) Neutralino.os.open(STRONA_KODU).catch(console.error);
       await logowanie.czekaj();
@@ -126,7 +146,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     odswiez();
   }
 
-  // „Usuń z Dysku”: plik z ukrytego folderu aplikacji znika, synchronizacja na tym urządzeniu się wyłącza.
+  // „Usuń z Dysku”: plik danych znika z Dysku, synchronizacja na tym urządzeniu się wyłącza.
   async function usunDysk() {
     if (stan.zablokowany || stan.synchronizacja || !czyPolaczony()) return;
     const lokalnie = czyLokalnie();
@@ -170,7 +190,11 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
   });
   $('okno-dysk-anuluj').addEventListener('click', () => $('okno-dysk').close());
   $('okno-dysk').addEventListener('close', () => logowanie?.anuluj());
-  // Okno identyfikatora projektu Google: po zapisaniu od razu logowanie kodem.
+  $('dysk-projekt').addEventListener('click', () => {
+    if (!stan.zablokowany && !stan.synchronizacja) oknoProjektu(true);
+  });
+  // Okno identyfikatora projektu Google: po zapisaniu od razu logowanie kodem. Ten sam projekt
+  // przy połączonym Dysku - bez zmian; inny - dysk.js najpierw rozłącza konto Google.
   $('okno-google-zapisz').addEventListener('click', async () => {
     const blad = await ustawIdentyfikator($('okno-google-id').value, $('okno-google-sekret').value)
       .catch(() => t('nie udało się zapisać identyfikatora'));
@@ -179,6 +203,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     if (blad) return;
     $('okno-google-sekret').value = '';
     $('okno-google').close();
+    if (czyPolaczony()) return odswiez();
     await polacz();
   });
   $('okno-google-anuluj').addEventListener('click', () => $('okno-google').close());

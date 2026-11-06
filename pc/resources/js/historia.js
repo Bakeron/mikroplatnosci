@@ -1,4 +1,4 @@
-// Historia wydatków (tylko PC): ile poszło w miesiącach wybranego roku, na co najwięcej i jak zmieniały się ceny.
+// Historia wydatków: ile poszło w miesiącach wybranego roku, na co najwięcej i jak zmieniały się ceny.
 // Wpłaty „płacę sam” zaznaczone jako zapłacone - dokładne (kwota i dzień z historii); pozostałe - szacunek
 // z daty zakupu, okresu i historii cen. Usunięte na zawsze nie są liczone, anulowane - do dnia anulowania.
 // Kwoty obce po obecnym kursie.

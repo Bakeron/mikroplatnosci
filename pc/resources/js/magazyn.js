@@ -27,9 +27,27 @@ export const czyZapisywac = (stan) => Boolean(!stan.zablokowany && stan.wczytano
 
 // { tresc, odczytane } albo null, gdy pliku jeszcze nie ma. Pusty albo obcy plik = błąd (blokada zapisu).
 export async function wczytajPlikDanych(plik) {
-  if (!(await istnieje(plik))) return null;
+  if (!(await istnieje(plik))) {
+    // Telefon (Capacitor) podmienia plik w dwóch krokach: usuwa stary, potem zmienia nazwę tymczasowego.
+    // Przerwanie między nimi zostawia tylko pełny plik tymczasowy - dane z niego, a nie pusta lista.
+    if (!(await istnieje(plik + '.tmp'))) return null;
+    const tresc = await Neutralino.filesystem.readFile(plik + '.tmp');
+    try {
+      return { tresc, odczytane: odczytajTresc(tresc) };
+    } catch {
+      return null; // ucięty plik tymczasowy z pierwszego zapisu - jak brak danych
+    }
+  }
   const tresc = await Neutralino.filesystem.readFile(plik);
   return { tresc, odczytane: odczytajTresc(tresc) };
+}
+
+// Start (PC i telefon): odczyt pliku danych. null - pliku nie ma; błąd odczytu idzie dalej (aplikacja blokuje
+// wtedy zapis i nie robi kopii). kopia() - kopia zapasowa treści wczytanej teraz (nawet gdy plik zdążył się
+// zmienić); wywołać przed pierwszym zapisem.
+export async function wczytajNaStart(plik, folderKopii) {
+  const wynik = await wczytajPlikDanych(plik);
+  return wynik && { odczytane: wynik.odczytane, kopia: () => zrobKopie(folderKopii, wynik.tresc) };
 }
 
 export function znacznikCzasu(t = new Date()) {
@@ -50,8 +68,10 @@ export async function zrobKopie(folder, tresc) {
   const najnowsza = pliki.at(-1);
   if (najnowsza && (await Neutralino.filesystem.readFile(`${folder}/${najnowsza}`).catch(() => null)) === tresc) return;
   // Kopia z treści wczytanej przy starcie - nawet gdyby plik zdążył się już zmienić.
-  await Neutralino.filesystem.writeFile(`${folder}/mikroplatnosci-${znacznikCzasu()}.json`, tresc);
-  for (const nazwa of (await nazwyKopii(folder)).slice(0, -ILE_KOPII)) {
+  const nowa = `mikroplatnosci-${znacznikCzasu()}.json`;
+  await Neutralino.filesystem.writeFile(`${folder}/${nowa}`, tresc);
+  // Nowa kopia nigdy nie jest usuwana - nawet gdy zegar był kiedyś do przodu i starsze kopie mają nazwy „z przyszłości”.
+  for (const nazwa of (await nazwyKopii(folder)).filter((n) => n !== nowa).slice(0, -(ILE_KOPII - 1))) {
     await Neutralino.filesystem.remove(`${folder}/${nazwa}`);
   }
 }

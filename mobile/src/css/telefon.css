@@ -24,7 +24,10 @@
 .t-naglowek__gora { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .t-naglowek h1 { margin: 0; font: italic 700 24px/1.1 var(--f-tytul); }
 .t-naglowek__suma { font: 600 15px var(--f-liczby); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.t-naglowek__data { margin: 2px 0 6px; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
+.t-naglowek__dzien { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 2px 0 6px; }
+.t-naglowek__data { min-width: 0; margin: 0; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
+/* 44 px do trafienia palcem, a wiersz daty bez zmian - ujemny margines „oddaje” wysokość przycisku */
+.t-naglowek__ustawienia { flex-shrink: 0; margin-block: -14px; }
 
 .t-dysk {
   display: flex;
@@ -114,6 +117,17 @@
   font: 600 15px var(--f-tekst);
 }
 .karta-zaplac input { width: 22px; height: 22px; margin: 0; accent-color: var(--czerwony); }
+/* wiersze pod kartą: „odbierz po …” i „ile?” przy kwocie za każdym razem innej */
+.karta-zaplac--wiersz { position: static; flex-shrink: 0; }
+.karta-zaplac--wiersz input { accent-color: var(--zielony); }
+/* wiersz pod kartą należy do niej - kreska dopiero pod nim */
+li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
+.t-dopisek { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px; border-bottom: 1px solid var(--linia); }
+.t-dopisek__tekst { min-width: 0; color: var(--zielony); font: italic 600 14px var(--f-tytul); overflow-wrap: anywhere; }
+.t-ile { display: flex; align-items: center; gap: 8px; padding: 8px 2px; border-bottom: 1px solid var(--linia); color: var(--atrament); font: 15px var(--f-liczby); }
+.t-ile[hidden] { display: none; }
+.t-ile input { flex: 1; width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--linia); border-radius: 6px; background: var(--papier-2); color: var(--atrament); font: 400 16px var(--f-tekst); }
+.t-ile .t-zapisz { padding: 8px 14px; }
 /* „Przedłużać” i „Termin do końca miesiąca” (tylko przy „płacę sam”) - przełączniki tak / nie
    (wygląd we wspólnym wyglad.css), cały rząd do dotknięcia */
 .t-przelacznik { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; color: var(--olowek); font: 600 11.5px var(--f-liczby); letter-spacing: 0.08em; text-transform: uppercase; }
@@ -127,7 +141,36 @@
 .telefon .alarm__opis { order: 3; flex-basis: 100%; }
 
 .t-paragon { max-width: 380px; margin: 14px auto 8px; }
+/* historia wydatków pod paragonem, w wąskiej kolumnie */
+.telefon .historia { margin-top: 26px; }
+.telefon .historia__dol { gap: 22px; margin-top: 24px; }
+.telefon .historia__wykres { gap: 6px; }
+.telefon .historia__os { min-width: 40px; }
+/* A7: prowizja banku - jeden wiersz pod historią */
+.t-prowizja { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-top: 16px; color: var(--olowek); font: italic 15px var(--f-tytul); }
+.t-prowizja[hidden] { display: none; }
+.t-prowizja__pole { display: flex; align-items: center; gap: 6px; color: var(--atrament); font: 15px var(--f-liczby); }
+.t-prowizja input { width: 62px; min-height: 44px; padding: 8px; border: 1px solid var(--linia); border-radius: 6px; background: var(--papier-2); color: var(--atrament); font: 400 16px var(--f-tekst); text-align: right; }
 /* Usuwanie danych pod paragonem: napisy-przyciski jak w nagłówku, w kolorze ołówka (rzadko używane). */
+/* D17: filtr - ta sama przegródka co na PC, ale kategorie w jednym rzędzie przewijanym palcem; cele dotyku 44 px */
+.t-filtr { display: grid; gap: 4px; margin: 6px 0 4px; }
+.t-filtr[hidden] { display: none; }
+.t-filtr .zakladki__kategorie { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--linia); }
+.t-filtr .zakladki__tylko { flex-wrap: wrap; }
+.t-filtr .zakladka { flex-shrink: 0; align-items: center; min-height: 44px; padding-inline: 12px; font-size: 12.5px; transform: none; }
+.t-filtr .zakladka--tylko { border-bottom: 1px solid var(--linia); border-top-width: 1px; border-radius: 5px; font-size: 13.5px; }
+.t-filtr .zakladki__licznik { margin-left: 0; font-size: 14px; }
+.t-filtr .zakladki__licznik:empty { display: none; }
+.t-filtr .zakladki__wyczysc { min-height: 44px; padding-inline: 6px; font-size: 14px; }
+.karta .znaczki { margin: 0; }
+.t-dopisek--faktura .t-dopisek__tekst { color: var(--atrament); }
+
+/* E23, E24: kopia, eksport, import - zwinięte pod paragonem, jak grupy w arkuszu */
+.t-plik { margin-top: 14px; border-bottom: 1px solid var(--linia); }
+.t-plik .plik__akcja { display: block; width: 100%; min-height: 44px; }
+.t-plik__stan { min-height: 20px; margin: 4px 0 8px; color: var(--olowek); font: italic 14px var(--f-tytul); overflow-wrap: anywhere; }
+.t-plik__stan--blad { color: var(--czerwony); font-weight: 600; }
+
 .t-dane { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin: 10px 0 0; }
 .t-dane__usun { color: var(--olowek); }
 .t-dane__usun:active { color: var(--czerwony); }
@@ -199,10 +242,34 @@
 .t-pole input:focus, .t-pole select:focus { outline: none; border-color: var(--atrament); }
 .t-pole select option { background: var(--papier); color: var(--atrament); }
 .t-pole input::placeholder { color: var(--olowek); font-style: italic; }
-.t-wybor { display: flex; flex-wrap: wrap; gap: 0 14px; }
+/* trzy opcje okresu na wąskim ekranie schodzą pod datę */
+.t-wiersz:has(> .t-wybor) { flex-wrap: wrap; }
+.t-wiersz:has(> .t-wybor) .t-pole--szerokie { min-width: 150px; }
+.t-wybor { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 0 14px; }
 .t-wybor legend { width: 100%; }
 .t-wybor label { display: flex; align-items: center; gap: 6px; min-height: 44px; color: var(--atrament); font: italic 16px var(--f-tytul); letter-spacing: normal; text-transform: none; }
 .t-wybor input { width: 18px; height: 18px; margin: 0; accent-color: var(--atrament); }
+
+/* „inny” okres: gotowe okresy i własny „co [N] [jednostka]” */
+.t-okres[hidden] { display: none; }
+.t-okres .okres-wybor { flex-wrap: wrap; gap: 0 16px; padding: 0; }
+.t-okres .okres-wybor__opcja { min-height: 44px; font-size: 15px; }
+.t-okres .okres-wybor__opcja::before { content: none; }
+.t-okres__wlasny { align-items: center; color: var(--olowek); font: italic 15px var(--f-tytul); }
+.t-okres__wlasny .t-pole:not(.t-pole--szerokie) { width: 76px; }
+
+/* rzadziej zmieniane grupy formularza - zwinięte, w nagłówku obecna wartość */
+.t-grupa { border-top: 1px solid var(--linia); }
+.t-grupa[hidden] { display: none; }
+.t-grupa summary::before { content: "\25BC"; font-size: 9px; transform: rotate(-90deg); transition: transform 0.15s; }
+.t-grupa[open] summary::before { transform: none; }
+.t-grupa summary { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--olowek); font: 600 11.5px var(--f-liczby); letter-spacing: 0.08em; text-transform: uppercase; }
+.t-grupa__wartosc { margin-left: auto; color: var(--atrament); font: italic 15px var(--f-tytul); letter-spacing: normal; text-transform: none; }
+.t-grupa > .t-pole { margin-bottom: 10px; }
+.t-grupa__przyciski { display: flex; gap: 20px; }
+.t-grupa__przyciski .przycisk-tekst { min-height: 44px; }
+.t-grupa__przyciski .przycisk-tekst[hidden] { display: none; }
+.t-grupa__opis { margin: 0 0 10px; color: var(--olowek); font: italic 14px var(--f-tytul); }
 
 .t-formularz__blad { margin: 0; color: var(--czerwony); font: 600 14px var(--f-tekst); }
 .t-formularz__blad:empty { display: none; }
@@ -232,3 +299,43 @@
 .telefon .okno { max-width: calc(100vw - 32px); }
 .telefon .okno p { font-size: 17px; }
 .telefon .okno__przyciski { flex-wrap: wrap; }
+
+/* F25: pierwsze kroki nad listą - notatki z wyglad.css, „×” do trafienia palcem */
+.t-wprowadzenie { margin: 12px 0 8px; padding: 10px 12px 8px; font-size: 15.5px; }
+.t-wprowadzenie .wprowadzenie__tytul { padding-right: 36px; }
+.t-wprowadzenie .wprowadzenie__zmaz { top: 0; right: 0; width: 44px; height: 44px; }
+.t-wprowadzenie .wprowadzenie__zmaz:hover { color: var(--olowek); } /* dotyk zostawia :hover po puszczeniu */
+
+/* F26: „?” większe niż na PC, dotyk 44 px (niewidoczne pole wokół kółka nie zmienia układu). Dymek na całą
+   szerokość ekranu, pod „?” albo nad nim - kotwica „bottom span-left” z PC wyszłaby za lewą krawędź. */
+.telefon .pomoc { position: relative; width: 20px; height: 20px; margin-left: 4px; padding: 1.5px 0 0; font-size: 13px; vertical-align: 0; }
+.telefon .pomoc::after { content: ""; position: absolute; inset: -12px; }
+.telefon .pomoc--paragon { position: absolute; top: 12px; right: 12px; }
+.telefon .pomoc-okno { position-area: bottom span-all; width: auto; margin: 6px 16px; font-size: 15.5px; }
+.t-legenda { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 14px; margin: 8px 2px 0; color: var(--olowek); font: italic 13.5px/24px var(--f-tytul); }
+.t-legenda[hidden] { display: none; }
+.t-pole__naglowek { display: flex; justify-content: space-between; gap: 12px; }
+.t-pole__naglowek span[hidden] { display: none; }
+
+/* „Ustawienia”: jedna kolumna na całą szerokość; 44 px do trafienia palcem, większy opis niż na PC */
+.telefon .okno--ustawienia { width: calc(100vw - 32px); padding-inline: 16px; }
+.telefon .okno--ustawienia > .okno__tresc { margin-inline: -16px; padding-inline: 16px; }
+.telefon .ustawienia__kolumny { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+.telefon .ustawienia__wiersz { min-height: 44px; }
+.telefon .ustawienia__wiersz:hover .ustawienia__nazwa { text-decoration: none; } /* dotyk zostawia :hover po puszczeniu */
+.telefon .ustawienia__nazwa { font-size: 16px; }
+.telefon .ustawienia__opis { font-size: 14px; }
+.telefon .ustawienia__kwota { font-size: 15px; }
+.telefon .ustawienia__prog { width: 84px; min-height: 44px; font-size: 16px; } /* 16px - telefon nie powiększa ekranu przy pisaniu */
+.telefon .okno .ustawienia__stan { font-size: 15px; }
+.telefon .okno .ustawienia__stan:empty { display: none; }
+.telefon .okno--ustawienia .okno__przyciski .przycisk-tekst { min-height: 44px; }
+.telefon .ustawienia__jezyk { flex-basis: 100%; margin-right: 0; }
+.telefon .ustawienia__jezyk .pole { min-height: 44px; font-size: 16px; }
+/* „Anulowane” pod listą: wiersze i przyciski dla palca (reszta wyglądu z wyglad.css) */
+.telefon .anulowane { margin: 14px 0 0; }
+.telefon .anulowane__naglowek { min-height: 44px; align-items: center; }
+.telefon .anulowane__lista { padding-left: 0; }
+.telefon .anulowane__pozycja { gap: 0 20px; padding-top: 8px; }
+.telefon .anulowane__nazwa, .telefon .anulowane__opis { flex-basis: 100%; }
+.telefon .anulowane__przycisk { min-height: 44px; font-size: 15px; }

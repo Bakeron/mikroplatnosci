@@ -2,7 +2,7 @@
 // Roczne: 3, 2, 1 miesiąc i 3, 2, 1 tydzień przed; miesięczne: 14, 7, 5, 4, 3, 2, 1 dzień przed.
 // Nie przychodzą, gdy pozycja zostanie usunięta albo przestawiona na „tak - odnawiam”.
 // Do tego „Zapłać” przy płatności ręcznej („płacę sam”): 7, 3 i 1 dzień przed pierwszym
-// niezapłaconym terminem (po „✓ zapłacone” - przed następnym), a gdy termin wypada w dzień wolny -
+// niezapłaconym terminem (po „☐ zapłacone” - przed następnym), a gdy termin wypada w dzień wolny -
 // przed ostatnim dniem roboczym przed nim (B8, alarmy.js zaplacDo).
 // B9 (domyślnie wyłączone): „Przygotuj pieniądze” - tydzień przed drogą płatnością, która pobiera się
 // sama, i „Podwyżka” - przed płatnością, od której obowiązuje wyższa cena następna.
@@ -64,7 +64,7 @@ export function przypomnienia(wpisy, rodzaje = DOMYSLNE_RODZAJE) {
     if (czyWstrzymana(wpis) || anulowana(wpis)) continue; // pauza - bez przypomnień do dnia wznowienia; anulowana - wcale
     const ok = okres(wpis);
     const data = termin(wpis, ok).data;
-    if (!data) continue; // przy płatności ręcznej termin to pierwszy niezapłacony - po „✓ zapłacone” już następny
+    if (!data) continue; // przy płatności ręcznej termin to pierwszy niezapłacony - po „☐ zapłacone” już następny
     const dlugi = czyDlugi(ok);
     // Okres rok i dłużej - progi roczne; krótszy - dniowe, ale tylko krótsze od okresu (np. co tydzień: bez „za 2 tygodnie”).
     const dodaj = (rodzaj, progi, terminP, cel = terminP) => {

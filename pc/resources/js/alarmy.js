@@ -263,6 +263,8 @@ export function czyZakonczona(wpis) {
 
 // Płatność ręczna („płacę sam”): tyle dni przed terminem wiersz dostaje czerwony margines.
 export const DNI_DO_ZAPLATY = 7;
+export const MAKS_HISTORII = 240; // ok. 20 lat płatności miesięcznych
+export const MAKS_CEN = 100;
 
 // B8: ostatni dzień na zapłatę - termin, a gdy wypada w sobotę, niedzielę albo święto (i funkcja
 // „Weekend i święta” włączona) - ostatni dzień roboczy przed nim.
@@ -295,7 +297,7 @@ export function oznaczZaplate(wpis, kwota) {
   if (typeof zaplacono === 'number') {
     if (!Array.isArray(wpis.historia)) wpis.historia = [];
     wpis.historia.push({ termin: wpis.zaplaconyTermin, dnia: isoDnia(dzis()), kwota: zaplacono });
-    if (wpis.historia.length > 240) wpis.historia.splice(0, wpis.historia.length - 240);
+    if (wpis.historia.length > MAKS_HISTORII) wpis.historia.splice(0, wpis.historia.length - MAKS_HISTORII);
   }
   // Ta płatność była już po nowej cenie - cena następna staje się zapłaconą i znika (A3).
   if (nowaCena) zastosujNastepnaCene(wpis, wpis.zaplaconyTermin);
@@ -316,7 +318,7 @@ export function dopiszCene(wpis, stara, od) {
   const przed = wpis.ceny.at(-2);
   if (przed && przed.kwota === wpis.ceny.at(-1).kwota) wpis.ceny.pop(); // powrót do poprzedniej ceny tego samego dnia
   if (wpis.ceny.length === 1) wpis.ceny.length = 0; // została tylko cena początkowa - bez zmian
-  if (wpis.ceny.length > 100) wpis.ceny.splice(0, wpis.ceny.length - 100);
+  if (wpis.ceny.length > MAKS_CEN) wpis.ceny.splice(0, wpis.ceny.length - MAKS_CEN);
 }
 
 function zastosujNastepnaCene(wpis, od) {

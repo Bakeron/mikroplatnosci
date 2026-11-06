@@ -87,6 +87,7 @@ New-Item -ItemType Directory -Force $cel | Out-Null
 Copy-Item (Join-Path $dist 'mikroplatnosci-win_x64.exe') $exe -Force
 Copy-Item (Join-Path $dist 'resources.neu') (Join-Path $cel 'resources.neu') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ikona.ico') (Join-Path $cel 'ikona.ico') -Force
+Copy-Item (Join-Path $PSScriptRoot 'LICENSE-Neutralinojs.txt') (Join-Path $cel 'LICENSE-Neutralinojs.txt') -Force
 
 if ($pierwszaInstalacja) {
   $skroty = @(

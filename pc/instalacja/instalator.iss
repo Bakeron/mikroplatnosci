@@ -43,6 +43,7 @@ Name: "pulpit"; Description: "Skrót na pulpicie"
 Source: "{#Dist}\mikroplatnosci-win_x64.exe"; DestDir: "{app}"; DestName: "Mikroplatnosci.exe"; Flags: ignoreversion
 Source: "{#Dist}\resources.neu"; DestDir: "{app}"; Flags: ignoreversion
 Source: "ikona.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "LICENSE-Neutralinojs.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{userprograms}\Mikropłatności"; Filename: "{app}\Mikroplatnosci.exe"; WorkingDir: "{app}"; IconFilename: "{app}\ikona.ico"; Comment: "Pilnowanie subskrypcji i drobnych płatności"

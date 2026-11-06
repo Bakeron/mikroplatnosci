@@ -13,10 +13,11 @@ const APACHE = 'https://www.apache.org/licenses/LICENSE-2.0';
 const OFL = 'https://openfontlicense.org/open-font-license-official-text/';
 
 const BIBLIOTEKI = {
-  pc: [['Neutralinojs 6.10', 'MIT', 'Copyright (c) 2019 Neutralinojs']],
+  pc: [['Neutralinojs 6.10', 'MIT', 'Copyright (c) 2021-2025 Neutralinojs and contributors. Includes WebSocket++, Mbed TLS, cpp-httplib, nlohmann/json, webview and other libraries - full license texts in LICENSE-Neutralinojs.txt in the program folder']],
   telefon: [
     [tekst('Capacitor 8 i wtyczki (App, Browser, Filesystem, Local Notifications)'), 'MIT', 'Copyright (c) 2017-present Drifty Co. / Ionic'],
-    ['AndroidX, Kotlin', 'Apache 2.0', 'Copyright The Android Open Source Project / JetBrains s.r.o.'],
+    ['AndroidX, Kotlin, kotlinx.coroutines', 'Apache 2.0', 'Copyright The Android Open Source Project / JetBrains s.r.o.'],
+    ['Apache Cordova (Android)', 'Apache 2.0', 'Copyright 2015-2020 The Apache Software Foundation. This product includes software developed at The Apache Software Foundation (http://www.apache.org/)'],
     [tekst('Czcionka Gelasio'), 'SIL OFL 1.1', 'Copyright 2022 The Gelasio Project Authors (https://github.com/SorkinType/Gelasio)'],
     [tekst('Czcionka Barlow Semi Condensed'), 'SIL OFL 1.1', 'Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)'],
     [tekst('Czcionka Cascadia Mono'), 'SIL OFL 1.1', 'Copyright (c) 2019 - Present, Microsoft Corporation, with Reserved Font Name Cascadia Code'],
@@ -39,7 +40,7 @@ export function pokazOAplikacji(platforma, otworz) {
   okno.append(
     element('h2', 'okno__tytul', 'Mikropłatności'),
     element('p', 'okno__uwaga', t('wersja {numer}', { numer: window.WERSJA_APLIKACJI || t('robocza') })),
-    element('p', 'okno__tekst', t('Pilnuje subskrypcji i drobnych płatności. Dane są na tym urządzeniu, a jeśli włączysz synchronizację - także na Twoim Google Dysku, w ukrytym folderze aplikacji. Autor aplikacji nie dostaje żadnych Twoich danych; bez reklam i bez śledzenia.')),
+    element('p', 'okno__tekst', t('Pilnuje subskrypcji i drobnych płatności. Dane są na tym urządzeniu, a jeśli włączysz synchronizację - także na Twoim Google Dysku, w jednym pliku „mikroplatnosci.json” (aplikacja widzi tylko pliki, które sama utworzyła). Autor aplikacji nie dostaje żadnych Twoich danych; bez reklam i bez śledzenia.')),
   );
   // Adres jako tekst do zaznaczenia - telefon otwiera tylko strony https (bez mailto:).
   okno.append(element('p', 'okno__tekst okno__kontakt', t('Kontakt: {adres}', { adres: KONTAKT })));

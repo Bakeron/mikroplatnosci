@@ -18,7 +18,7 @@ export function pokazWyciag(propozycje, info, naDopisz) {
   const zakres = info.od && info.do ? ` (${formatujDate(parsujDate(info.od))} - ${formatujDate(parsujDate(info.do))})` : '';
   okno.append(
     tytul,
-    element('p', 'okno__uwaga', tn(info.operacji, '„{plik}”: {n} operacja{zakres}. Liczone tylko na tym komputerze - plik nigdzie nie wychodzi.', '„{plik}”: {n} operacje{zakres}. Liczone tylko na tym komputerze - plik nigdzie nie wychodzi.', '„{plik}”: {n} operacji{zakres}. Liczone tylko na tym komputerze - plik nigdzie nie wychodzi.', { plik: info.plik, zakres })),
+    element('p', 'okno__uwaga', tn(info.operacji, '„{plik}”: {n} operacja{zakres}. Liczone tylko na tym urządzeniu - plik nigdzie nie wychodzi.', '„{plik}”: {n} operacje{zakres}. Liczone tylko na tym urządzeniu - plik nigdzie nie wychodzi.', '„{plik}”: {n} operacji{zakres}. Liczone tylko na tym urządzeniu - plik nigdzie nie wychodzi.', { plik: info.plik, zakres })),
   );
 
   const wybrane = new Set();
@@ -65,7 +65,7 @@ export function pokazWyciag(propozycje, info, naDopisz) {
       li.append(pole, teksty);
       ul.append(li);
     }
-    okno.append(ul, element('p', 'okno__uwaga', t('Data ostatniej płatności staje się datą zakupu - termin następnej policzy się sam. Sprawdź w tabeli, czy się zgadza.')));
+    okno.append(ul, element('p', 'okno__uwaga', t('Data ostatniej płatności staje się datą zakupu - termin następnej policzy się sam. Sprawdź na liście, czy się zgadza.')));
   }
 
   const przyciski = element('div', 'okno__przyciski');

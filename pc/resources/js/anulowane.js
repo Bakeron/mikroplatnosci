@@ -1,4 +1,4 @@
-// C15: „Anulowane” pod tabelą (tylko PC) - wykreślone pozycje z datą anulowania, kosztem rocznym,
+// C15: „Anulowane” pod tabelą albo listą (PC i telefon) - wykreślone pozycje z datą anulowania, kosztem rocznym,
 // przyciskiem „przywróć” i „usuń na zawsze”. Zwinięte (details) - w nagłówku liczba i ile rocznie oszczędzasz.
 
 import { element } from './dom.js';

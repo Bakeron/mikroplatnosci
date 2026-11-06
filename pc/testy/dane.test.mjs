@@ -1,7 +1,8 @@
 // Sprawdzanie danych z pliku i z Dysku (dane.js) oraz paragon (podsumowanie.js) - bez DOM.
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz } from '../resources/js/dane.js';
+import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz, zastapZKopii } from '../resources/js/dane.js';
+import { scal } from '../resources/js/scalanie.js';
 import { policz } from '../resources/js/podsumowanie.js';
 
 test('plik danych: nieznany format odrzucony', () => {
@@ -145,6 +146,46 @@ test('nazwa wpisu: pusta zastąpiona „(bez nazwy)”', () => {
 // Formularz edycji na telefonie (zastosujFormularz) - logika bez ekranu.
 const pola = (zmiany = {}) => ({ nazwa: 'Netflix', opis: '', koszt: '43,00', waluta: 'PLN', od: '2026-10-12', okres: 'M', przedluzac: 'tak', prognoza: '', link: 'https://netflix.com', ...zmiany });
 
+test('formularz: inny okres, kwota zmienna i podział kosztu; pola bez wartości zostają jak były', () => {
+  const w = normalizuj({ id: 'a', nazwa: 'Prąd', od: '2026-01-05', okres: 'M', przedluzac: 'tak', platnoscReczna: true, zmiennaKwota: true, osob: 3, ktoOddaje: 'Ania', zaplaconyTermin: '2026-04-05' });
+  zastosujFormularz([w], w, pola({ platnosc: 'reczna', od: '2026-01-05', osob: 99 }));
+  assert.deepEqual([w.okres, w.coIle, w.zmiennaKwota, w.osob, w.ktoOddaje, w.zaplaconyTermin], ['M', 1, true, 3, 'Ania', '2026-04-05']);
+  zastosujFormularz([w], w, pola({ platnosc: 'reczna', od: '2026-01-05', okres: 'M', coIle: 3, zmiennaKwota: false, osob: 2, ktoOddaje: '' }));
+  assert.deepEqual([w.okres, w.coIle, w.zmiennaKwota, w.osob, w.ktoOddaje], ['M', 3, false, 2, '']);
+  assert.equal(w.zaplaconyTermin, '', 'zmiana okresu liczy zapłatę od nowa');
+});
+
+test('formularz: włączenie podziału nie przypomina o płatnościach sprzed tej chwili', () => {
+  mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10, 0).getTime() });
+  try {
+    const w = normalizuj({ id: 'a', nazwa: 'Spotify', koszt: 30, od: '2026-01-05', okres: 'M', przedluzac: 'tak' });
+    zastosujFormularz([w], w, pola({ od: '2026-01-05', koszt: '30', osob: 3, ktoOddaje: 'Ania' }));
+    assert.equal(w.oddaneTermin, '2026-11-05');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('formularz: pauza - bez zmian, ustawienie, wznowienie dziś, data z przeszłości, bez pauzy', () => {
+  mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10, 0).getTime() });
+  try {
+    const w = normalizuj({ id: 'a', nazwa: 'Siłownia', koszt: 99, od: '2026-01-05', okres: 'M', przedluzac: 'tak', prognozaOd: '2026-12-05' });
+    const zapisz = (wstrzymanaDo) => zastosujFormularz([w], w, pola({ od: '2026-01-05', koszt: '99', wstrzymanaDo }));
+    zapisz(undefined);
+    assert.equal(w.wstrzymanaDo, '');
+    zapisz('2026-10-01'); // data z przeszłości
+    assert.equal(w.wstrzymanaDo, '');
+    zapisz('2027-01-15');
+    assert.deepEqual([w.wstrzymanaOd, w.wstrzymanaDo, w.prognozaOd], ['2026-11-10', '2027-01-15', '']);
+    zapisz('2026-11-10');
+    assert.equal(w.wstrzymanaDo, '2026-11-10', 'wznowienie dziś');
+    zapisz('');
+    assert.deepEqual([w.wstrzymanaOd, w.wstrzymanaDo], ['', '']);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 test('formularz: nowa pozycja trafia na koniec listy z czasem zmiany', () => {
   const wpisy = [normalizuj({ id: 'a', nazwa: 'A' })];
   const { wpis } = zastosujFormularz(wpisy, null, pola());
@@ -184,4 +225,44 @@ test('formularz: nieznana waluta i okres - bezpieczne wartości', () => {
   const { wpis } = zastosujFormularz([], null, pola({ waluta: 'BTC', okres: 'X' }));
   assert.equal(wpis.waluta, 'PLN');
   assert.equal(wpis.okres, 'M');
+});
+
+test('formularz: waluta spoza listy telefonu (pole puste) - pozycja zostaje w swojej walucie', () => {
+  const w = normalizuj({ id: 'a', nazwa: 'A', koszt: 10, waluta: 'GBP', okres: 'M' });
+  const { wpis } = zastosujFormularz([w], w, pola({ waluta: '' }));
+  assert.equal(wpis.waluta, 'GBP');
+});
+
+test('E23 wczytanie kopii: pozycje spoza kopii usunięte, wczytane z czasem „teraz”, po scaleniu z Dyskiem nic nie wraca', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-04T12:00:00.000Z') });
+  const teraz = new Date().toISOString();
+  const stan = {
+    wpisy: [normalizuj({ id: 'A', nazwa: 'A', zmieniono: '2026-11-01T10:00:00.000Z' }), normalizuj({ id: 'B', nazwa: 'B nowa', zmieniono: '2026-11-02T10:00:00.000Z' })],
+    usuniete: [{ id: 'C', kiedy: '2026-11-03T10:00:00.000Z' }],
+  };
+  const kopia = odczytajDane({ wpisy: [{ id: 'B', nazwa: 'B stara', zmieniono: '2026-10-01T10:00:00.000Z' }, { id: 'C', nazwa: 'C', zmieniono: '2026-10-01T10:00:00.000Z' }], usuniete: [] });
+  zastapZKopii(stan, kopia, teraz);
+  assert.deepEqual(stan.wpisy.map((w) => [w.id, w.nazwa, w.zmieniono]), [['B', 'B stara', teraz], ['C', 'C', teraz]]);
+  assert.deepEqual(stan.usuniete.map((u) => u.id), ['A']);
+  // Dysk: A zmienione wcześniej niż wczytanie kopii, B nowsza wersja sprzed wczytania, C usunięte dawno.
+  const dysk = odczytajDane({
+    wpisy: [{ id: 'A', nazwa: 'A z Dysku', zmieniono: '2026-11-03T10:00:00.000Z' }, { id: 'B', nazwa: 'B z Dysku', zmieniono: '2026-11-03T10:00:00.000Z' }],
+    usuniete: [{ id: 'C', kiedy: '2026-11-03T10:00:00.000Z' }],
+  });
+  const wynik = scal(stan, dysk);
+  assert.deepEqual(wynik.wpisy.map((w) => [w.id, w.nazwa]), [['B', 'B stara'], ['C', 'C']]);
+  assert.deepEqual(wynik.usuniete.map((u) => u.id), ['A']);
+});
+
+test('formularz: kategoria i „na firmę” zapisane, bez pól zostają jak były, obca kategoria odrzucona', () => {
+  const w = normalizuj({ id: 'k', kategoria: 'praca', firmowa: true });
+  const p = { nazwa: 'x', opis: '', koszt: '10', od: '2026-01-05', prognoza: '', platnosc: '', przedluzac: 'tak', link: '' };
+  zastosujFormularz([w], w, p);
+  assert.equal(w.kategoria, 'praca');
+  assert.equal(w.firmowa, true);
+  zastosujFormularz([w], w, { ...p, kategoria: 'ai', firmowa: false });
+  assert.equal(w.kategoria, 'ai');
+  assert.equal(w.firmowa, false);
+  zastosujFormularz([w], w, { ...p, kategoria: '<b>zla</b>' });
+  assert.equal(w.kategoria, '');
 });

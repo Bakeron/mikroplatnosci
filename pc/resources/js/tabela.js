@@ -2,7 +2,7 @@
 
 import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, zakupBiezacegoOkresu, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
 import { WALUTY, waluta, przeliczNaPln, formatujKwote } from './waluty.js';
-import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, nazwaKategorii } from './dane.js';
+import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, OKRESY, nazwaKategorii, ustawPauze, wznowDzis, usunPauze, bezZaleglegoOdbioru } from './dane.js';
 import { element, trescObokKrzyzyka } from './dom.js';
 import { funkcja, reczna as recznaWpisu, zmiennaKwota, osobWpisu, kategoriaWpisu, firmowa } from './funkcje.js';
 import { przyciskPomocy } from './pomoc.js';
@@ -10,9 +10,6 @@ import { t, tekst, jezyk, liczba, region } from './teksty.js';
 
 const odswiezacze = new WeakMap();
 let numerKarteczki = 0; // nazwy kotwic CSS (anchor-name) - karteczka „⋯” wisi przy swoim przycisku
-
-// Gotowe okresy w karteczce „⋯”: [okres, co ile, napis].
-const OKRESY = [['T', 1, tekst('tydzień')], ['T', 4, tekst('4 tygodnie')], ['M', 1, tekst('miesiąc')], ['M', 3, tekst('kwartał')], ['M', 6, tekst('pół roku')], ['R', 1, tekst('rok')], ['R', 2, tekst('2 lata')]];
 
 // Rozwijana grupa w karteczce „⋯” (rzadziej zmieniane ustawienia): w zwiniętej widać nazwę i obecną wartość,
 // więc karteczka zostaje krótka, a i tak widać, co jest ustawione.
@@ -717,24 +714,20 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     (okresGotoweOpcje.find(([, , o]) => o.getAttribute('aria-pressed') === 'true')?.[2] ?? okresGotoweOpcje[0][2]).focus();
   });
 
-  // Dzielę koszt. Włączenie podziału albo przypomnień nie przypomina o płatnościach sprzed tej chwili.
-  const bezZaleglegoOdbioru = () => {
-    const ostatnia = ostatniaPlatnosc(wpis);
-    if (ostatnia) wpis.oddaneTermin = isoDnia(ostatnia);
-  };
+  // Dzielę koszt.
   osobPole.addEventListener('change', () => {
     const n = Math.round(Number(osobPole.value));
     if (!(n >= 1 && n <= 20)) {
       osobPole.value = String(wpis.osob || 1);
       return;
     }
-    if (!(wpis.osob > 1) && n > 1) bezZaleglegoOdbioru();
+    if (!(wpis.osob > 1) && n > 1) bezZaleglegoOdbioru(wpis);
     wpis.osob = n;
     odswiez();
     onZmiana();
   });
   ktoPole.addEventListener('input', () => {
-    if (!wpis.ktoOddaje.trim() && ktoPole.value.trim()) bezZaleglegoOdbioru();
+    if (!wpis.ktoOddaje.trim() && ktoPole.value.trim()) bezZaleglegoOdbioru(wpis);
     wpis.ktoOddaje = ktoPole.value;
     odswiez();
     onZmiana();
@@ -742,7 +735,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   // ☐ oddane - za ostatnią płatność; przypomnienie wraca po następnej.
   odbierzPole.addEventListener('change', () => {
     if (!odbierzPole.checked) return;
-    bezZaleglegoOdbioru();
+    bezZaleglegoOdbioru(wpis);
     odswiez();
     onZmiana();
   });
@@ -761,33 +754,19 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     onZmiana();
   });
 
-  // Pauza. Nowa pauza po zakończonej poprzedniej: terminy liczyły się od dnia wznowienia - ta data staje
-  // się datą zakupu, żeby nowa pauza nie cofnęła terminów do starego zakupu.
+  // Pauza (reguły w dane.js - te same na telefonie).
   pauzaPole.addEventListener('change', () => {
-    const wznowienie = parsujDate(pauzaPole.value);
-    if (!wznowienie || wznowienie <= dzis()) {
-      odswiez(); // data z przeszłości - pole wraca do zapisanej
-      return;
-    }
-    if (!czyWstrzymana(wpis)) {
-      if (wpis.wstrzymanaDo && wpis.wstrzymanaDo > wpis.od && parsujDate(wpis.wstrzymanaDo) <= dzis()) wpis.od = wpis.wstrzymanaDo;
-      wpis.wstrzymanaOd = isoDnia(dzis());
-    }
-    wpis.wstrzymanaDo = pauzaPole.value;
-    wpis.prognozaOd = ''; // pauza przesuwa termin - dzień ceny następnej od nowa
-    odswiez();
-    onZmiana();
+    const ustawiona = ustawPauze(wpis, pauzaPole.value);
+    odswiez(); // data z przeszłości - pole wraca do zapisanej
+    if (ustawiona) onZmiana();
   });
   pauzaKoniec.addEventListener('click', () => {
-    wpis.wstrzymanaDo = isoDnia(dzis()); // wznowienie dziś = dziś pierwsza płatność po przerwie
-    wpis.prognozaOd = '';
+    wznowDzis(wpis);
     odswiez();
     onZmiana();
   });
   pauzaUsun.addEventListener('click', () => {
-    wpis.wstrzymanaOd = '';
-    wpis.wstrzymanaDo = '';
-    wpis.prognozaOd = '';
+    usunPauze(wpis);
     odswiez();
     onZmiana();
   });

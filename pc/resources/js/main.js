@@ -1,17 +1,17 @@
 // Start aplikacji, odczyt i zapis danych (plik JSON w %APPDATA%\Mikroplatnosci).
 
-import { zbierzAlarmy, formatujDate, parsujDate, dzis, przeniesNastepnaCene, isoDnia, dodajMiesiace } from './alarmy.js';
+import { zbierzAlarmy, formatujDate, parsujDate, dzis, przeniesNastepnaCene, isoDnia } from './alarmy.js';
 import { renderujPodsumowanie } from './podsumowanie.js';
 import { utworzWiersz, odswiezWiersze, numeruj, przeciaganieWierszy } from './tabela.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
-import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc } from './dane.js';
+import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc, zastapZKopii, dodajPrzyklad, nicDoStracenia } from './dane.js';
 import { wypelnijListe } from './spisy.js';
 import { przygotujDysk, czyPolaczony } from './dysk.js';
-import { polaczSynchronizacje } from './synchronizacja.js';
+import { polaczSynchronizacje, OPOZNIENIE_WYSYLKI, poWymianie } from './synchronizacja.js';
 import { rozplanuj, tytul, tresc, wczytajPamiec, zapiszPamiec, DOMYSLNE_RODZAJE } from './powiadomienia.js';
 import { wczytajZapamietane, odswiezZNbp, czyAktualne, pobierzKursy, ustawProwizje, pobierzProwizje, poprawnaProwizja, waluta } from './waluty.js';
 import { renderujHistorie } from './historia.js';
-import { istnieje, czyZapisywac, wczytajPlikDanych, zrobKopie, zapiszPlik, usunDaneLokalne, zajmijBlokade, odswiezBlokade, czyBlokadaZajeta, znacznikCzasu } from './magazyn.js';
+import { istnieje, czyZapisywac, wczytajPlikDanych, wczytajNaStart, zrobKopie, zapiszPlik, usunDaneLokalne, zajmijBlokade, odswiezBlokade, czyBlokadaZajeta, znacznikCzasu } from './magazyn.js';
 import { wczytajUstawienia, zapiszUstawienia, poprawnyBudzet } from './ustawienia.js';
 import { pokazOAplikacji } from './oAplikacji.js';
 import { funkcja, ustawFunkcje, pobierzFunkcje, anulowana } from './funkcje.js';
@@ -28,7 +28,6 @@ import { t, tn, ustawJezyk, jezyk, przetlumaczStrone, dataDluga, godzina, liczba
 
 const NAZWA_PLIKU = 'mikroplatnosci.json';
 const OPOZNIENIE_ZAPISU = 400;
-const OPOZNIENIE_WYSYLKI = 3000; // bez zapisu lokalnego: kilka zmian = jedna wysyłka na Dysk
 const LIMIT_WYSYLKI_PRZY_ZAMKNIECIU = 15000;
 const OPOZNIENIE_DODATKOW = 150;
 const BLOKADA_CO = 30000; // ważność blokady: magazyn.js
@@ -103,9 +102,9 @@ async function zwolnijBlokade() {
   await Neutralino.filesystem.remove(stan.plikBlokady).catch(() => {});
 }
 
-// Zwraca treść pliku (do kopii zapasowej) albo null, gdy pliku jeszcze nie ma (pierwsze uruchomienie).
+// Zwraca kopia() (kopia zapasowa wczytanej treści) albo null, gdy pliku jeszcze nie ma (pierwsze uruchomienie).
 async function wczytaj() {
-  const plik = await wczytajPlikDanych(stan.plik);
+  const plik = await wczytajNaStart(stan.plik, stan.folderKopii);
   if (!plik) {
     stan.wpisy = [];
     return null;
@@ -114,7 +113,7 @@ async function wczytaj() {
   if (odczytane.motyw === 'ciemny' || odczytane.motyw === 'jasny') stan.motyw = odczytane.motyw;
   stan.wpisy = odczytane.wpisy;
   stan.usuniete = odczytane.usuniete;
-  return plik.tresc;
+  return plik.kopia;
 }
 
 async function zapiszZmiany() {
@@ -380,12 +379,7 @@ async function wczytajKopie(plik) {
       return;
     }
   }
-  const wKopii = new Set(dane.wpisy.map((w) => w.id));
-  for (const w of [...stan.wpisy]) if (!wKopii.has(w.id)) usun(stan, w);
-  stan.usuniete = stan.usuniete.filter((u) => !wKopii.has(u.id));
-  const teraz = new Date().toISOString();
-  for (const w of dane.wpisy) w.zmieniono = teraz;
-  stan.wpisy = dane.wpisy;
+  zastapZKopii(stan, dane);
   stan.filtr = pustyFiltr();
   przeniesCeny();
   renderujTabele();
@@ -446,19 +440,13 @@ function pokazBlad(tekst) {
 // Wiersze w tabeli - bez anulowanych (C15), które są w „Anulowanych” pod tabelą.
 const widoczne = () => stan.wpisy.filter((w) => !anulowana(w));
 
-// Przykładowy wiersz z pierwszego uruchomienia (F25) - wykreślenie usuwa go od razu, bez „Anulowanych”.
-const PRZYKLAD = 'przyklad-';
-
 const akcjeWiersza = {
   onZmiana() {
     zaplanujZapis();
     zaplanujDodatki();
   },
   onUsun(wpis) {
-    // Pusty, niewypełniony wiersz znika od razu - nie ma czego tracić.
-    const pusty = !wpis.nazwa.trim() && !wpis.opis.trim() && !wpis.link.trim() && !wpis.od && wpis.przedluzac !== 'nie'
-      && wpis.koszt === null && wpis.prognoza === null;
-    if (pusty || wpis.id.startsWith(PRZYKLAD)) {
+    if (nicDoStracenia(wpis)) {
       usunWpis(wpis, true);
       return;
     }
@@ -586,20 +574,7 @@ function pytajOUsuniecie(wpis) {
 }
 
 // F25: pierwsze uruchomienie - notatki „pierwsze kroki” nad tabelą i przykładowy wiersz do wykreślenia.
-function dodajPrzyklad() {
-  const zakup = dodajMiesiace(dzis(), -1);
-  zakup.setDate(zakup.getDate() + 9); // płatność za 9 dni - lont już trochę wypalony
-  stan.wpisy.push(normalizuj({
-    id: PRZYKLAD + noweId(),
-    nazwa: t('Przykład: serwis muzyczny'),
-    opis: t('wykreśl mnie „×”, gdy dopiszesz własne'),
-    koszt: 23.99,
-    od: isoDnia(zakup),
-    okres: 'M',
-    przedluzac: 'tak',
-    zmieniono: new Date().toISOString(),
-  }));
-}
+const dodajPrzykladowy = () => dodajPrzyklad(stan.wpisy, t('wykreśl mnie „×”, gdy dopiszesz własne'));
 
 function pokazWprowadzenie() {
   $('wprowadzenie').hidden = !stan.wprowadzenie;
@@ -746,7 +721,7 @@ const otworzUstawienia = () => pokazUstawienia(
       stan.wprowadzenie = true;
       zapiszMojeUstawienia();
       if (!widoczne().length && !stan.zablokowany && !$('dodaj').disabled) {
-        dodajPrzyklad();
+        dodajPrzykladowy();
         renderujTabele();
         akcjeWiersza.onZmiana();
       }
@@ -919,10 +894,10 @@ async function start() {
   stan.budzet = poprawnyBudzet(ustawienia.budzet);
   zastosujJezyk();
 
-  let tresc = null;
+  let kopia = null;
   if (!stan.zablokowany && stan.lokalnie) {
     try {
-      tresc = await wczytaj();
+      kopia = await wczytaj();
       stan.wczytano = true;
     } catch (e) {
       // Nie nadpisujemy pliku, którego nie umiemy odczytać.
@@ -941,12 +916,14 @@ async function start() {
   // na Dysku), zachowuje „Wycofaj” i „Zapłać”; nowa osoba - wszystkie powiadomienia wyłączone.
   if (ustawienia.powiadomienia) stan.powiadomienia = ustawienia.powiadomienia;
   else if (!stan.zablokowany) {
-    const uzywana = tresc !== null || !stan.lokalnie;
+    // Połączony Dysk też znaczy „już używa” - np. uszkodzony ustawienia.json u osoby z danymi tylko na Dysku
+    // (przykładowy wiersz trafiłby wtedy przez scalanie na jej Dysk).
+    const uzywana = kopia !== null || !stan.lokalnie || czyPolaczony();
     stan.powiadomienia = { ...DOMYSLNE_RODZAJE, wycofaj: uzywana, zaplac: uzywana };
     // F25: nowa osoba - notatki „pierwsze kroki” i przykładowy wiersz (zapisany jak każdy inny).
     if (!uzywana && stan.wczytano && !stan.wpisy.length) {
       stan.wprowadzenie = true;
-      dodajPrzyklad();
+      dodajPrzykladowy();
       stan.niezapisane = true;
     }
     zapiszMojeUstawienia();
@@ -956,7 +933,7 @@ async function start() {
   renderujTabele();
   odswiezDodatki();
   // Kopia zapasowa po pokazaniu danych, ale zawsze przed pierwszym zapisem (zapisy czekają w kolejce za nią).
-  if (stan.wczytano && tresc !== null) stan.zapis = zrobKopie(stan.folderKopii, tresc).catch(console.error);
+  if (stan.wczytano && kopia) stan.zapis = kopia().catch(console.error);
   if (zmienioneCeny || stan.niezapisane) zaplanujZapis(); // po kopii zapasowej - zapis czeka za nią w kolejce
   if (!stan.zablokowany) pokazStatus(t('pozycji: {n}', { n: widoczne().length }));
   dysk.odswiez();
@@ -1003,8 +980,9 @@ const wTle = Array.isArray(window.NL_ARGS) && window.NL_ARGS.includes(ARG_TLA);
 Neutralino.events.on('ready', wTle ? startWTle : start);
 Neutralino.events.on('windowClose', async () => {
   await zapiszTeraz();
-  // Bez zapisu lokalnego niewysłane zmiany idą na Dysk przed zamknięciem (najwyżej 15 s).
-  if (stan.doWyslania) await Promise.race([wyslijZaleglosci(), new Promise((r) => setTimeout(r, LIMIT_WYSYLKI_PRZY_ZAMKNIECIU))]);
+  // Bez zapisu lokalnego niewysłane zmiany idą na Dysk przed zamknięciem (najwyżej 15 s) - także gdy
+  // akurat trwa inna wymiana z Dyskiem (wtedy wysyłka zaraz po niej, a nie dopiero za 3 s).
+  if (stan.doWyslania) await Promise.race([poWymianie(stan).then(wyslijZaleglosci), new Promise((r) => setTimeout(r, LIMIT_WYSYLKI_PRZY_ZAMKNIECIU))]);
   await zwolnijBlokade(); // druga kopia (bez zajętej blokady) niczego nie usuwa
   Neutralino.app.exit();
 });

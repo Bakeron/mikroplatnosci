@@ -2,7 +2,7 @@
 // Wyłączona funkcja znika z ekranu i nie działa w obliczeniach, a jej dane zostają w pliku - po ponownym
 // włączeniu wszystko wraca. Wyjątek: inne okresy i waluty obce - pozycje, które już ich używają, zostają
 // przy swoim (inaczej sumy byłyby błędne); znika tylko możliwość ustawienia ich w nowych.
-// Telefon (bez tych ustawień) - wszystko włączone, jak dotąd, poza kategoriami i firmowymi (D17, D18 - tylko PC).
+// Na telefonie ustawienia czytane z własnego pliku, jak na PC.
 
 import { tekst } from './teksty.js';
 

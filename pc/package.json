@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Lokalna aplikacja do pilnowania mikropłatności i subskrypcji",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "neu run",
     "build": "neu build --release",

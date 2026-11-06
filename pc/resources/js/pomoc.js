@@ -1,4 +1,4 @@
-// F26: pomoc w miejscu (tylko PC) - małe „?” obwiedzione ołówkiem, jak dopisek na marginesie zeszytu.
+// F26: pomoc w miejscu (PC i telefon) - małe „?” obwiedzione ołówkiem, jak dopisek na marginesie zeszytu.
 // Jedno okienko (popover) na całą stronę; najechanie myszką na „?” (albo fokus z klawiatury) wstawia w nie
 // zdanie wyjaśnienia i przykleja je kotwicą CSS do tego „?”. Znika po zjechaniu myszką (można na nie
 // najechać, żeby doczytać), po wyjściu fokusu albo po Esc. Tekst przez textContent, tłumaczony (teksty.js).

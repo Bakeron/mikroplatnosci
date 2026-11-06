@@ -29,7 +29,7 @@ export function t(tekst, parametry) {
 }
 
 // Znacznik tekstu w stałych (listy opcji, nazwy funkcji): stała zostaje po polsku, a tłumaczy się dopiero
-// przy wyświetleniu - t(stala). Dzięki znacznikowi test słownika (teksty.test.mjs) widzi te teksty.
+// przy wyświetleniu - t(stala). Dzięki znacznikowi test słownika (grupa-f-anulowane.test.mjs) widzi te teksty.
 export const tekst = (s) => s;
 
 // Liczba mnoga: polskie trzy formy (1 dzień, 2 dni, 5 dni); {n} = liczba. W słowniku pod pierwszą formą

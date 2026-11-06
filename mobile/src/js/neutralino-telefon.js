@@ -15,6 +15,10 @@
         if (!/^https:\/\//i.test(adres)) throw new Error('otwierane są tylko adresy https');
         await Browser.open({ url: adres });
       },
+      // E23: kopia i CSV w publicznych Dokumentach - widać je w Menedżerze plików (tylko telefon).
+      zapiszDokument: async (nazwa, tresc) => {
+        await Filesystem.writeFile({ path: 'Mikroplatnosci/' + nazwa, data: tresc, directory: 'DOCUMENTS', encoding: 'utf8', recursive: true });
+      },
     },
     filesystem: {
       readFile: async (p) => (await Filesystem.readFile({ path: sciezka(p), directory: DATA, encoding: 'utf8' })).data,

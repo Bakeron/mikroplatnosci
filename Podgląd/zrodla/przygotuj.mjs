@@ -7,7 +7,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const BAZA = process.env.PODGLAD_DANE;
-if (!BAZA || /roaming/i.test(BAZA)) throw new Error('Ustaw PODGLAD_DANE na folder testowy (poza %APPDATA%) - prawdziwych danych nie ruszamy.');
+// Prawdziwa ścieżka (krótka nazwa ROAMIN~1 albo dowiązanie nie ominą sprawdzenia).
+const prawdziwa = (p) => {
+  try {
+    return fs.realpathSync.native(p).toLowerCase();
+  } catch {
+    return path.resolve(p).toLowerCase();
+  }
+};
+const APPDATA = process.env.APPDATA ? prawdziwa(process.env.APPDATA) : null;
+const wAppdata = (p) => APPDATA && (p === APPDATA || p.startsWith(APPDATA + path.sep));
+if (!BAZA || /roaming/i.test(BAZA) || /roaming/i.test(prawdziwa(BAZA)) || wAppdata(prawdziwa(BAZA))) throw new Error('Ustaw PODGLAD_DANE na folder testowy (poza %APPDATA%) - prawdziwych danych nie ruszamy.');
 const FOLDER = path.join(BAZA, 'Mikroplatnosci');
 
 const scenariusz = process.argv[2];

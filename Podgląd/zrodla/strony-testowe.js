@@ -24,6 +24,15 @@
         console.log('[polecenie testowe]', polecenie);
         return Promise.resolve({ exitCode: 1, stdOut: '', stdErr: 'zablokowane w teście' });
       };
+      // Linki i okno „Zapisz jako” - w testach bez przeglądarki autora i bez okien Windows.
+      v.os.open = (adres) => {
+        console.log('[link testowy]', adres);
+        return Promise.resolve();
+      };
+      v.os.showSaveDialog = (tytul) => {
+        console.log('[okno zapisu testowe]', tytul);
+        return Promise.resolve(''); // jak „Anuluj”
+      };
       for (const [klucz, f] of Object.entries(v.filesystem)) {
         if (typeof f !== 'function') continue;
         v.filesystem[klucz] = (...a) => (!folder || a.some((x) => typeof x === 'string' && /roaming/i.test(x))

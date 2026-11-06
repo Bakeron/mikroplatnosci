@@ -16,8 +16,10 @@ globalThis.Neutralino = {
   },
 };
 let wyslaneId = [];
+let wyslane = [];
 globalThis.fetch = async (adres, o) => {
   wyslaneId.push(new URLSearchParams(o?.body).get('client_id'));
+  wyslane.push({ adres: String(adres), pola: new URLSearchParams(o?.body) });
   const [status, dane] = odpowiedzi[Object.keys(odpowiedzi).find((k) => String(adres).includes(k))] ?? [500, {}];
   return { ok: status < 300, status, json: async () => dane };
 };
@@ -35,6 +37,7 @@ beforeEach(async () => {
   wbuduj(undefined);
   odpowiedzi = {};
   wyslaneId = [];
+  wyslane = [];
   D = await import('../resources/js/dysk.js?' + licznik++);
 });
 
@@ -143,4 +146,34 @@ test('zapytanie do Google bez pamięci podręcznej i z limitem czasu; brak odpow
   }
   assert.equal(opcje.cache, 'no-store');
   assert.ok(opcje.signal instanceof AbortSignal);
+});
+
+test('logowanie prosi o zakres drive.file - logowanie kodem odrzuca drive.appdata (invalid_scope)', async () => {
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
+  await D.przygotujDysk('test');
+  odpowiedzi = { 'device/code': [200, { device_code: 'd', user_code: 'K', interval: 0.01, expires_in: 5 }] };
+  (await D.zacznijLogowanie()).anuluj();
+  assert.equal(wyslane[0].pola.get('scope'), 'https://www.googleapis.com/auth/drive.file');
+});
+
+test('„Zmień projekt Google”: inny identyfikator przy połączonym Dysku najpierw rozłącza konto, ten sam - nic nie zmienia', async () => {
+  const INNY = '456-xyz.apps.googleusercontent.com';
+  pliki.set(PLIK, JSON.stringify({ odswiezajacy: 'r', id: ID, sekret: SEKRET }));
+  await D.przygotujDysk('test');
+  assert.equal(D.czyWpisany(), true);
+  assert.deepEqual(D.wpisanyProjekt(), { id: ID, sekret: SEKRET });
+  assert.equal(await D.ustawIdentyfikator(ID, SEKRET), '');
+  assert.equal(D.czyPolaczony(), true, 'ten sam projekt - połączenie zostaje');
+  assert.equal(wyslane.length, 0);
+  assert.equal(await D.ustawIdentyfikator(INNY, SEKRET), '');
+  assert.equal(D.czyPolaczony(), false);
+  assert.ok(wyslane.some((z) => z.adres.includes('/revoke') && z.pola.get('token') === 'r'), 'Google proszony o unieważnienie starego dostępu');
+  assert.deepEqual(plik(), { id: INNY, sekret: SEKRET });
+});
+
+test('projekt wbudowany - nie do zmiany w aplikacji', async () => {
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
+  await D.przygotujDysk('test');
+  assert.equal(D.czyWpisany(), false);
+  assert.deepEqual(D.wpisanyProjekt(), { id: '', sekret: '' });
 });

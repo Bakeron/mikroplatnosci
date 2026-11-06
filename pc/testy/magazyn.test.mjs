@@ -47,6 +47,34 @@ test('brak pliku = nowy zeszyt (null); błąd inny niż „brak pliku” idzie d
   await assert.rejects(M.wczytajPlikDanych(PLIK), { code: 'NE_FS_PERMISSION' });
 });
 
+test('przerwana podmiana na telefonie (jest tylko .tmp): dane z pliku tymczasowego; ucięty .tmp = brak danych', async () => {
+  pliki.set(PLIK + '.tmp', tresc([{ id: 'a', nazwa: 'A' }]));
+  const { odczytane } = await M.wczytajPlikDanych(PLIK);
+  assert.deepEqual(odczytane.wpisy.map((w) => w.id), ['a']);
+  pliki.set(PLIK + '.tmp', '{"wersja":2,"wpi');
+  assert.equal(await M.wczytajPlikDanych(PLIK), null);
+});
+
+test('start: błąd odczytu i pusty plik - błąd idzie dalej, bez kopii; brak pliku - null; dobry - kopia wczytanej treści', async () => {
+  bledy.getStats = blad('NE_FS_PERMISSION');
+  await assert.rejects(M.wczytajNaStart(PLIK, KOPIE), { code: 'NE_FS_PERMISSION' });
+  bledy = {};
+  pliki.set(PLIK, '');
+  await assert.rejects(M.wczytajNaStart(PLIK, KOPIE), /pusty/);
+  assert.deepEqual(zapisy, [], 'po błędzie odczytu nic nie zapisane');
+  pliki.delete(PLIK);
+  assert.equal(await M.wczytajNaStart(PLIK, KOPIE), null);
+  const dane = tresc([{ id: 'a', nazwa: 'A' }]);
+  pliki.set(PLIK, dane);
+  const start = await M.wczytajNaStart(PLIK, KOPIE);
+  assert.deepEqual(start.odczytane.wpisy.map((w) => w.id), ['a']);
+  pliki.set(PLIK, tresc([])); // plik zmienił się po wczytaniu - kopia ma treść z chwili wczytania
+  await start.kopia();
+  const kopie = [...pliki.keys()].filter((k) => k.startsWith(KOPIE + '/'));
+  assert.equal(kopie.length, 1);
+  assert.equal(pliki.get(kopie[0]), dane);
+});
+
 test('pusty albo obcy plik danych = błąd (aplikacja blokuje wtedy zapis), dobry = wpisy', async () => {
   pliki.set(PLIK, '');
   await assert.rejects(M.wczytajPlikDanych(PLIK), /pusty/);
@@ -78,7 +106,8 @@ test('zapis przez plik tymczasowy i podmianę; nieudana podmiana = zapis wprost,
   assert.equal(pliki.has(PLIK + '.tmp'), false);
 });
 
-test('kopie: zostaje 5 najnowszych, ta sama treść co w najnowszej - bez nowej kopii', async () => {
+test('kopie: zostaje 5 najnowszych, ta sama treść co w najnowszej - bez nowej kopii', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10, 0) });
   for (let i = 1; i <= 7; i++) pliki.set(`${KOPIE}/mikroplatnosci-2026010${i}-120000.json`, 'stara ' + i);
   pliki.set(`${KOPIE}/notatka.txt`, 'obcy plik zostaje');
   await M.zrobKopie(KOPIE, 'nowa');
@@ -90,6 +119,15 @@ test('kopie: zostaje 5 najnowszych, ta sama treść co w najnowszej - bez nowej 
   zapisy = [];
   await M.zrobKopie(KOPIE, 'nowa');
   assert.equal(zapisy.length, 0);
+});
+
+test('kopie: zegar cofnięty (starsze kopie „z przyszłości”) - nowa kopia zostaje', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10, 0) });
+  for (let i = 1; i <= 5; i++) pliki.set(`${KOPIE}/mikroplatnosci-2027010${i}-120000.json`, 'z przyszłości ' + i);
+  await M.zrobKopie(KOPIE, 'dzisiejsze');
+  const kopie = [...pliki.keys()].filter((k) => k.startsWith(KOPIE + '/mikroplatnosci-'));
+  assert.equal(kopie.length, 5);
+  assert.ok(kopie.some((k) => pliki.get(k) === 'dzisiejsze'));
 });
 
 test('usuwanie danych z komputera: plik, plik tymczasowy i wszystkie kopie; inne pliki zostają', async () => {

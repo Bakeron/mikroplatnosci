@@ -91,6 +91,7 @@
     <label class="stopka__wlacz"><input type="checkbox" id="dysk-wlacz"> Synchronizuj z Google Dyskiem</label>
     <button type="button" class="stopka__przycisk" id="dysk-pobierz" title="Pobierz zmiany z Dysku (np. z telefonu) i połącz z tymi na komputerze" hidden>↓ Pobierz z Dysku</button>
     <button type="button" class="stopka__przycisk" id="dysk-wyslij" title="Połącz ze zmianami z Dysku i wyślij wynik na Dysk" hidden>↑ Wyślij na Dysk</button>
+    <button type="button" class="stopka__przycisk" id="dysk-projekt" title="Inny identyfikator i tajny klucz projektu Google - konto Google rozłączy się i trzeba połączyć się jeszcze raz" hidden>Zmień projekt Google</button>
     <button type="button" class="stopka__przycisk stopka__przycisk--usun" id="dysk-usun" title="Usuń plik z danymi z Google Dysku i wyłącz synchronizację" hidden>Usuń z Dysku</button>
     <button type="button" class="stopka__przycisk stopka__plik" id="plik" popovertarget="plik-okno" title="Kopia na pendrive, eksport do Excela, import z wyciągu bankowego">kopia i import…</button>
     <div class="karteczka karteczka--plik" id="plik-okno" popover role="dialog" aria-labelledby="plik-tytul">
@@ -110,7 +111,8 @@
     <button type="button" class="okno__x" title="Zamknij" aria-label="Zamknij">×</button>
     <p>W przeglądarce otwiera się <strong>google.com/device</strong> - wpisz tam ten kod i zgódź się na dostęp:</p>
     <p class="okno__kod" id="okno-dysk-kod" data-bez-tlumaczenia></p>
-    <p class="okno__uwaga">Aplikacja zobaczy tylko swój ukryty folder na Dysku, nie Twoje pliki. Czekam na zgodę…</p>
+    <p class="okno__uwaga">Na Twoim Dysku powstanie jeden plik „mikroplatnosci.json” w „Moim dysku” - nie usuwaj go ani nie przenoś. Aplikacja widzi tylko pliki, które sama utworzyła, nie Twoje dokumenty ani zdjęcia. Czekam na zgodę…</p>
+    <p class="okno__uwaga" id="okno-dysk-7dni" hidden>Własny projekt Google w trybie testowym: co ok. 7 dni Google kończy połączenie - wtedy włącz synchronizację jeszcze raz i wpisz kod (ok. 1 min).</p>
     <div class="okno__przyciski">
       <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj" autofocus>Anuluj</button>
       <button type="button" class="przycisk-tekst" id="okno-dysk-otworz">Kopiuj kod i otwórz Google jeszcze raz</button>
@@ -126,19 +128,21 @@
     <label class="okno__pole">Tajny klucz klienta
       <input type="password" id="okno-google-sekret" autocomplete="off" spellcheck="false" maxlength="100" placeholder="GOCSPX-…">
     </label>
+    <p class="okno__uwaga" id="okno-google-zmiana" hidden>Połączenie z Dyskiem należy do jednego projektu - po zapisaniu nowego identyfikatora albo tajnego klucza aplikacja rozłączy konto Google i trzeba połączyć się jeszcze raz.</p>
     <p class="okno__blad" id="okno-google-blad" role="alert" hidden></p>
     <label class="okno__pomoc"><input type="checkbox"> Nie wiem, skąd to wziąć - pokaż jak</label>
     <div class="okno__rozwin">
       <div>
         <ol class="okno__kroki">
-          <li><button type="button" class="przycisk-tekst" id="okno-google-konsola">Otwórz console.cloud.google.com</button>, zaloguj się i utwórz <b>Nowy projekt</b> o nazwie <code>Mikroplatnosci</code>.</li>
+          <li><button type="button" class="przycisk-tekst" id="okno-google-konsola">Otwórz console.cloud.google.com</button>, zaloguj się i utwórz <b>Nowy projekt</b> o nazwie <code>Mikroplatnosci</code>. Baner „Zacznij bez opłat” zamknij - to okres próbny z kartą płatniczą, niepotrzebny. Gdy strona wczytuje się w kółko, otwórz ją w oknie incognito (Ctrl+Shift+N).</li>
           <li>Menu ☰ → <b>Interfejsy API i usługi → Biblioteka</b> → <b>Google Drive API</b> → <b>Włącz</b>.</li>
-          <li>Menu → <b>Google Auth Platform</b> → <b>Rozpocznij</b>: nazwa <code>Mikropłatności</code>, Twój e-mail, odbiorcy <b>Zewnętrzni</b> → Utwórz.</li>
-          <li><b>Dostęp do danych</b> → <b>Dodaj lub usuń zakresy</b> → ręcznie wpisz <code>https://www.googleapis.com/auth/drive.appdata</code> → Dodaj → <b>Zapisz</b>.</li>
-          <li><b>Odbiorcy</b> → <b>Opublikuj aplikację</b> (bez tego zgoda wygasa co 7 dni).</li>
-          <li><b>Klienci</b> → <b>Utwórz klienta</b> → typ <b>Telewizory i urządzenia z ograniczonym wprowadzaniem danych</b> → Utwórz. Skopiuj identyfikator i tajny klucz do pól wyżej.</li>
+          <li><b>Google Auth Platform</b> (po polsku „Platforma uwierzytelniania Google”; nie ma jej na krótkiej liście w menu - wpisz nazwę w wyszukiwarkę na górze) → <b>Rozpocznij</b>: nazwa <code>Mikropłatności</code>, Twój e-mail, odbiorcy <b>Zewnętrzni</b> → Utwórz. „Zewnętrzni” nie znaczy „każdy” - wejdą tylko osoby z kroku 4; „Wewnętrzni” są tylko dla firmowych kont Google Workspace.</li>
+          <li><b>Odbiorcy</b> → <b>Użytkownicy testowi</b> → <b>Dodaj użytkowników</b>: wpisz swój adres Gmail - ten, którym połączysz się z Dyskiem. Bez tego Google odrzuci logowanie.</li>
+          <li><b>Dostęp do danych</b> → <b>Dodaj lub usuń zakresy</b>: w filtrze wpisz <code>drive.file</code> i zaznacz zakres kończący się na <code>auth/drive.file</code> (gdy go nie ma - wklej <code>https://www.googleapis.com/auth/drive.file</code> w „Ręczne dodawanie zakresów” → <b>Dodaj do tabeli</b>) → <b>Zaktualizuj</b> → <b>Zapisz</b>. Nie zaznaczaj <code>drive.appdata</code> - logowanie kodem go odrzuca.</li>
+          <li><b>Klienci</b> → <b>Utwórz klienta</b> → typ <b>Telewizory i urządzenia z ograniczonym wprowadzaniem danych</b> → Utwórz. Od razu skopiuj identyfikator i tajny klucz do pól wyżej - tajnego klucza Google może później nie pokazać.</li>
+          <li>Kliknij <b>Zapisz i połącz</b> i wpisz kod na stronie Google. Ostrzeżenie „Aplikacja nie została zweryfikowana” jest normalne przy własnym projekcie - kliknij <b>Kontynuuj</b>.</li>
         </ol>
-        <p class="okno__uwaga">Przy logowaniu Google ostrzeże „nie zweryfikował tej aplikacji” - to normalne dla własnego projektu: <b>Zaawansowane → Przejdź do Mikropłatności</b>. Identyfikator zostaje tylko na tym urządzeniu (obok danych). Dokładniej: <code>google-cloud.md</code>.</p>
+        <p class="okno__uwaga">Projekt zostaje w trybie testowym, więc Google co ok. 7 dni kończy połączenie z Dyskiem - wtedy włącz synchronizację jeszcze raz i wpisz kod (ok. 1 min). <b>Opublikuj aplikację</b> w „Odbiorcach” to znosi, ale wymaga strony głównej i linku do polityki prywatności pod publicznym adresem (w „Elementach marki” - inaczej przycisk jest szary). Nazwy w konsoli Google mogą się nieco różnić. Identyfikator zostaje tylko na tym urządzeniu (obok danych).</p>
       </div>
     </div>
     <div class="okno__przyciski">

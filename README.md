@@ -4,7 +4,7 @@ Aplikacja do pilnowania subskrypcji i drobnych płatności: pokazuje, ile napraw
 
 ![Okno aplikacji - motyw „noc”](Podgląd/01-noc-pelny-widok.png)
 
-> **In English:** a personal subscription tracker for Windows (Neutralinojs, ~2.5 MB) and Android (Capacitor) sharing one data format and one set of calculation modules. Data stays on the device; optional sync goes through a hidden app folder on the user's Google Drive (`drive.appdata`, OAuth device flow). Built with Claude Code as a pair programmer: the author set the requirements and made the decisions, Claude wrote the code, tests and audits. Code and docs are in Polish.
+> **In English:** a personal subscription tracker for Windows (Neutralinojs, ~2.5 MB) and Android (Capacitor) sharing one data format and one set of calculation modules. Data stays on the device; optional sync goes through a single file in the user's Google Drive (`drive.file` - the app sees only files it created; OAuth device flow). Built with Claude Code as a pair programmer: the author set the requirements and made the decisions, Claude wrote the code, tests and audits. Code and docs are in Polish.
 
 ## Co umie
 
@@ -12,8 +12,8 @@ Aplikacja do pilnowania subskrypcji i drobnych płatności: pokazuje, ile napraw
 - **Paragon** - sumy miesięczne i roczne w złotówkach, waluty obce przeliczane po kursie średnim NBP, prognoza na miesiąc.
 - **Miarka 3 miesięcy** - najbliższe terminy rozłożone na osi czasu.
 - **Cena od następnej płatności** - wpisujesz ją, gdy kończy się promocja albo serwis zapowiedział podwyżkę; aplikacja pokazuje, o ile będzie drożej lub taniej.
-- **Płatność ręczna** - przy rachunkach, które nie schodzą same z konta (np. prąd): tydzień przed terminem czerwony margines, przypomnienie i przycisk „✓ zapłacone”.
-- **Synchronizacja z Google Dyskiem** - zmiany z telefonu trafiają na komputer i odwrotnie, scalane wiersz po wierszu.
+- **Płatność ręczna** - przy rachunkach, które nie schodzą same z konta (np. prąd): tydzień przed terminem czerwony margines, przypomnienie i pole „☐ zapłacone”.
+- **Synchronizacja z Google Dyskiem** - zmiany z telefonu trafiają na komputer i odwrotnie, scalane wiersz po wierszu. Telefon wysyła i pobiera sam; komputer z zapisem lokalnym - przyciskami „↓ Pobierz z Dysku” / „↑ Wyślij na Dysk”, bez zapisu lokalnego - sam.
 - **O aplikacji** - wersja, prywatność w skrócie, kontakt, licencje bibliotek.
 - **Gdzie trzymać dane** - na urządzeniu, na swoim Google Dysku albo w obu miejscach; przyciski „Usuń z komputera” / „Usuń z Dysku” kasują dane z jednego miejsca.
 - **Powiadomienia** o pozycjach, których nie przedłużasz, zanim się odnowią.
@@ -27,7 +27,7 @@ Wygląd wynika z jednego pomysłu: **zeszyt rachunkowy** - liniatura, czerwony m
 | Windows | [Neutralinojs](https://neutralino.js.org/) 6.10, czysty HTML/CSS/JavaScript | ok. 2,5 MB zamiast ok. 150 MB Electrona, okno przez WebView2 wbudowany w Windows 11, bez kompilacji |
 | Android | [Capacitor](https://capacitorjs.com/) 8 | ten sam kod obliczeń co na PC, APK ok. 3,4 MB |
 | Dane | plik JSON na urządzeniu | zapis przez plik tymczasowy i podmianę, 5 kopii zapasowych, blokada zapisu po błędzie odczytu |
-| Synchronizacja | Google Dysk, ukryty folder aplikacji, logowanie kodem | za darmo, bez własnego serwera; aplikacja widzi tylko swój plik, nie dokumenty użytkownika |
+| Synchronizacja | Google Dysk, jeden plik w „Moim dysku” (zakres `drive.file`), logowanie kodem | za darmo, bez własnego serwera; aplikacja widzi tylko pliki, które sama utworzyła, nie dokumenty użytkownika |
 | Testy | `node --test` (wbudowany w Node.js) | bez dodatkowych bibliotek, bez sieci i bez prawdziwych danych |
 
 ## Jak to jest zbudowane
@@ -40,7 +40,7 @@ Wygląd wynika z jednego pomysłu: **zeszyt rachunkowy** - liniatura, czerwony m
                   │                         │
    plik JSON w %APPDATA%          aplikacja na Androida (Capacitor, mobile/)
                   │                         │
-                  └──── Google Dysk (ukryty folder aplikacji) ────┘
+                  └──── Google Dysk (plik w „Moim dysku”) ───────┘
 ```
 
 Telefon nie ma własnej kopii obliczeń - przy budowaniu bierze pliki z `pc/resources/js/`. Dzięki temu poprawka terminu czy kursu działa od razu w obu aplikacjach, a aplikacja PC buduje się bez zmian. Różnice platform (zapis plików, otwieranie stron) załatwia mały zamiennik `mobile/src/js/neutralino-telefon.js`.
@@ -83,3 +83,7 @@ Zasady pracy (wspólne dla projektów autora): minimalne zmiany, prawdziwych dan
 - Aplikacja na Windows: działa, używana na co dzień.
 - Aplikacja na Androida: zbudowana, czeka na test na telefonie.
 - Synchronizacja z Google Dyskiem: gotowa i przetestowana na udawanym serwerze Google, czeka na projekt w Google Cloud i test na prawdziwym koncie.
+
+## Licencja
+
+Wszelkie prawa zastrzeżone (plik `LICENSE`). Kod jest udostępniony do wglądu - nie wolno go kopiować, zmieniać ani rozpowszechniać bez zgody autora. Użyte biblioteki i czcionki mają własne licencje (MIT, Apache 2.0, SIL OFL) - lista w oknie „O aplikacji”, pełna licencja Neutralinojs w `pc/instalacja/LICENSE-Neutralinojs.txt`.

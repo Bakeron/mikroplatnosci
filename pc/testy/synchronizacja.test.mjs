@@ -4,7 +4,7 @@ import { test, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { odczytajDane } from '../resources/js/dane.js';
 import { przygotujDysk } from '../resources/js/dysk.js';
-import { polaczSynchronizacje } from '../resources/js/synchronizacja.js';
+import { polaczSynchronizacje, poWymianie } from '../resources/js/synchronizacja.js';
 
 // Udawana strona: każdy element ma pola, których używa synchronizacja.
 const elementy = new Map();
@@ -197,4 +197,19 @@ test('wyłączenie synchronizacji bez zapisu lokalnego - pytanie; odmowa zostawi
   assert.match(pytania[0], /znikną po zamknięciu/);
   assert.equal(pole.checked, true);
   assert.ok(JSON.parse(pliki.get('test/google.json')).odswiezajacy);
+});
+
+test('zamknięcie okna w trakcie wymiany z Dyskiem: poWymianie czeka na jej koniec', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const s = { synchronizacja: true };
+  let gotowe = false;
+  const czekanie = poWymianie(s, 100).then(() => { gotowe = true; });
+  t.mock.timers.tick(500);
+  await Promise.resolve();
+  assert.equal(gotowe, false);
+  s.synchronizacja = false;
+  t.mock.timers.tick(100);
+  await czekanie;
+  assert.equal(gotowe, true);
+  assert.equal(await poWymianie({ synchronizacja: false }), undefined); // bez wymiany - od razu
 });
