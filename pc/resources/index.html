@@ -22,12 +22,13 @@
     </div>
     <button type="button" class="odswiez" id="odswiez" title="Pobierz od nowa kursy NBP" aria-label="Odśwież kursy NBP">↻<span class="odswiez__tekst"> odśwież</span></button>
     <button type="button" class="motyw" id="motyw" title="Przełącz tło: ciemne / jasne"><span class="motyw__noc">noc</span><span class="motyw__dzien">dzień</span></button>
-    <button type="button" class="odswiez ustawienia-przycisk" id="ustawienia" title="Co widać w zeszycie i które powiadomienia przychodzą">ustawienia</button>
+    <button type="button" class="odswiez ustawienia-przycisk" id="ustawienia" title="Co widać w zeszycie, powiadomienia, synchronizacja z Google Dyskiem, kopia i import">ustawienia</button>
     <span class="status" id="status" aria-live="polite"></span>
+    <span class="status" id="dysk-stan" aria-live="polite"></span>
   </header>
 
   <div class="blad" id="blad" role="alert" hidden></div>
-  <div class="blad" id="bez-zapisu" role="status" hidden>Dane nie są nigdzie zapisywane - zaznacz na dole „Zapisuj lokalnie” albo „Synchronizuj z Google Dyskiem”. Inaczej znikną po zamknięciu aplikacji.</div>
+  <div class="blad" id="bez-zapisu" role="status" hidden>Dane nie są nigdzie zapisywane - w ustawieniach (zakładka „Synchronizacja”) włącz „Zapisuj lokalnie” albo „Synchronizuj z Google Dyskiem”. Inaczej znikną po zamknięciu aplikacji.</div>
 
   <main class="kartka">
     <section class="wprowadzenie" id="wprowadzenie" aria-labelledby="wprowadzenie-tytul" hidden>
@@ -85,27 +86,44 @@
     </section>
   </main>
 
-  <footer class="stopka">
-    <label class="stopka__wlacz" title="Dane w pliku na tym komputerze (z 5 kopiami zapasowymi). Wyłączone: dane tylko na Google Dysku"><input type="checkbox" id="lokalnie-wlacz" checked> Zapisuj lokalnie</label>
-    <button type="button" class="stopka__przycisk stopka__przycisk--usun" id="usun-lokalnie" title="Usuń listę, plik danych i kopie zapasowe z tego komputera">Usuń z komputera</button>
-    <label class="stopka__wlacz"><input type="checkbox" id="dysk-wlacz"> Synchronizuj z Google Dyskiem</label>
-    <button type="button" class="stopka__przycisk" id="dysk-pobierz" title="Pobierz zmiany z Dysku (np. z telefonu) i połącz z tymi na komputerze" hidden>↓ Pobierz z Dysku</button>
-    <button type="button" class="stopka__przycisk" id="dysk-wyslij" title="Połącz ze zmianami z Dysku i wyślij wynik na Dysk" hidden>↑ Wyślij na Dysk</button>
-    <button type="button" class="stopka__przycisk" id="dysk-projekt" title="Inny identyfikator i tajny klucz projektu Google - konto Google rozłączy się i trzeba połączyć się jeszcze raz" hidden>Zmień projekt Google</button>
-    <button type="button" class="stopka__przycisk stopka__przycisk--usun" id="dysk-usun" title="Usuń plik z danymi z Google Dysku i wyłącz synchronizację" hidden>Usuń z Dysku</button>
-    <button type="button" class="stopka__przycisk stopka__plik" id="plik" popovertarget="plik-okno" title="Kopia na pendrive, eksport do Excela, import z wyciągu bankowego">kopia i import…</button>
-    <div class="karteczka karteczka--plik" id="plik-okno" popover role="dialog" aria-labelledby="plik-tytul">
-      <div class="karteczka__tytul" id="plik-tytul">Kopia, eksport, import</div>
+  <!-- Części okna „Ustawienia” - ustawieniaOkno.js przenosi je do zakładek i oddaje tu po zamknięciu okna. Na dole strony nic nie ma. -->
+  <div id="ustawienia-czesci" hidden>
+    <section class="ustawienia__czesc" id="czesc-synchronizacja">
+      <h3 class="ustawienia__naglowek">Gdzie są dane</h3>
+      <label class="ustawienia__wiersz" for="lokalnie-wlacz">
+        <span class="ustawienia__teksty"><span class="ustawienia__nazwa">Zapisuj lokalnie</span><span class="ustawienia__opis">Dane w pliku na tym komputerze (z 5 kopiami zapasowymi). Wyłączone: dane tylko na Google Dysku</span></span>
+        <input type="checkbox" class="przelacznik przelacznik--zwykly" role="switch" id="lokalnie-wlacz" checked>
+      </label>
+      <label class="ustawienia__wiersz" for="dysk-wlacz">
+        <span class="ustawienia__teksty"><span class="ustawienia__nazwa">Synchronizuj z Google Dyskiem</span><span class="ustawienia__opis">Ten sam zeszyt na komputerze i w telefonie - jeden plik na Twoim Google Dysku.</span></span>
+        <input type="checkbox" class="przelacznik przelacznik--zwykly" role="switch" id="dysk-wlacz">
+      </label>
+      <p class="ustawienia__stan" id="dysk-stan-ustawienia"></p>
+      <div class="ustawienia__czynnosci">
+        <button type="button" class="przycisk-tekst" id="dysk-pobierz" title="Pobierz zmiany z Dysku (np. z telefonu) i połącz z tymi na komputerze" hidden>↓ Pobierz z Dysku</button>
+        <button type="button" class="przycisk-tekst" id="dysk-wyslij" title="Połącz ze zmianami z Dysku i wyślij wynik na Dysk" hidden>↑ Wyślij na Dysk</button>
+        <button type="button" class="przycisk-tekst" id="okno-google-qr-pokaz" hidden>Pokaż kod QR dla telefonu</button>
+      </div>
+      <div class="okno__qr" id="okno-google-qr" hidden>
+        <div class="okno__qr-obraz" id="okno-google-qr-obraz" role="img" aria-label="Kod QR z identyfikatorem i tajnym kluczem projektu Google"></div>
+        <p class="okno__uwaga">W telefonie: Mikropłatności → Google Dysk → <b>Zeskanuj kod QR z komputera</b>. Kod zawiera tajny klucz projektu - nie pokazuj go innym osobom. Zniknie za 2 minuty.</p>
+      </div>
+      <div class="ustawienia__czynnosci ustawienia__czynnosci--rzadkie">
+        <button type="button" class="przycisk-tekst" id="dysk-projekt" title="Inny identyfikator i tajny klucz projektu Google - konto Google rozłączy się i trzeba połączyć się jeszcze raz" hidden>Zmień projekt Google</button>
+        <button type="button" class="przycisk-tekst przycisk-tekst--usun" id="dysk-usun" title="Usuń plik z danymi z Google Dysku i wyłącz synchronizację" hidden>Usuń z Dysku</button>
+        <button type="button" class="przycisk-tekst przycisk-tekst--usun" id="usun-lokalnie" title="Usuń listę, plik danych i kopie zapasowe z tego komputera">Usuń z komputera</button>
+      </div>
+    </section>
+    <section class="ustawienia__czesc" id="czesc-plik">
+      <h3 class="ustawienia__naglowek">Kopia, eksport, import</h3>
       <button type="button" class="plik__akcja" id="plik-zapisz">Zapisz kopię jako…<span class="plik__opis">cały zeszyt w jednym pliku - np. na pendrive albo inny dysk</span></button>
       <button type="button" class="plik__akcja" id="plik-wczytaj">Wczytaj kopię…<span class="plik__opis">zastępuje obecne dane; one najpierw trafiają do kopii zapasowej</span></button>
       <button type="button" class="plik__akcja" id="plik-csv">Eksport do Excela (CSV)…<span class="plik__opis">tabela ze wszystkimi pozycjami - do arkusza albo wydruku</span></button>
       <button type="button" class="plik__akcja" id="plik-bank">Import z wyciągu bankowego…<span class="plik__opis">plik CSV z banku (mBank, PKO, ING, Pekao, Revolut…) - znajdę płatności, które się powtarzają; plik nie wychodzi z komputera</span></button>
       <input type="file" id="plik-wybor" hidden>
-    </div>
-    <span class="stopka__stan" id="dysk-stan" aria-live="polite"></span>
-    <button type="button" class="stopka__przycisk stopka__o-aplikacji" id="o-aplikacji">o aplikacji</button>
-    <span class="stopka__wersja" id="wersja"></span>
-  </footer>
+    </section>
+    <span class="ustawienia__o-aplikacji" id="czesc-o-aplikacji"><button type="button" class="przycisk-tekst" id="o-aplikacji">o aplikacji</button> <span class="ustawienia__wersja" id="wersja"></span></span>
+  </div>
 
   <dialog class="okno" id="okno-dysk" closedby="any">
     <button type="button" class="okno__x" title="Zamknij" aria-label="Zamknij">×</button>
@@ -130,11 +148,6 @@
     </label>
     <p class="okno__uwaga" id="okno-google-zmiana" hidden>Połączenie z Dyskiem należy do jednego projektu - po zapisaniu nowego identyfikatora albo tajnego klucza aplikacja rozłączy konto Google i trzeba połączyć się jeszcze raz.</p>
     <p class="okno__blad" id="okno-google-blad" role="alert" hidden></p>
-    <button type="button" class="przycisk-tekst okno__qr-pokaz" id="okno-google-qr-pokaz" hidden>Pokaż kod QR dla telefonu</button>
-    <div class="okno__qr" id="okno-google-qr" hidden>
-      <div class="okno__qr-obraz" id="okno-google-qr-obraz" role="img" aria-label="Kod QR z identyfikatorem i tajnym kluczem projektu Google"></div>
-      <p class="okno__uwaga">W telefonie: Mikropłatności → Google Dysk → <b>Zeskanuj kod QR z komputera</b>. Kod zawiera tajny klucz projektu - nie pokazuj go innym osobom. Zniknie za 2 minuty.</p>
-    </div>
     <label class="okno__pomoc"><input type="checkbox"> Nie wiem, skąd to wziąć - pokaż jak</label>
     <div class="okno__rozwin">
       <div>

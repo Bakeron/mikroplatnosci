@@ -25,6 +25,9 @@ const OPISY_TELEFONU = {
   firma: tekst('Znacznik „na firmę” przy edycji pozycji, osobna suma kosztów firmowych na paragonie i „pobierz fakturę” po każdej płatności.'),
 };
 
+// Zakładka, na której okno zamknięto - przy następnym otwarciu (do zamknięcia aplikacji) wraca tam.
+let otwartaZakladka = 'zeszyt';
+
 // Wiersz: nazwa i opis po lewej, przełącznik tak / nie po prawej. Etykieta wskazuje przełącznik przez id -
 // pole kwoty w opisie (próg „drogiej” płatności) nie przejmuje kliknięć w etykietę.
 function wiersz(id, nazwa, opis, zaznaczone, onZmiana, klasa = '') {
@@ -47,17 +50,22 @@ function wiersz(id, nazwa, opis, zaznaczone, onZmiana, klasa = '') {
 // naPowiadomienia(p) (może zwrócić Promise<false>: urządzenie nie pozwala na powiadomienia),
 // naWprowadzenie(), naWTle(wlacz) -> Promise<string> (pusty tekst = udało się, inaczej opis błędu),
 // sprawdzWTle() -> Promise<boolean|null>.
-export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle }) {
-  document.getElementById('okno-ustawienia')?.remove();
-  const okno = element('dialog', 'okno okno--szersze okno--ustawienia');
+// PC: czesci [{ klucz, nazwa, element }] - dalsze zakładki z gotowych części strony (synchronizacja, kopia),
+// dolCzesc - element do dolnego wiersza („o aplikacji”), schowek - tam części wracają po zamknięciu okna
+// (razem ze zdarzeniami), naZamkniecie(). Bez czesci (telefon) - dwie kolumny jak dotąd.
+export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle, czesci, dolCzesc, schowek, naZamkniecie }) {
+  document.getElementById('okno-ustawienia')?.remove(); // jego części przejdą niżej do nowego okna
+  const okno = element('dialog', 'okno okno--szersze okno--ustawienia' + (czesci ? ' okno--zakladki' : ''));
   okno.id = 'okno-ustawienia';
   okno.setAttribute('closedby', 'any'); // kliknięcie w tło obok okna zamyka je (jak Esc)
   okno.setAttribute('aria-labelledby', 'ustawienia-tytul');
   const tytul = element('h2', 'okno__tytul', t('Ustawienia'));
   tytul.id = 'ustawienia-tytul';
-  okno.append(tytul, element('p', 'okno__uwaga', stan.telefon
+  const uwaga = element('p', 'okno__uwaga', stan.telefon
     ? t('Tylko na tym telefonie. Wyłączona funkcja znika z ekranu, a to, co już wpisane, zostaje w pliku - po ponownym włączeniu wraca.')
-    : t('Tylko na tym komputerze. Wyłączona funkcja znika z ekranu, a to, co już wpisane, zostaje w pliku - po ponownym włączeniu wraca.')));
+    : t('Tylko na tym komputerze. Wyłączona funkcja znika z ekranu, a to, co już wpisane, zostaje w pliku - po ponownym włączeniu wraca.'));
+  okno.append(tytul);
+  if (!czesci) okno.append(uwaga);
 
   // --- co widać w zeszycie ---
   const funkcje = { ...stan.funkcje };
@@ -167,9 +175,41 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
     }).catch(console.error);
   }
 
-  const kolumny = element('div', 'ustawienia__kolumny');
-  kolumny.append(sekcjaFunkcji, sekcjaPowiadomien);
-  okno.append(kolumny);
+  if (czesci) {
+    // PC: zakładki jak przekładki w segregatorze (ten sam wygląd co zakładki kategorii nad tabelą),
+    // pod nimi treść jednej części. Uwaga „tylko na tym komputerze” dotyczy zeszytu - stoi w jego zakładce.
+    sekcjaFunkcji.firstChild.after(uwaga);
+    const zakladki = [
+      { klucz: 'zeszyt', nazwa: t('Zeszyt'), element: sekcjaFunkcji },
+      { klucz: 'powiadomienia', nazwa: t('Powiadomienia'), element: sekcjaPowiadomien },
+      ...czesci,
+    ];
+    if (!zakladki.some((z) => z.klucz === otwartaZakladka)) otwartaZakladka = 'zeszyt';
+    const pasek = element('nav', 'zakladki ustawienia__zakladki');
+    pasek.setAttribute('aria-label', t('Części ustawień'));
+    const panele = element('div', 'ustawienia__panele');
+    const przyciskiZakladek = zakladki.map((z) => {
+      const b = element('button', 'zakladka', z.nazwa);
+      b.type = 'button';
+      b.addEventListener('click', () => wybierz(z.klucz));
+      return b;
+    });
+    function wybierz(klucz) {
+      otwartaZakladka = klucz;
+      zakladki.forEach((z, i) => {
+        przyciskiZakladek[i].setAttribute('aria-pressed', String(z.klucz === klucz));
+        z.element.hidden = z.klucz !== klucz;
+      });
+    }
+    pasek.append(...przyciskiZakladek);
+    panele.append(...zakladki.map((z) => z.element));
+    wybierz(otwartaZakladka);
+    okno.append(pasek, panele);
+  } else {
+    const kolumny = element('div', 'ustawienia__kolumny');
+    kolumny.append(sekcjaFunkcji, sekcjaPowiadomien);
+    okno.append(kolumny);
+  }
 
   // F27: język - nazwy języków zawsze w ich własnym języku („English”, „Polski”).
   const jezykPole = element('label', 'ustawienia__jezyk');
@@ -188,6 +228,7 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
     naWprowadzenie();
   });
   if (naJezyk) przyciski.append(jezykPole);
+  if (dolCzesc) przyciski.append(dolCzesc);
   if (naWprowadzenie) przyciski.append(wprowadzenie);
   const zamknij = element('button', 'przycisk-tekst', t('Zamknij'));
   zamknij.type = 'button';
@@ -195,7 +236,14 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   przyciski.append(zamknij);
   okno.append(przyciski);
   krzyzykOkna(okno, t('Zamknij')); // widoczne także po przewinięciu okna (obok „Zamknij” na dole)
-  okno.addEventListener('close', () => setTimeout(() => okno.remove(), 200)); // po animacji zamykania (wyglad.css)
+  okno.addEventListener('close', () => {
+    naZamkniecie?.();
+    setTimeout(() => {
+      // Części strony wracają do schowka, chyba że już są w nowym oknie (szybkie ponowne otwarcie).
+      for (const el of [...(czesci || []).map((c) => c.element), dolCzesc]) if (el && okno.contains(el)) schowek.append(el);
+      okno.remove();
+    }, 200); // po animacji zamykania (wyglad.css)
+  });
   document.body.append(okno);
   okno.showModal();
 }

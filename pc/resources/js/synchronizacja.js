@@ -52,9 +52,13 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
     timerKodu = setTimeout(schowajKod, CZAS_POKAZU);
   }
 
+  // PC: stan także w zakładce „Synchronizacja” ustawień (dysk-stan-ustawienia), nie tylko u góry strony.
   function pokaz(tekst, blad = false) {
-    $('dysk-stan').textContent = tekst;
-    $('dysk-stan').classList.toggle(klasaBledu, blad);
+    for (const el of [$('dysk-stan'), $('dysk-stan-ustawienia')]) {
+      if (!el) continue;
+      el.textContent = tekst;
+      el.classList.toggle(klasaBledu, blad);
+    }
   }
 
   function odswiez() {
@@ -68,6 +72,8 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
     // „Zmień projekt Google” - tylko przy projekcie wpisanym w aplikacji (wbudowanego się nie zmienia).
     $('dysk-projekt').hidden = !polaczony || !czyWpisany();
     $('dysk-projekt').disabled = stan.zablokowany || stan.synchronizacja;
+    // Przycisk kodu QR od razu po wpisaniu projektu (o ile kod nie jest właśnie pokazany).
+    if (obrazKodu && $('okno-google-qr').hidden) $('okno-google-qr-pokaz').hidden = !czyWpisany();
     naOdswiez();
   }
 
@@ -241,5 +247,5 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
   if (obrazKodu) $('okno-google-qr-pokaz').addEventListener('click', pokazKod);
   $('okno-google-konsola').addEventListener('click', () => Neutralino.os.open('https://console.cloud.google.com/').catch(console.error));
 
-  return { synchronizuj, odswiez, pokaz, wylacz, trwaLogowanie: () => logowanie !== null };
+  return { synchronizuj, odswiez, pokaz, wylacz, schowajKod, trwaLogowanie: () => logowanie !== null };
 }

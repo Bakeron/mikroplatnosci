@@ -147,16 +147,16 @@ button { cursor: pointer; }
 .prowizja:hover, .prowizja--ustawiona { color: var(--atrament); }
 .karteczka--prowizja { position-anchor: --prowizja; width: 300px; }
 
-/* Przyciski-napisy: odśwież, motyw, Dysk w stopce - wspólny wygląd, w klasach tylko różnice. */
-.odswiez, .motyw, .stopka__przycisk {
+/* Przyciski-napisy: odśwież, motyw - wspólny wygląd, w klasach tylko różnice. */
+.odswiez, .motyw {
   padding: 2px 0;
   border: 0;
   background: transparent;
   color: var(--olowek);
   font: italic 14px var(--f-tytul);
 }
-.odswiez:hover:not(:disabled), .stopka__przycisk:hover:not(:disabled) { color: var(--atrament); }
-.odswiez:disabled, .stopka__przycisk:disabled, .stopka__wlacz:has(input:disabled) { opacity: 0.45; cursor: progress; }
+.odswiez:hover:not(:disabled) { color: var(--atrament); }
+.odswiez:disabled { opacity: 0.45; cursor: progress; }
 
 .odswiez {
   margin-left: 18px;
@@ -984,6 +984,27 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .okno--ustawienia { max-width: 860px; width: calc(100vw - 48px); }
 .okno--ustawienia > .okno__tresc { max-height: calc(90vh - 5px); }
 .okno--ustawienia .okno__uwaga { margin-bottom: 18px; }
+/* PC: zakładki jak przekładki w segregatorze (wygląd .zakladka znad tabeli), pod nimi jedna część.
+   Okno przypięte u góry ekranu - przy zmianie zakładki zmienia się wysokość, a zakładki zostają pod kursorem. */
+.okno--zakladki { max-width: 820px; margin-top: 5vh; }
+.okno .ustawienia__zakladki { margin: 16px 0 0; } /* bez wcięcia .zakladki spod tabeli */
+.ustawienia__panele { margin-bottom: 18px; padding-top: 16px; border-top: 1px solid var(--linia); }
+.ustawienia__czynnosci { display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 8px 0 2px; }
+.ustawienia__czynnosci:not(:has(> :not([hidden]))) { display: none; }
+.ustawienia__czynnosci .przycisk-tekst { padding: 2px 0; font-size: 15px; }
+.ustawienia__czynnosci--rzadkie { margin-top: 18px; padding-top: 10px; border-top: 3px double var(--linia); }
+.ustawienia__czynnosci--rzadkie .przycisk-tekst { font-size: 14px; }
+.okno--ustawienia .przycisk-tekst:disabled { opacity: 0.45; cursor: progress; }
+/* usuwanie danych: przy najechaniu czerwony jak pieczątka „Wykreśl” */
+.przycisk-tekst--usun:hover:not(:disabled) { color: var(--czerwony); }
+.okno .ustawienia__stan.status--blad { color: var(--czerwony); font-style: normal; font-weight: 700; }
+.ustawienia__czesc .okno__qr { margin: 10px 0 0; }
+.okno--zakladki .ustawienia__jezyk { margin-right: 0; }
+/* dolny wiersz: napisy w jednej linijce, za wąsko - przyciski przechodzą do drugiej linijki */
+.okno--zakladki .okno__przyciski { flex-wrap: wrap; row-gap: 10px; }
+.okno--zakladki .okno__przyciski > * { white-space: nowrap; }
+.ustawienia__o-aplikacji { display: flex; align-items: baseline; gap: 8px; margin-right: auto; }
+.ustawienia__wersja { color: var(--olowek); font: 11.5px var(--f-liczby); letter-spacing: 0.04em; }
 /* „×” na prawym górnym rogu okna i karteczki „⋯”, do połowy poza nimi - jak pinezka wbita w róg kartki,
    nie zasłania treści. Przewija się sama treść (.okno__tresc, dom.js), bo przewijanie całego okna obcięłoby „×”.
    Ujemne marginesy treści = pasek przewijania przy brzegu okna, nie w środku odstępu. */
@@ -1069,46 +1090,19 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .okno__kroki .przycisk-tekst { padding: 0; font-size: 14px; color: var(--atrament); }
 .okno .okno__rozwin .okno__uwaga { margin: 0; }
 /* Kod QR projektu Google dla telefonu (PC): czarny na białym także w ciemnym motywie - z bokiem z SVG. */
-.okno__qr-pokaz { display: block; margin: -4px 0 14px; padding: 0; color: var(--atrament); }
 .okno__qr { display: flex; align-items: center; gap: 16px; margin: 0 0 16px; }
 .okno__qr-obraz { flex: 0 0 auto; width: 200px; line-height: 0; }
 .okno__qr-obraz svg { width: 100%; height: auto; }
 
-/* --- stopka: synchronizacja z Google Dyskiem --- */
-
-.stopka {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center; /* nie baseline - pola wyboru i napisy-przyciski mają różne wysokości, „Usuń…” opadał w dół */
-  gap: 4px 18px;
-  margin: 0 28px;
-  padding: 8px 0 10px;
-  border-top: 3px double var(--atrament);
-  color: var(--olowek);
-  font: italic 14px var(--f-tytul);
-}
-.stopka__wlacz { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-.stopka__wlacz:hover { color: var(--atrament); }
-.stopka__wlacz input { width: 14px; height: 14px; margin: 0; accent-color: var(--atrament); cursor: pointer; }
-.stopka__wlacz:has(input:checked) { color: var(--atrament); }
-.stopka__przycisk {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  transition: color 0.12s, opacity 0.12s;
-}
-/* Usuwanie danych: ten sam napis-przycisk, przy najechaniu czerwony jak pieczątka „Wykreśl”. */
-.stopka__przycisk--usun:hover:not(:disabled) { color: var(--czerwony); }
 /* Dane nigdzie niezapisywane: zeszyt wyszarzony (i nieklikalny - inert), informacja u góry. */
 .bez-zapisu .kartka { opacity: 0.45; }
-.stopka__stan { margin-left: auto; font: 13px var(--f-liczby); letter-spacing: 0.04em; }
-/* Po .status i .stopka__stan - ich skrót „font” zeruje grubość, więc ta reguła musi być niżej. */
-.status--blad, .stopka__stan--blad { color: var(--czerwony); font-weight: 700; }
-.stopka__wersja { font: 11.5px var(--f-liczby); letter-spacing: 0.04em; }
+/* Po .status - jego skrót „font” zeruje grubość, więc ta reguła musi być niżej. */
+.status--blad { color: var(--czerwony); font-weight: 700; }
 
 /* PC (mysz): nic nie zmienia się skokiem - kolory po najechaniu, podkreślenia, karteczki, dymki „?”, okna
    i rozwijane listy z krótkim przejściem. Telefon (bez najechania kursorem) - bez tych animacji. */
 @media (hover: hover) and (pointer: fine) {
-  .nastepna-dodaj, .wiecej, .karteczka__nazwa, .historia__strzalka, .slupek, .okno__x, .stopka__wlacz, .pomoc,
+  .nastepna-dodaj, .wiecej, .karteczka__nazwa, .historia__strzalka, .slupek, .okno__x, .pomoc,
   .wprowadzenie__zmaz, .anulowane__tytul, .ustawienia__nazwa, .plik__akcja, .motyw span, .okres-wybor__opcja {
     transition: color 0.12s, background-color 0.12s, border-color 0.12s, opacity 0.12s, text-decoration-color 0.12s;
   }
@@ -1373,9 +1367,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .paragon .paragon__ostrzezenie { color: #b3261e; font-weight: 700; opacity: 1; }
 .ustawienia__wiersz--budzet { margin-top: 10px; border-top: 3px double var(--linia); cursor: default; }
 
-/* --- E23, E24: „kopia i import…” w stopce - karteczka z czterema czynnościami --- */
-.stopka__plik { anchor-name: --plik; }
-.karteczka--plik { position-anchor: --plik; position-area: top span-right; width: 380px; }
+/* --- E23, E24: zakładka „Kopia i import” w ustawieniach - cztery czynności --- */
 .plik__akcja {
   display: block;
   width: 100%;

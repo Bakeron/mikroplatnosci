@@ -161,7 +161,7 @@ const dysk = polaczSynchronizacje({
     stan.niezapisane = true;
     await zapiszTeraz();
   },
-  klasaBledu: 'stopka__stan--blad',
+  klasaBledu: 'status--blad',
   obrazKodu: obrazKoduQr,
   czyLokalnie: () => stan.lokalnie,
   wlaczLokalnie: () => wlaczZapisLokalny(),
@@ -295,7 +295,10 @@ $('lokalnie-wlacz').addEventListener('change', async (e) => {
 });
 $('usun-lokalnie').addEventListener('click', usunZKomputera);
 
-// --- E23, E24: kopia, eksport, import (karteczka „kopia i import…” w stopce) ---
+// --- E23, E24: kopia, eksport, import (zakładka „Kopia i import” w ustawieniach) ---
+
+// Czynność z zakładki zamyka ustawienia - wynik (status u góry, okno wyciągu) widać bez przyciemnienia.
+const zamknijUstawienia = () => $('okno-ustawienia')?.close();
 
 const MAKS_PLIKU = 20 * 1024 * 1024;
 const trescDanych = () => JSON.stringify(doZapisu(stan, { motyw: stan.motyw }), null, 2);
@@ -320,11 +323,11 @@ async function zapiszDoPliku(tytulOkna, nazwa, rozszerzenie, opisTypu, tresc) {
 }
 
 $('plik-zapisz').addEventListener('click', () => {
-  $('plik-okno').hidePopover();
+  zamknijUstawienia();
   zapiszDoPliku(t('Zapisz kopię danych'), `mikroplatnosci-kopia-${znacznikCzasu()}.json`, 'json', t('Dane Mikropłatności'), trescDanych()).catch(console.error);
 });
 $('plik-csv').addEventListener('click', () => {
-  $('plik-okno').hidePopover();
+  zamknijUstawienia();
   zapiszDoPliku(t('Eksport do Excela (CSV)'), `mikroplatnosci-${znacznikCzasu().slice(0, 8)}.csv`, 'csv', t('Arkusz CSV'), doCsv(stan.wpisy)).catch(console.error);
 });
 
@@ -333,7 +336,7 @@ let rodzajPliku = '';
 function wybierzPlik(rodzaj, typy) {
   rodzajPliku = rodzaj;
   $('plik-wybor').accept = typy;
-  $('plik-okno').hidePopover();
+  zamknijUstawienia();
   $('plik-wybor').click();
 }
 $('plik-wczytaj').addEventListener('click', () => wybierzPlik('kopia', '.json,application/json'));
@@ -750,6 +753,14 @@ const otworzUstawienia = () => pokazUstawienia(
       }
       return jest;
     },
+    // Zakładki z częściami z index.html (#ustawienia-czesci) - po zamknięciu wracają tam razem ze zdarzeniami.
+    czesci: [
+      { klucz: 'synchronizacja', nazwa: t('Synchronizacja'), element: $('czesc-synchronizacja') },
+      { klucz: 'plik', nazwa: t('Kopia i import'), element: $('czesc-plik') },
+    ],
+    dolCzesc: $('czesc-o-aplikacji'),
+    schowek: $('ustawienia-czesci'),
+    naZamkniecie: () => dysk.schowajKod(), // kod QR z tajnym kluczem nie czeka na następne otwarcie
   },
 );
 $('ustawienia').addEventListener('click', otworzUstawienia);
