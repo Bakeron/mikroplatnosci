@@ -191,15 +191,46 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
     const przyciskiZakladek = zakladki.map((z) => {
       const b = element('button', 'zakladka', z.nazwa);
       b.type = 'button';
-      b.addEventListener('click', () => wybierz(z.klucz));
+      b.addEventListener('click', () => wybierz(z.klucz, true));
       return b;
     });
-    function wybierz(klucz) {
+    // Zmiana zakładki bez skoku: wysokość płynnie od starej do nowej, stara treść gaśnie nad nową,
+    // nowa się pojawia. Bez animacji przy otwarciu okna i przy „ogranicz ruch” w systemie.
+    let animacje = [];
+    function wybierz(klucz, animuj = false) {
+      const stary = zakladki.find((z) => z.klucz === otwartaZakladka)?.element;
+      const nowy = zakladki.find((z) => z.klucz === klucz).element;
+      const ruch = animuj && stary && stary !== nowy && !stary.hidden && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const wysokoscPrzed = ruch ? panele.offsetHeight : 0; // także w środku poprzedniej zmiany
+      for (const a of animacje) a.cancel(); // szybkie klikanie - poprzednia zmiana kończy się od razu
+      animacje = [];
       otwartaZakladka = klucz;
       zakladki.forEach((z, i) => {
         przyciskiZakladek[i].setAttribute('aria-pressed', String(z.klucz === klucz));
         z.element.hidden = z.klucz !== klucz;
       });
+      przyciskiZakladek[zakladki.findIndex((z) => z.klucz === klucz)].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      if (!ruch) return;
+      const wysokoscPo = panele.offsetHeight;
+      const czas = { duration: 240, easing: 'cubic-bezier(0.3, 0, 0.2, 1)' };
+      // Stara treść leży nad nową (w tym samym miejscu) tylko na czas gaśnięcia.
+      stary.hidden = false;
+      stary.inert = true;
+      stary.classList.add('ustawienia__gasnie');
+      const gasnie = stary.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: 'ease-out', fill: 'forwards' });
+      gasnie.addEventListener('finish', () => gasnie.cancel());
+      gasnie.addEventListener('cancel', () => {
+        stary.classList.remove('ustawienia__gasnie');
+        stary.inert = false;
+        stary.hidden = zakladki.find((z) => z.klucz === otwartaZakladka).element !== stary;
+      });
+      // W trakcie treść przycięta do rosnącej / malejącej wysokości (nie wchodzi na dolny wiersz okna).
+      panele.style.overflow = 'hidden';
+      const wysokosc = panele.animate([{ height: wysokoscPrzed + 'px' }, { height: wysokoscPo + 'px' }], czas);
+      const odslon = () => { panele.style.overflow = ''; };
+      wysokosc.addEventListener('finish', odslon);
+      wysokosc.addEventListener('cancel', odslon);
+      animacje = [gasnie, wysokosc, nowy.animate([{ opacity: 0 }, { opacity: 0, offset: 0.3 }, { opacity: 1 }], czas)];
     }
     pasek.append(...przyciskiZakladek);
     panele.append(...zakladki.map((z) => z.element));
@@ -246,4 +277,5 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   });
   document.body.append(okno);
   okno.showModal();
+  okno.querySelector('.ustawienia__zakladki [aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); // telefon: pasek przewijany w bok
 }

@@ -29,18 +29,7 @@
 /* 44 px do trafienia palcem, a wiersz daty bez zmian - ujemny margines „oddaje” wysokość przycisku */
 .t-naglowek__ustawienia { flex-shrink: 0; margin-block: -14px; }
 
-.t-dysk {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 16px;
-  color: var(--olowek);
-  font: italic 14px var(--f-tytul);
-}
-/* 44 px - wygodne trafienie palcem (zalecenie Android / iOS) */
-.t-dysk__wlacz { display: flex; align-items: center; gap: 7px; min-height: 44px; }
-.t-dysk__wlacz input { width: 17px; height: 17px; margin: 0; accent-color: var(--atrament); }
-.t-dysk__wlacz:has(input:checked) { color: var(--atrament); }
+/* przycisk „ustawienia” w nagłówku - podkreślony napis jak inne przyciski tekstowe */
 .t-dysk__przycisk {
   min-height: 44px;
   padding: 0 2px;
@@ -51,9 +40,9 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-.t-dysk__przycisk:disabled, .t-dysk__wlacz:has(input:disabled) { opacity: 0.45; }
-.t-dysk__stan { margin-left: auto; font: 12.5px var(--f-liczby); letter-spacing: 0.03em; }
-.t-dysk__stan--blad { color: var(--czerwony); font-weight: 700; }
+/* stan Google Dysku pod datą (pusty - bez miejsca); przełączniki i przyciski są w ustawieniach */
+.t-dysk__stan { margin: 0; color: var(--olowek); font: 12.5px var(--f-liczby); letter-spacing: 0.03em; text-align: right; }
+.t-dysk__stan:not(:empty) { margin-bottom: 4px; }
 
 .t-blad { margin: 8px 16px 0; }
 
@@ -166,18 +155,12 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .t-dopisek--faktura .t-dopisek__tekst { color: var(--atrament); }
 
 /* E23, E24: kopia, eksport, import - zwinięte pod paragonem, jak grupy w arkuszu */
-.t-plik { margin-top: 14px; border-bottom: 1px solid var(--linia); }
 .t-plik .plik__akcja { display: block; width: 100%; min-height: 44px; }
 .t-plik__stan { min-height: 20px; margin: 4px 0 8px; color: var(--olowek); font: italic 14px var(--f-tytul); overflow-wrap: anywhere; }
 .t-plik__stan--blad { color: var(--czerwony); font-weight: 600; }
 
-.t-dane { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin: 10px 0 0; }
-.t-dane__usun { color: var(--olowek); }
-.t-dane__usun:active { color: var(--czerwony); }
 /* Dane nigdzie niezapisywane: lista wyszarzona (i nieklikalna - inert), informacja u góry. */
 .bez-zapisu .t-tresc { opacity: 0.45; }
-.t-wersja { margin: 4px 0 16px; color: var(--olowek); font: 11.5px var(--f-liczby); letter-spacing: 0.04em; text-align: center; }
-.t-wersja__o { padding: 0 6px; color: inherit; font: inherit; }
 
 /* --- zakładki na dole --- */
 
@@ -332,6 +315,13 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .okno--ustawienia .okno__przyciski .przycisk-tekst { min-height: 44px; }
 .telefon .ustawienia__jezyk { flex-basis: 100%; margin-right: 0; }
 .telefon .ustawienia__jezyk .pole { min-height: 44px; font-size: 16px; }
+/* zakładki ustawień jak na PC, w jednym rzędzie przewijanym w bok (jak filtr nad listą) */
+.telefon .okno .ustawienia__zakladki { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 4px; margin-inline: -16px; padding-inline: 16px; }
+.telefon .ustawienia__zakladki .zakladka { flex-shrink: 0; align-items: center; min-height: 44px; padding-inline: 12px; font-size: 12.5px; }
+.telefon .ustawienia__zakladki .zakladka:hover { transform: none; } /* dotyk zostawia :hover po puszczeniu */
+.telefon .ustawienia__czynnosci .przycisk-tekst { min-height: 44px; font-size: 15.5px; }
+.telefon .ustawienia__czynnosci--rzadkie .przycisk-tekst { font-size: 15px; }
+.telefon .ustawienia__o-aplikacji .przycisk-tekst { min-height: 44px; }
 /* „Anulowane” pod listą: wiersze i przyciski dla palca (reszta wyglądu z wyglad.css) */
 .telefon .anulowane { margin: 14px 0 0; }
 .telefon .anulowane__naglowek { min-height: 44px; align-items: center; }

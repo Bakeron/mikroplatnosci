@@ -18,17 +18,11 @@
       <p class="t-naglowek__data" id="dzisiaj"></p>
       <button type="button" class="t-dysk__przycisk t-naglowek__ustawienia" id="ustawienia">ustawienia</button>
     </div>
-    <div class="t-dysk">
-      <label class="t-dysk__wlacz"><input type="checkbox" id="lokalnie-wlacz" checked> w telefonie</label>
-      <label class="t-dysk__wlacz"><input type="checkbox" id="dysk-wlacz"> Google Dysk</label>
-      <button type="button" class="t-dysk__przycisk" id="dysk-pobierz" aria-label="Pobierz z Dysku" hidden>↓ pobierz</button>
-      <button type="button" class="t-dysk__przycisk" id="dysk-wyslij" aria-label="Wyślij na Dysk" hidden>↑ wyślij</button>
-      <span class="t-dysk__stan" id="dysk-stan" aria-live="polite"></span>
-    </div>
+    <p class="t-dysk__stan" id="dysk-stan" aria-live="polite"></p>
   </header>
 
   <div class="blad t-blad" id="blad" role="alert" hidden></div>
-  <div class="blad t-blad" id="bez-zapisu" role="status" hidden>Dane nie są nigdzie zapisywane - zaznacz u góry „w telefonie” albo „Google Dysk”. Inaczej znikną po zamknięciu aplikacji.</div>
+  <div class="blad t-blad" id="bez-zapisu" role="status" hidden>Dane nie są nigdzie zapisywane - w ustawieniach (zakładka „Synchronizacja”) włącz „Zapisuj w telefonie” albo „Synchronizuj z Google Dyskiem”. Inaczej znikną po zamknięciu aplikacji.</div>
 
   <main class="t-tresc" id="tresc">
     <section class="t-zakladka" id="zakladka-lista" aria-label="Lista">
@@ -67,23 +61,43 @@
       <label class="t-prowizja" id="prowizja" hidden>Prowizja banku
         <span class="t-prowizja__pole"><input type="text" inputmode="decimal" id="prowizja-pole" maxlength="5" autocomplete="off"> %</span>
       </label>
-      <details class="t-grupa t-plik" id="plik">
-        <summary>Kopia, eksport, import</summary>
-        <button type="button" class="plik__akcja" id="plik-zapisz">Zapisz kopię<span class="plik__opis">cały zeszyt w jednym pliku, w folderze Dokumenty/Mikroplatnosci - stamtąd prześlesz go dalej</span></button>
-        <button type="button" class="plik__akcja" id="plik-wczytaj">Wczytaj kopię…<span class="plik__opis">plik z kopią wybrany z telefonu; zastępuje obecne dane, one najpierw trafiają do kopii zapasowej</span></button>
-        <button type="button" class="plik__akcja" id="plik-csv">Eksport do Excela (CSV)<span class="plik__opis">tabela ze wszystkimi pozycjami, w folderze Dokumenty/Mikroplatnosci</span></button>
-        <button type="button" class="plik__akcja" id="plik-bank">Import z wyciągu bankowego…<span class="plik__opis">plik CSV z banku (mBank, PKO, ING, Pekao, Revolut…) - znajdę płatności, które się powtarzają; plik nie wychodzi z telefonu</span></button>
-        <input type="file" id="plik-wybor" hidden>
-        <p class="t-plik__stan" id="plik-stan" aria-live="polite"></p>
-      </details>
-      <div class="t-dane">
-        <button type="button" class="t-dysk__przycisk t-dane__usun" id="usun-lokalnie">Usuń dane z telefonu</button>
-        <button type="button" class="t-dysk__przycisk" id="dysk-projekt" hidden>Zmień projekt Google</button>
-        <button type="button" class="t-dysk__przycisk t-dane__usun" id="dysk-usun" hidden>Usuń dane z Google Dysku</button>
-      </div>
-      <p class="t-wersja"><span id="wersja"></span> · <button type="button" class="t-dysk__przycisk t-wersja__o" id="o-aplikacji">o aplikacji</button></p>
     </section>
   </main>
+
+  <!-- Części okna „Ustawienia” - ustawieniaOkno.js przenosi je do zakładek i oddaje tu po zamknięciu okna (jak na PC). -->
+  <div id="ustawienia-czesci" hidden>
+    <section class="ustawienia__czesc" id="czesc-synchronizacja">
+      <h3 class="ustawienia__naglowek">Gdzie są dane</h3>
+      <label class="ustawienia__wiersz" for="lokalnie-wlacz">
+        <span class="ustawienia__teksty"><span class="ustawienia__nazwa">Zapisuj w telefonie</span><span class="ustawienia__opis">Dane w pliku w tym telefonie (z kopiami zapasowymi). Wyłączone: dane tylko na Google Dysku.</span></span>
+        <input type="checkbox" class="przelacznik przelacznik--zwykly" role="switch" id="lokalnie-wlacz" checked>
+      </label>
+      <label class="ustawienia__wiersz" for="dysk-wlacz">
+        <span class="ustawienia__teksty"><span class="ustawienia__nazwa">Synchronizuj z Google Dyskiem</span><span class="ustawienia__opis">Ten sam zeszyt na komputerze i w telefonie - jeden plik na Twoim Google Dysku.</span></span>
+        <input type="checkbox" class="przelacznik przelacznik--zwykly" role="switch" id="dysk-wlacz">
+      </label>
+      <p class="ustawienia__stan" id="dysk-stan-ustawienia"></p>
+      <div class="ustawienia__czynnosci">
+        <button type="button" class="przycisk-tekst" id="dysk-pobierz" hidden>↓ Pobierz z Dysku</button>
+        <button type="button" class="przycisk-tekst" id="dysk-wyslij" hidden>↑ Wyślij na Dysk</button>
+      </div>
+      <div class="ustawienia__czynnosci ustawienia__czynnosci--rzadkie">
+        <button type="button" class="przycisk-tekst" id="dysk-projekt" hidden>Zmień projekt Google</button>
+        <button type="button" class="przycisk-tekst przycisk-tekst--usun" id="dysk-usun" hidden>Usuń dane z Google Dysku</button>
+        <button type="button" class="przycisk-tekst przycisk-tekst--usun" id="usun-lokalnie">Usuń dane z telefonu</button>
+      </div>
+    </section>
+    <section class="ustawienia__czesc t-plik" id="czesc-plik">
+      <h3 class="ustawienia__naglowek">Kopia, eksport, import</h3>
+      <button type="button" class="plik__akcja" id="plik-zapisz">Zapisz kopię<span class="plik__opis">cały zeszyt w jednym pliku, w folderze Dokumenty/Mikroplatnosci - stamtąd prześlesz go dalej</span></button>
+      <button type="button" class="plik__akcja" id="plik-wczytaj">Wczytaj kopię…<span class="plik__opis">plik z kopią wybrany z telefonu; zastępuje obecne dane, one najpierw trafiają do kopii zapasowej</span></button>
+      <button type="button" class="plik__akcja" id="plik-csv">Eksport do Excela (CSV)<span class="plik__opis">tabela ze wszystkimi pozycjami, w folderze Dokumenty/Mikroplatnosci</span></button>
+      <button type="button" class="plik__akcja" id="plik-bank">Import z wyciągu bankowego…<span class="plik__opis">plik CSV z banku (mBank, PKO, ING, Pekao, Revolut…) - znajdę płatności, które się powtarzają; plik nie wychodzi z telefonu</span></button>
+      <input type="file" id="plik-wybor" hidden>
+      <p class="t-plik__stan" id="plik-stan" aria-live="polite"></p>
+    </section>
+    <span class="ustawienia__o-aplikacji" id="czesc-o-aplikacji"><button type="button" class="przycisk-tekst" id="o-aplikacji">o aplikacji</button> <span class="ustawienia__wersja" id="wersja"></span></span>
+  </div>
 
   <nav class="t-zakladki" aria-label="Widoki">
     <button type="button" class="t-zakladki__przycisk" data-zakladka="lista" aria-current="page">Lista</button>

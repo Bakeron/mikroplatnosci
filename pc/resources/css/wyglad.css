@@ -988,7 +988,9 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
    Okno przypięte u góry ekranu - przy zmianie zakładki zmienia się wysokość, a zakładki zostają pod kursorem. */
 .okno--zakladki { max-width: 820px; margin-top: 5vh; }
 .okno .ustawienia__zakladki { margin: 16px 0 0; } /* bez wcięcia .zakladki spod tabeli */
-.ustawienia__panele { margin-bottom: 18px; padding-top: 16px; border-top: 1px solid var(--linia); }
+.ustawienia__panele { position: relative; margin-bottom: 18px; padding-top: 16px; border-top: 1px solid var(--linia); }
+/* zmiana zakładki (ustawieniaOkno.js): stara treść gaśnie w tym samym miejscu, nad nową */
+.ustawienia__gasnie { position: absolute; top: 16px; left: 0; right: 0; pointer-events: none; }
 .ustawienia__czynnosci { display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 8px 0 2px; }
 .ustawienia__czynnosci:not(:has(> :not([hidden]))) { display: none; }
 .ustawienia__czynnosci .przycisk-tekst { padding: 2px 0; font-size: 15px; }

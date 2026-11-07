@@ -600,7 +600,7 @@ const dysk = polaczSynchronizacje({
     renderuj();
     zaplanujPowiadomienia();
   },
-  klasaBledu: 't-dysk__stan--blad',
+  klasaBledu: 'status--blad',
   czyLokalnie: () => stan.lokalnie,
   wlaczLokalnie: () => wlaczZapisLokalny(),
   naOdswiez: () => odswiezMiejsceZapisu(),
@@ -776,6 +776,13 @@ const otworzUstawienia = () => pokazUstawienia(
         return true; // błąd wtyczki to nie odmowa użytkownika
       });
     },
+    // Zakładki jak na PC - części z index.html (#ustawienia-czesci) wracają tam po zamknięciu okna.
+    czesci: [
+      { klucz: 'synchronizacja', nazwa: t('Synchronizacja'), element: $('czesc-synchronizacja') },
+      { klucz: 'plik', nazwa: t('Kopia i import'), element: $('czesc-plik') },
+    ],
+    dolCzesc: $('czesc-o-aplikacji'),
+    schowek: $('ustawienia-czesci'),
   },
 );
 $('ustawienia').addEventListener('click', otworzUstawienia);
@@ -861,7 +868,7 @@ $('lokalnie-wlacz').addEventListener('change', async (e) => {
 });
 $('usun-lokalnie').addEventListener('click', usunZTelefonu);
 
-// --- E23, E24: kopia, eksport, import (pod paragonem) ---
+// --- E23, E24: kopia, eksport, import (zakładka „Kopia i import” w ustawieniach) ---
 
 const MAKS_PLIKU = 20 * 1024 * 1024;
 const trescDanych = () => JSON.stringify(doZapisu(stan), null, 2);
