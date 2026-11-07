@@ -21,28 +21,19 @@
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 8px;
   border-bottom: 3px double var(--atrament);
 }
-.t-naglowek__gora { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.t-naglowek__gora { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .t-naglowek h1 { margin: 0; font: italic 700 24px/1.1 var(--f-tytul); }
+/* zębatka ustawień: 44 px do trafienia palcem, a wiersz tytułu bez zmian - ujemny margines „oddaje” wysokość */
+.t-naglowek__ustawienia { flex-shrink: 0; width: 44px; height: 44px; margin: -10px -11px -10px 0; }
+/* miesięczne po lewej, roczne po prawej (gdy są) */
+.t-naglowek__sumy { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 7px 0 0; }
 .t-naglowek__suma { font: 600 15px var(--f-liczby); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.t-naglowek__dzien { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 2px 0 6px; }
-.t-naglowek__data { min-width: 0; margin: 0; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
-/* 44 px do trafienia palcem, a wiersz daty bez zmian - ujemny margines „oddaje” wysokość przycisku */
-.t-naglowek__ustawienia { flex-shrink: 0; margin-block: -14px; }
+.t-naglowek__data { margin: 2px 0 6px; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
 
-/* przycisk „ustawienia” w nagłówku - podkreślony napis jak inne przyciski tekstowe */
-.t-dysk__przycisk {
-  min-height: 44px;
-  padding: 0 2px;
-  border: 0;
-  background: transparent;
-  color: var(--atrament);
-  font: italic 14px var(--f-tytul);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-/* stan Google Dysku pod datą (pusty - bez miejsca); przełączniki i przyciski są w ustawieniach */
-.t-dysk__stan { margin: 0; color: var(--olowek); font: 12.5px var(--f-liczby); letter-spacing: 0.03em; text-align: right; }
-.t-dysk__stan:not(:empty) { margin-bottom: 4px; }
+/* Pod datą tylko błąd Google Dysku (autor: bez „wysłano na Dysk ✓ godzina” u góry); zwykły stan
+   widać w ustawieniach (zakładka „Synchronizacja”), tam też przełączniki i przyciski. */
+.t-dysk__stan { margin: 0 0 4px; font: 12.5px var(--f-liczby); letter-spacing: 0.03em; text-align: right; }
+.t-dysk__stan:not(.status--blad), .t-dysk__stan:empty { display: none; }
 
 .t-blad { margin: 8px 16px 0; }
 
@@ -312,13 +303,32 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .ustawienia__prog { width: 84px; min-height: 44px; font-size: 16px; } /* 16px - telefon nie powiększa ekranu przy pisaniu */
 .telefon .okno .ustawienia__stan { font-size: 15px; }
 .telefon .okno .ustawienia__stan:empty { display: none; }
+.telefon .ustawienia__do-telefonu { min-height: 44px; font-size: 15.5px; }
 .telefon .okno--ustawienia .okno__przyciski .przycisk-tekst { min-height: 44px; }
 .telefon .ustawienia__jezyk { flex-basis: 100%; margin-right: 0; }
 .telefon .ustawienia__jezyk .pole { min-height: 44px; font-size: 16px; }
+/* Okno ustawień: od góry i od dołu taki sam odstęp jak po bokach (16 px, poza paskami Androida) i stała
+   wysokość. Tytuł, zakładki i „×” stoją na górze (ustawienia__gora), przewija się tylko treść pod nimi.
+   „×” nie wystaje za róg jak na PC - pod paskiem stanu trudno go trafić - tylko stoi w wierszu tytułu. */
+.telefon .okno--zakladki {
+  --odstep-gora: calc(env(safe-area-inset-top, 0px) + 16px);
+  --odstep-dol: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  height: calc(100dvh - var(--odstep-gora) - var(--odstep-dol));
+  max-height: none;
+  margin: var(--odstep-gora) auto var(--odstep-dol);
+}
+.telefon .okno--zakladki[open] { display: flex; flex-direction: column; }
+.telefon .okno--zakladki > .okno__tresc { flex: 1; min-height: 0; max-height: none; }
+.telefon .okno--ustawienia .ustawienia__gora { margin-inline: -16px; padding-inline: 16px; }
+.telefon .okno--zakladki > .okno__x { top: 20px; right: 8px; width: 44px; height: 44px; translate: none; box-shadow: none; font-size: 24px; }
 /* zakładki ustawień jak na PC, w jednym rzędzie przewijanym w bok (jak filtr nad listą) */
-.telefon .okno .ustawienia__zakladki { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 4px; margin-inline: -16px; padding-inline: 16px; }
-.telefon .ustawienia__zakladki .zakladka { flex-shrink: 0; align-items: center; min-height: 44px; padding-inline: 12px; font-size: 12.5px; }
-.telefon .ustawienia__zakladki .zakladka:hover { transform: none; } /* dotyk zostawia :hover po puszczeniu */
+/* Bez przesunięcia (transform) z PC - wystawało 3 px pod pasek i pasek dawał się przewinąć w pionie (drugie
+   dotknięcie „powiększało” zakładkę). Otwarta zakładka płynnie rośnie w górę (zakładki stoją na kresce). */
+.telefon .okno .ustawienia__zakladki { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; gap: 4px; margin: 10px -16px 0; padding: 6px 16px 0; }
+.telefon .ustawienia__zakladki .zakladka { flex-shrink: 0; align-items: center; min-height: 44px; padding-inline: 12px; font-size: 12.5px; transform: none; transition: min-height 0.15s ease-out, color 0.15s; }
+.telefon .ustawienia__zakladki .zakladka[aria-pressed="true"] { min-height: 48px; }
+.telefon .ustawienia__zakladki .zakladka:hover:not([aria-pressed="true"]) { color: var(--olowek); } /* dotyk zostawia :hover po puszczeniu */
+@media (prefers-reduced-motion: reduce) { .telefon .ustawienia__zakladki .zakladka { transition: none; } }
 .telefon .ustawienia__czynnosci .przycisk-tekst { min-height: 44px; font-size: 15.5px; }
 .telefon .ustawienia__czynnosci--rzadkie .przycisk-tekst { font-size: 15px; }
 .telefon .ustawienia__o-aplikacji .przycisk-tekst { min-height: 44px; }

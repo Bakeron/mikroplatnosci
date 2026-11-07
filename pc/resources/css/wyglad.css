@@ -175,6 +175,24 @@ button { cursor: pointer; }
 :root:not([data-motyw="ciemny"]) .motyw__dzien { color: var(--atrament); text-decoration: underline 2px var(--margines); }
 .motyw:hover span { color: var(--atrament); }
 
+/* Ustawienia: zębatka (rysunek w index.html) zamiast napisu - ołówek, po najechaniu atrament i obrót
+   o jeden ząb (45°, wygląda tak samo po obrocie - na telefonie zostawiony :hover nic nie psuje). */
+.zebatka {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--olowek);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.zebatka svg { transition: rotate 0.35s ease-out; }
+.zebatka:hover, .zebatka:focus-visible { color: var(--atrament); }
+.zebatka:hover svg { rotate: 45deg; }
+@media (prefers-reduced-motion: reduce) { .zebatka svg { transition: none; } }
+.ustawienia-przycisk { align-self: center; margin-left: 18px; }
+
 .status {
   margin-left: 18px;
   color: var(--olowek);
@@ -186,7 +204,7 @@ button { cursor: pointer; }
 @media (max-width: 1420px) {
   .naglowek { flex-wrap: wrap; row-gap: 4px; }
   .naglowek::before { content: ''; order: 1; flex-basis: 100%; } /* łamanie wiersza */
-  .kursy, .prowizja, .odswiez, .motyw, .status { order: 2; }
+  .kursy, .prowizja, .odswiez, .motyw, .ustawienia-przycisk, .status { order: 2; }
   /* Kursy zajmują resztę wiersza, ale nie mniej niż ich treść (inaczej data NBP wchodziła pod „prowizję banku”) -
      za długi dopisek („bez internetu…”) skraca się wielokropkiem. */
   .kursy { flex: 1 1 0; flex-wrap: nowrap; margin-left: 0; white-space: nowrap; }
@@ -988,9 +1006,19 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
    Okno przypięte u góry ekranu - przy zmianie zakładki zmienia się wysokość, a zakładki zostają pod kursorem. */
 .okno--zakladki { max-width: 820px; margin-top: 5vh; }
 .okno .ustawienia__zakladki { margin: 16px 0 0; } /* bez wcięcia .zakladki spod tabeli */
-.ustawienia__panele { position: relative; margin-bottom: 18px; padding-top: 16px; border-top: 1px solid var(--linia); }
-/* zmiana zakładki (ustawieniaOkno.js): stara treść gaśnie w tym samym miejscu, nad nową */
-.ustawienia__gasnie { position: absolute; top: 16px; left: 0; right: 0; pointer-events: none; }
+/* Tytuł i zakładki przyklejone do góry przewijanej treści - papier pod nimi zasłania przewijany tekst,
+   kreska pod zakładkami zostaje z nimi. Marginesy = wcięcie .okno__tresc, żeby papier sięgał brzegów okna. */
+.ustawienia__gora {
+  position: sticky;
+  top: -26px; /* przyklejenie liczy się od wcięcia przewijanej treści - tu od samej krawędzi okna */
+  z-index: 2;
+  margin: -26px -28px 0;
+  padding: 26px 28px 0;
+  border-bottom: 1px solid var(--linia);
+  background: var(--papier);
+}
+.okno--zakladki > .okno__x { z-index: 3; } /* nad przyklejoną górą */
+.ustawienia__panele { margin-bottom: 18px; padding-top: 16px; }
 .ustawienia__czynnosci { display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 8px 0 2px; }
 .ustawienia__czynnosci:not(:has(> :not([hidden]))) { display: none; }
 .ustawienia__czynnosci .przycisk-tekst { padding: 2px 0; font-size: 15px; }

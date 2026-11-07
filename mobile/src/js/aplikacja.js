@@ -368,7 +368,11 @@ function renderuj() {
   if (funkcja('historia')) renderujHistorie($('historia'), stan.wpisy);
   else $('historia').replaceChildren();
   pokazProwizje();
-  $('suma-miesiac').textContent = t('{kwota} / mies.', { kwota: formatujKwote(policz(stan.wpisy).lacznieMiesiecznie) });
+  // Nagłówek: po lewej płatności miesięczne, po prawej roczne - tylko gdy są (paragon ma sumy łączne).
+  const sumy = policz(stan.wpisy);
+  $('suma-miesiac').textContent = t('{kwota} / mies.', { kwota: formatujKwote(sumy.miesieczne) });
+  $('suma-rok').textContent = t('{kwota} / rok', { kwota: formatujKwote(sumy.roczne) });
+  $('suma-rok').hidden = !sumy.roczne;
   $('dzisiaj').textContent = dataDluga(new Date());
 }
 
@@ -454,8 +458,7 @@ function otworzArkusz(wpis) {
   pola.link.value = w.link;
   $('formularz-blad').textContent = '';
   $('arkusz-usun').hidden = !wpis;
-  $('arkusz-usun').textContent = t('Wykreśl');
-  delete $('arkusz-usun').dataset.potwierdz;
+  przyciskiArkusza(false);
   $('arkusz').showModal();
   // Nowa pozycja - od razu pisanie nazwy; edycja - bez klawiatury, dopóki nie dotknie się pola.
   if (wpis) document.activeElement?.blur();
@@ -492,6 +495,28 @@ formularz.addEventListener('submit', async (e) => {
   await poZmianie();
 });
 
+// Dolne przyciski arkusza: zwykłe (Wykreśl, Anuluj, Zapisz) albo pytanie przed wykreśleniem - wtedy bez
+// „Zapisz” (sugerowało zostawienie pozycji), a „Nie wykreślaj” wraca do edycji z wpisanymi zmianami.
+// Zamiana przez krótkie zgaszenie i pojawienie (nie skokiem); przy otwieraniu arkusza - od razu.
+function przyciskiArkusza(pytanie, archiwum = false) {
+  const zmien = () => {
+    $('arkusz-usun').textContent = !pytanie ? t('Wykreśl')
+      : archiwum ? t('Wykreślić? Trafi do „Anulowanych” - dotknij jeszcze raz') : t('Wykreślić? Tego nie da się cofnąć - dotknij jeszcze raz');
+    $('arkusz-anuluj').textContent = pytanie ? t('Nie wykreślaj') : t('Anuluj');
+    $('arkusz-zapisz').hidden = pytanie;
+    if (!pytanie) delete $('arkusz-usun').dataset.potwierdz;
+  };
+  const rzad = $('arkusz-usun').parentElement;
+  rzad.getAnimations().forEach((a) => a.cancel());
+  if (!$('arkusz').open || matchMedia('(prefers-reduced-motion: reduce)').matches) return zmien();
+  const gasnie = rzad.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, easing: 'ease-in', fill: 'forwards' });
+  gasnie.addEventListener('finish', () => {
+    gasnie.cancel();
+    zmien();
+    rzad.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' });
+  });
+}
+
 // Wykreślenie w dwóch dotknięciach - bez okna systemowego. Jak „×” na PC (C15): pozycja trafia do
 // „Anulowanych” z dzisiejszą datą, do przywrócenia; na zawsze - dopiero „usuń na zawsze” w „Anulowanych”.
 // Z wyłączonymi „Anulowanymi” wykreślenie usuwa na zawsze; przykład (F25) i pusty wpis znikają od razu.
@@ -504,7 +529,7 @@ $('arkusz-usun').addEventListener('click', async () => {
   if (!odRazu && !(Date.now() - Number(przycisk.dataset.potwierdz) > 500)) {
     if (przycisk.dataset.potwierdz) return;
     przycisk.dataset.potwierdz = String(Date.now());
-    przycisk.textContent = archiwum ? t('Wykreślić? Trafi do „Anulowanych” - dotknij jeszcze raz') : t('Wykreślić? Tego nie da się cofnąć - dotknij jeszcze raz');
+    przyciskiArkusza(true, archiwum);
     return;
   }
   $('arkusz').close();
@@ -586,7 +611,11 @@ $('pauza-usun').addEventListener('click', () => {
 
 pola.waluta.append(...WALUTY.map((kod) => new Option(kod, kod)));
 
-$('arkusz-anuluj').addEventListener('click', () => $('arkusz').close());
+// Przy pytaniu „Wykreślić?” - powrót do edycji; inaczej zamknięcie arkusza bez zapisu.
+$('arkusz-anuluj').addEventListener('click', () => {
+  if ($('arkusz-usun').dataset.potwierdz) przyciskiArkusza(false);
+  else $('arkusz').close();
+});
 $('arkusz').addEventListener('close', () => { stan.edytowany = null; });
 $('dodaj').addEventListener('click', () => otworzArkusz(null));
 
@@ -776,6 +805,9 @@ const otworzUstawienia = () => pokazUstawienia(
         return true; // błąd wtyczki to nie odmowa użytkownika
       });
     },
+    // Odmowa powiadomień: przycisk do strony aplikacji w ustawieniach Androida (metoda wtyczki skanera QR,
+    // bez osobnej wtyczki tylko do tego).
+    naUstawieniaTelefonu: Skaner ? () => Skaner.openSettings().catch(console.error) : undefined,
     // Zakładki jak na PC - części z index.html (#ustawienia-czesci) wracają tam po zamknięciu okna.
     czesci: [
       { klucz: 'synchronizacja', nazwa: t('Synchronizacja'), element: $('czesc-synchronizacja') },

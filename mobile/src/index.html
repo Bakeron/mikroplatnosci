@@ -12,12 +12,13 @@
   <header class="t-naglowek">
     <div class="t-naglowek__gora">
       <h1>Mikropłatności</h1>
+      <button type="button" class="zebatka t-naglowek__ustawienia" id="ustawienia" title="Ustawienia" aria-label="Ustawienia"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="10" y="1.6" width="4" height="5" rx="1"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(45 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(90 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(135 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(180 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(225 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(270 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(315 12 12)"/></g><circle cx="12" cy="12" r="6.6" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="12" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+    </div>
+    <div class="t-naglowek__sumy">
       <span class="t-naglowek__suma" id="suma-miesiac"></span>
+      <span class="t-naglowek__suma" id="suma-rok" hidden></span>
     </div>
-    <div class="t-naglowek__dzien">
-      <p class="t-naglowek__data" id="dzisiaj"></p>
-      <button type="button" class="t-dysk__przycisk t-naglowek__ustawienia" id="ustawienia">ustawienia</button>
-    </div>
+    <p class="t-naglowek__data" id="dzisiaj"></p>
     <p class="t-dysk__stan" id="dysk-stan" aria-live="polite"></p>
   </header>
 
@@ -200,7 +201,7 @@
       <div class="t-formularz__przyciski">
         <button type="button" class="t-usun" id="arkusz-usun">Wykreśl</button>
         <button type="button" class="przycisk-tekst" id="arkusz-anuluj">Anuluj</button>
-        <button type="submit" class="t-zapisz">Zapisz</button>
+        <button type="submit" class="t-zapisz" id="arkusz-zapisz">Zapisz</button>
       </div>
     </form>
   </dialog>

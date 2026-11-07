@@ -49,11 +49,11 @@ function wiersz(id, nazwa, opis, zaznaczone, onZmiana, klasa = '') {
 // stan: { telefon, funkcje, powiadomienia, wTle, jezyk, budzet }; zdarzenia: naFunkcje(funkcje), naJezyk(kod), naBudzet(kwota),
 // naPowiadomienia(p) (może zwrócić Promise<false>: urządzenie nie pozwala na powiadomienia),
 // naWprowadzenie(), naWTle(wlacz) -> Promise<string> (pusty tekst = udało się, inaczej opis błędu),
-// sprawdzWTle() -> Promise<boolean|null>.
+// sprawdzWTle() -> Promise<boolean|null>, naUstawieniaTelefonu() - telefon: strona aplikacji w ustawieniach Androida.
 // PC: czesci [{ klucz, nazwa, element }] - dalsze zakładki z gotowych części strony (synchronizacja, kopia),
 // dolCzesc - element do dolnego wiersza („o aplikacji”), schowek - tam części wracają po zamknięciu okna
 // (razem ze zdarzeniami), naZamkniecie(). Bez czesci (telefon) - dwie kolumny jak dotąd.
-export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle, czesci, dolCzesc, schowek, naZamkniecie }) {
+export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle, naUstawieniaTelefonu, czesci, dolCzesc, schowek, naZamkniecie }) {
   document.getElementById('okno-ustawienia')?.remove(); // jego części przejdą niżej do nowego okna
   const okno = element('dialog', 'okno okno--szersze okno--ustawienia' + (czesci ? ' okno--zakladki' : ''));
   okno.id = 'okno-ustawienia';
@@ -121,11 +121,20 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   sekcjaPowiadomien.append(element('h3', 'ustawienia__naglowek', stan.telefon ? t('Powiadomienia') : t('Powiadomienia Windows')));
   const stanPowiadomien = element('p', 'ustawienia__stan ustawienia__stan--blad');
   stanPowiadomien.setAttribute('aria-live', 'polite');
-  // Przełącznik bez zgody Androida nic by nie dał - lepiej to powiedzieć niż milczeć.
+  // Przełącznik bez zgody Androida nic by nie dał - lepiej to powiedzieć niż milczeć. Obok przycisk
+  // do strony aplikacji w ustawieniach telefonu; po powrocie do aplikacji zgoda sprawdzana jeszcze raz.
+  const doUstawienTelefonu = element('button', 'przycisk-tekst ustawienia__do-telefonu', t('Otwórz ustawienia telefonu'));
+  doUstawienTelefonu.type = 'button';
+  doUstawienTelefonu.hidden = true;
+  doUstawienTelefonu.addEventListener('click', () => naUstawieniaTelefonu());
   async function zmienPowiadomienia() {
     const wolno = await naPowiadomienia({ ...powiadomienia });
     stanPowiadomien.textContent = wolno === false ? t('Android nie pozwala tej aplikacji na powiadomienia - włącz je w ustawieniach telefonu.') : '';
+    doUstawienTelefonu.hidden = wolno !== false || !naUstawieniaTelefonu;
   }
+  const poPowrocie = () => {
+    if (document.visibilityState === 'visible' && stanPowiadomien.textContent) zmienPowiadomienia();
+  };
   for (const [klucz, nazwa, opis] of RODZAJE) {
     const w = wiersz('p-' + klucz, t(nazwa), t(opis), powiadomienia[klucz] === true, (wlacz) => {
       powiadomienia[klucz] = wlacz;
@@ -154,7 +163,7 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   }
 
   // B10: także przy zamkniętej aplikacji - zadanie w Harmonogramie zadań Windows. Telefon planuje z wyprzedzeniem - tam tylko komunikat o zgodzie Androida.
-  if (!naWTle) sekcjaPowiadomien.append(stanPowiadomien);
+  if (!naWTle) sekcjaPowiadomien.append(stanPowiadomien, doUstawienTelefonu);
   else {
     const tlo = wiersz('tlo', t('Także przy zamkniętej aplikacji'), t('Codziennie o 9:00 (albo zaraz po włączeniu komputera, jeśli był wyłączony) Harmonogram zadań Windows uruchamia aplikację bez okna. Pokazuje zaległe powiadomienia i sama się zamyka. Wyłączenie usuwa zadanie z Windows.'), stan.wTle === true, async (wlacz, pole) => {
       pole.disabled = true;
@@ -191,51 +200,56 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
     const przyciskiZakladek = zakladki.map((z) => {
       const b = element('button', 'zakladka', z.nazwa);
       b.type = 'button';
-      b.addEventListener('click', () => wybierz(z.klucz, true));
+      b.addEventListener('click', () => { if (z.klucz !== otwartaZakladka) wybierz(z.klucz, true); }); // otwarta - nic
       return b;
     });
-    // Zmiana zakładki bez skoku: wysokość płynnie od starej do nowej, stara treść gaśnie nad nową,
-    // nowa się pojawia. Bez animacji przy otwarciu okna i przy „ogranicz ruch” w systemie.
+    // Zmiana zakładki bez skoku, po kolei: stara treść gaśnie (wysokość stoi), potem wysokość płynnie
+    // do nowej i nowa treść się pojawia - razem ok. 0,3 s. Bez animacji przy otwarciu okna i przy
+    // „ogranicz ruch” w systemie.
     let animacje = [];
     function wybierz(klucz, animuj = false) {
-      const stary = zakladki.find((z) => z.klucz === otwartaZakladka)?.element;
+      const widoczny = zakladki.find((z) => !z.element.hidden && panele.contains(z.element))?.element;
       const nowy = zakladki.find((z) => z.klucz === klucz).element;
-      const ruch = animuj && stary && stary !== nowy && !stary.hidden && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const wysokoscPrzed = ruch ? panele.offsetHeight : 0; // także w środku poprzedniej zmiany
-      for (const a of animacje) a.cancel(); // szybkie klikanie - poprzednia zmiana kończy się od razu
+      const ruch = animuj && widoczny && widoczny !== nowy && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Szybkie klikanie: start od tego, co widać teraz (wysokość i przezroczystość w środku poprzedniej zmiany).
+      const wysokoscPrzed = ruch ? panele.offsetHeight : 0;
+      const jasnosc = ruch ? getComputedStyle(widoczny).opacity : '1';
+      for (const a of animacje) a.cancel();
       animacje = [];
       otwartaZakladka = klucz;
-      zakladki.forEach((z, i) => {
-        przyciskiZakladek[i].setAttribute('aria-pressed', String(z.klucz === klucz));
-        z.element.hidden = z.klucz !== klucz;
-      });
+      przyciskiZakladek.forEach((b, i) => b.setAttribute('aria-pressed', String(zakladki[i].klucz === klucz)));
       przyciskiZakladek[zakladki.findIndex((z) => z.klucz === klucz)].scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      if (!ruch) return;
-      const wysokoscPo = panele.offsetHeight;
-      const czas = { duration: 240, easing: 'cubic-bezier(0.3, 0, 0.2, 1)' };
-      // Stara treść leży nad nową (w tym samym miejscu) tylko na czas gaśnięcia.
-      stary.hidden = false;
-      stary.inert = true;
-      stary.classList.add('ustawienia__gasnie');
-      const gasnie = stary.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: 'ease-out', fill: 'forwards' });
-      gasnie.addEventListener('finish', () => gasnie.cancel());
-      gasnie.addEventListener('cancel', () => {
-        stary.classList.remove('ustawienia__gasnie');
-        stary.inert = false;
-        stary.hidden = zakladki.find((z) => z.klucz === otwartaZakladka).element !== stary;
+      const pokazNowa = () => zakladki.forEach((z) => { z.element.hidden = z.element !== nowy; });
+      if (!ruch) {
+        pokazNowa();
+        return;
+      }
+      const gasnie = widoczny.animate([{ opacity: jasnosc }, { opacity: 0 }], { duration: 110, easing: 'ease-in', fill: 'forwards' });
+      gasnie.addEventListener('finish', () => {
+        gasnie.cancel();
+        pokazNowa();
+        // Nowa część od początku - tytuł i zakładki i tak stoją na górze okna.
+        const tresc = panele.closest('.okno__tresc');
+        if (tresc) tresc.scrollTop = 0;
+        const wysokoscPo = panele.offsetHeight;
+        const czas = { duration: 180, easing: 'cubic-bezier(0.3, 0, 0.2, 1)' };
+        // W trakcie treść przycięta do rosnącej / malejącej wysokości (nie wchodzi na dolny wiersz okna).
+        panele.style.overflow = 'hidden';
+        const wysokosc = panele.animate([{ height: wysokoscPrzed + 'px' }, { height: wysokoscPo + 'px' }], czas);
+        const odslon = () => { panele.style.overflow = ''; };
+        wysokosc.addEventListener('finish', odslon);
+        wysokosc.addEventListener('cancel', odslon);
+        animacje = [wysokosc, nowy.animate([{ opacity: 0 }, { opacity: 1 }], { ...czas, easing: 'ease-out' })];
       });
-      // W trakcie treść przycięta do rosnącej / malejącej wysokości (nie wchodzi na dolny wiersz okna).
-      panele.style.overflow = 'hidden';
-      const wysokosc = panele.animate([{ height: wysokoscPrzed + 'px' }, { height: wysokoscPo + 'px' }], czas);
-      const odslon = () => { panele.style.overflow = ''; };
-      wysokosc.addEventListener('finish', odslon);
-      wysokosc.addEventListener('cancel', odslon);
-      animacje = [gasnie, wysokosc, nowy.animate([{ opacity: 0 }, { opacity: 0, offset: 0.3 }, { opacity: 1 }], czas)];
+      animacje = [gasnie];
     }
     pasek.append(...przyciskiZakladek);
     panele.append(...zakladki.map((z) => z.element));
     wybierz(otwartaZakladka);
-    okno.append(pasek, panele);
+    // Tytuł i zakładki stoją na górze okna (razem z „×”), a przewija się tylko treść części.
+    const gora = element('div', 'ustawienia__gora');
+    gora.append(tytul, pasek);
+    okno.append(gora, panele);
   } else {
     const kolumny = element('div', 'ustawienia__kolumny');
     kolumny.append(sekcjaFunkcji, sekcjaPowiadomien);
@@ -267,7 +281,9 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   przyciski.append(zamknij);
   okno.append(przyciski);
   krzyzykOkna(okno, t('Zamknij')); // widoczne także po przewinięciu okna (obok „Zamknij” na dole)
+  document.addEventListener('visibilitychange', poPowrocie);
   okno.addEventListener('close', () => {
+    document.removeEventListener('visibilitychange', poPowrocie);
     naZamkniecie?.();
     setTimeout(() => {
       // Części strony wracają do schowka, chyba że już są w nowym oknie (szybkie ponowne otwarcie).
