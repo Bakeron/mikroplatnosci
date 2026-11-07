@@ -916,6 +916,8 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 }
 .historia__podtytul { margin: 0 0 8px; font: italic 600 15px var(--f-tytul); }
 .historia .alarm__opis { color: var(--olowek); font-size: 13px; white-space: nowrap; } /* „1 płatność” w jednej linijce - historia stoi w węższej kolumnie obok paragonu */
+.historia .alarm { flex-wrap: wrap; } /* za wąsko - kwota / procent spada do nowej linijki zamiast wchodzić pod paragon */
+.historia .alarm__koszt { margin-left: auto; }
 .historia .alarm--drozej .alarm__koszt { color: var(--czerwony-spis); font-weight: 700; }
 .historia .alarm--taniej .alarm__koszt { color: var(--zielony); font-weight: 700; }
 .historia__uwaga { margin: 0; color: var(--olowek); font: italic 12.5px/1.4 var(--f-tytul); }
@@ -1002,7 +1004,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   place-items: center;
   width: 32px;
   height: 32px;
-  padding: 0 0 2px;
+  padding: 1px 0 0; /* znak „×” w Bahnschrift siedzi nad środkiem linii - zsunięty, by był na środku koła */
   border: 1px solid var(--linia);
   border-radius: 50%;
   background: var(--papier);
@@ -1108,8 +1110,10 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 @media (hover: hover) and (pointer: fine) {
   .nastepna-dodaj, .wiecej, .karteczka__nazwa, .historia__strzalka, .slupek, .okno__x, .stopka__wlacz, .pomoc,
   .wprowadzenie__zmaz, .anulowane__tytul, .ustawienia__nazwa, .plik__akcja, .motyw span, .okres-wybor__opcja {
-    transition: color 0.12s, background-color 0.12s, opacity 0.12s, text-decoration-color 0.12s;
+    transition: color 0.12s, background-color 0.12s, border-color 0.12s, opacity 0.12s, text-decoration-color 0.12s;
   }
+  /* najechanie na „×” wykreślania - przekreślenie wiersza pojawia się płynnie (link ma własne kropkowane podkreślenie) */
+  .pole:not(.pole--link), .data, .lont__liczba { text-decoration: line-through 2px transparent; transition: text-decoration-color 0.12s; }
   /* podkreślenie po najechaniu albo wyborze pojawia się płynnie - zanim widać, jest przezroczyste */
   .ustawienia__nazwa, .plik__akcja { text-decoration: underline 1px transparent; text-underline-offset: 3px; }
   .motyw span, .okres-wybor__opcja { text-decoration: underline 2px transparent; }
