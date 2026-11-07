@@ -51,6 +51,13 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // QR scanner: the app uses only the Google code scanner from Play services (no camera in the app).
+    // The same ML Kit barcode API from Play services instead of the bundled model (~20 MB of native libraries).
+    implementation 'com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1'
+}
+
+configurations.configureEach {
+    exclude group: 'com.google.mlkit', module: 'barcode-scanning'
 }
 
 apply from: 'capacitor.build.gradle'
