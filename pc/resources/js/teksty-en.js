@@ -125,6 +125,7 @@ export default {
   "↑ Wyślij na Dysk": "↑ Upload to Drive",
   "Usuń z Dysku": "Delete from Drive",
   "Zmień projekt Google": "Change Google project",
+  "Skaner kodów QR (Google ML Kit, z usług Google Play) od uruchomienia aplikacji wysyła do Google dane diagnostyczne: model telefonu, wersję aplikacji, wydajność i błędy skanera. Nie wysyła Twojej listy, obrazu z aparatu ani treści kodu.": "The QR code scanner (Google ML Kit, from Google Play services) sends diagnostic data to Google from app start: phone model, app version, performance and scanner errors. It does not send your list, the camera image or the code content.",
   "Pokaż kod QR dla telefonu": "Show QR code for the phone",
   "Kod QR z identyfikatorem i tajnym kluczem projektu Google": "QR code with the Google project ID and client secret",
   "W telefonie: Mikropłatności → Google Dysk →": "On the phone: Mikropłatności → Google Drive →",

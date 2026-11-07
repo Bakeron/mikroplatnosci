@@ -46,6 +46,10 @@ export function pokazOAplikacji(platforma, otworz) {
     element('p', 'okno__uwaga', t('wersja {numer}', { numer: window.WERSJA_APLIKACJI || t('robocza') })),
     element('p', 'okno__tekst', t('Pilnuje subskrypcji i drobnych płatności. Dane są na tym urządzeniu, a jeśli włączysz synchronizację - także na Twoim Google Dysku, w jednym pliku „mikroplatnosci.json” (aplikacja widzi tylko pliki, które sama utworzyła). Autor aplikacji nie dostaje żadnych Twoich danych; bez reklam i bez śledzenia.')),
   );
+  // Decyzja autora 07.11.2026: skaner QR z ML Kit zostaje, ale opisany (ML Kit sam wysyła diagnostykę do Google).
+  if (platforma === 'telefon') {
+    okno.append(element('p', 'okno__tekst', t('Skaner kodów QR (Google ML Kit, z usług Google Play) od uruchomienia aplikacji wysyła do Google dane diagnostyczne: model telefonu, wersję aplikacji, wydajność i błędy skanera. Nie wysyła Twojej listy, obrazu z aparatu ani treści kodu.')));
+  }
   // Adres jako tekst do zaznaczenia - telefon otwiera tylko strony https (bez mailto:).
   okno.append(element('p', 'okno__tekst okno__kontakt', t('Kontakt: {adres}', { adres: KONTAKT })));
   if (ADRES_POLITYKI) {
