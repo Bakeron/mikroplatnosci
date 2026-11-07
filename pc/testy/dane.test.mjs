@@ -186,6 +186,15 @@ test('formularz: pauza - bez zmian, ustawienie, wznowienie dziś, data z przesz�
   }
 });
 
+test('formularz: stary wpis bez okresu zostaje bez okresu; wyczyszczona cena następna kasuje jej dzień', () => {
+  const w = normalizuj({ id: 'a', nazwa: 'Kwartał', od: '2026-01-01', do: '2026-04-01', koszt: 90, prognoza: 99, prognozaOd: '2026-11-20' });
+  assert.equal(w.okres, '');
+  zastosujFormularz([w], w, pola({ od: '2026-01-01', koszt: '90', okres: '', prognoza: '' }));
+  assert.deepEqual([w.okres, w.prognoza, w.prognozaOd], ['', null, '']);
+  const { wpis } = zastosujFormularz([], null, pola({ okres: '' }));
+  assert.equal(wpis.okres, 'M', 'nowa pozycja bez wyboru - miesięczna');
+});
+
 test('formularz: nowa pozycja trafia na koniec listy z czasem zmiany', () => {
   const wpisy = [normalizuj({ id: 'a', nazwa: 'A' })];
   const { wpis } = zastosujFormularz(wpisy, null, pola());

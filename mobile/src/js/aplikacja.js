@@ -41,6 +41,7 @@ const stan = {
   synchronizacja: false,
   edytowany: null, // wpis w arkuszu edycji (null = nowy)
   timerWysylki: null,
+  doWyslania: false, // zmiany jeszcze nie wysłane na Dysk (także po nieudanej wysyłce)
   powiadomienia: { ...DOMYSLNE_RODZAJE }, // rodzaje powiadomień z „Ustawień”
   jezyk: '', // F27: wybrany w „Ustawieniach”; pusty - język telefonu
   wprowadzenie: false, // F25: notatki „pierwsze kroki” nad listą (do schowania)
@@ -70,15 +71,18 @@ async function wczytaj() {
 
 // Zapisy po kolei (dwa naraz pisałyby do tego samego pliku tymczasowego); zapis przez plik
 // tymczasowy i podmianę - zanik zasilania w trakcie zapisu nie zostawia uciętego pliku.
-let kolejkaZapisu = Promise.resolve();
+// Zwraca false, gdy zapis w telefonie się nie udał.
+let kolejkaZapisu = Promise.resolve(true);
 function zapisz() {
   kolejkaZapisu = kolejkaZapisu.then(async () => {
-    if (stan.zablokowany || !stan.lokalnie) return;
+    if (stan.zablokowany || !stan.lokalnie) return true;
     try {
       await zapiszPlik(PLIK, JSON.stringify(doZapisu(stan), null, 2));
+      return true;
     } catch (e) {
       pokazBlad(t('Błąd zapisu na telefonie - ostatnia zmiana może zniknąć.'));
       console.error(e);
+      return false;
     }
   });
   return kolejkaZapisu;
@@ -107,15 +111,27 @@ async function poZmianie() {
   zaplanujPowiadomienia();
 }
 
+// doWyslania (jak na PC): nieudana wysyłka (np. bez internetu) czeka na następną wymianę z Dyskiem.
 function zaplanujWysylke() {
   if (!czyPolaczony() || stan.zablokowany) return;
+  stan.doWyslania = true;
   clearTimeout(stan.timerWysylki);
   dysk.pokaz(t('zmiany czekają na wysłanie…'));
-  stan.timerWysylki = setTimeout(() => {
-    stan.timerWysylki = null;
-    if (stan.synchronizacja) zaplanujWysylke();
-    else dysk.synchronizuj(true);
-  }, OPOZNIENIE_WYSYLKI);
+  stan.timerWysylki = setTimeout(wyslijZaleglosci, OPOZNIENIE_WYSYLKI);
+}
+
+async function wyslijZaleglosci() {
+  clearTimeout(stan.timerWysylki);
+  stan.timerWysylki = null;
+  if (stan.synchronizacja) {
+    if (stan.doWyslania) zaplanujWysylke(); // trwa inna wymiana z Dyskiem - wysyłka zaraz po niej
+    return false;
+  }
+  const wyslij = stan.doWyslania;
+  stan.doWyslania = false; // zmiany w trakcie wysyłki ustawią to od nowa
+  const ok = await dysk.synchronizuj(wyslij);
+  if (!ok && wyslij) stan.doWyslania = true;
+  return ok;
 }
 
 // --- widok ------------------------------------------------------------
@@ -262,7 +278,7 @@ function utworzKarte(wpis) {
   const dz = doZaplaty(wpis);
   const recznie = reczna(wpis) && !jednorazowa && !dz && !wstrzymana ? ' · ' + t('ręcznie') : '';
   // Pauza: pod spodem dzień wznowienia (jak na PC).
-  dol.append(element('span', 'karta__termin', wstrzymana ? t('wraca {data}', { data: formatujDate(data) }) : (data ? formatujDate(data) + ' · ' : '') + okresTekst(wpis) + recznie));
+  dol.append(element('span', 'karta__termin', wstrzymana ? t('wraca {data}', { data: formatujDate(parsujDate(wpis.wstrzymanaDo)) }) : (data ? formatujDate(data) + ' · ' : '') + okresTekst(wpis) + recznie));
   karta.append(dol);
   if (jednorazowa && dp?.minal) karta.append(element('span', 'dopisek--uwaga', t('termin minął - sprawdź, czy anulowano')));
   // Karta czerwienieje z każdym dniem do terminu, po terminie - najmocniej (jak wiersz na PC).
@@ -397,6 +413,7 @@ function otworzArkusz(wpis) {
   // mies. / rok - tylko co 1; kwartał, tydzień, 2 lata - „inny”. Wyłączone „Inne okresy” - bez „inny”, chyba że pozycja już go ma.
   const inny = !!w.okres && (w.okres === 'T' || w.coIle > 1);
   $('opcja-okres-inny').hidden = !funkcja('okresy') && !inny;
+  for (const r of pola.okres) r.checked = false; // wpis bez okresu - bez zaznaczenia z poprzedniej pozycji
   pola.okres.value = inny ? 'inny' : w.okres;
   pola.coIle.value = String(w.coIle || 1);
   pola.jednostka.value = w.okres || 'M';
@@ -411,7 +428,7 @@ function otworzArkusz(wpis) {
   pokazKoniecMiesiaca();
   // Dzielę koszt i pauza zwinięte - w nagłówku grupy obecna wartość.
   const osob = osobWpisu(w);
-  pola.osob.value = String(osob);
+  pola.osob.value = String(w.osob || 1); // wyłączone „Dzielę koszt” - zapis bez zmian nie kasuje liczby osób
   pola.ktoOddaje.value = w.ktoOddaje;
   $('grupa-dziel').hidden = !funkcja('dzielenie');
   $('grupa-dziel').open = false;
@@ -419,7 +436,9 @@ function otworzArkusz(wpis) {
   pauzaNowa = undefined;
   const wstrzymana = czyWstrzymana(w);
   pola.wstrzymanaDo.value = wstrzymana ? w.wstrzymanaDo : '';
-  pola.wstrzymanaDo.min = isoDnia(new Date(dzis().getTime() + 86400000));
+  const jutro = dzis();
+  jutro.setDate(jutro.getDate() + 1); // nie +24 h - w dniu zmiany czasu doba ma 23 albo 25 h
+  pola.wstrzymanaDo.min = isoDnia(jutro);
   $('grupa-pauza').open = false;
   $('pauza-wartosc').textContent = wstrzymana ? t('do {data}', { data: formatujDate(parsujDate(w.wstrzymanaDo)) }) : t('nie');
   $('pauza-wznow').hidden = !wstrzymana;
@@ -480,8 +499,10 @@ $('arkusz-usun').addEventListener('click', async () => {
   const wpis = stan.wpisy.find((w) => w.id === stan.edytowany?.id); // obiekt mógł podmienić Dysk w trakcie edycji
   const odRazu = wpis && nicDoStracenia(wpis);
   const archiwum = funkcja('archiwum');
-  if (!przycisk.dataset.potwierdz && !odRazu) {
-    przycisk.dataset.potwierdz = '1';
+  // Drugie dotknięcie liczy się dopiero po chwili - przypadkowe podwójne nie wykreśla od razu.
+  if (!odRazu && !(Date.now() - Number(przycisk.dataset.potwierdz) > 500)) {
+    if (przycisk.dataset.potwierdz) return;
+    przycisk.dataset.potwierdz = String(Date.now());
     przycisk.textContent = archiwum ? t('Wykreślić? Trafi do „Anulowanych” - dotknij jeszcze raz') : t('Wykreślić? Tego nie da się cofnąć - dotknij jeszcze raz');
     return;
   }
@@ -510,7 +531,9 @@ async function usunNaZawsze(wpis) {
 
 // „nie” po kilku okresach - termin ma być najbliższym odnowieniem, a nie pierwszym po dawnym zakupie (jak na PC).
 pola.przedluzac.addEventListener('change', () => {
-  if (!pola.przedluzac.checked) pola.od.value = zakupBiezacegoOkresu({ od: pola.od.value, okres: pola.okres.value });
+  if (pola.przedluzac.checked) return;
+  const inny = pola.okres.value === 'inny';
+  pola.od.value = zakupBiezacegoOkresu({ od: pola.od.value, okres: inny ? pola.jednostka.value : pola.okres.value, coIle: inny ? Math.round(Number(pola.coIle.value)) || 1 : 1 });
 });
 
 // „Termin do końca miesiąca” i „Kwota za każdym razem inna” widać tylko przy „płacę sam” (jak w „⋯” na PC); „Przedłużać” - zawsze.
@@ -603,17 +626,24 @@ const zapiszMojeUstawienia = () => zapiszUstawienia(PLIK_USTAWIEN, {
 
 // A6, A7: kursy i prowizja potrzebne przy włączonych „Walutach obcych” albo pozycji w walucie obcej.
 const uzywaWalut = () => funkcja('waluty') || stan.wpisy.some((w) => waluta(w) !== 'PLN');
-const pobierzKursyGdyTrzeba = () => { if (uzywaWalut() && !czyAktualne()) odswiezZNbp(PLIK_KURSOW).then(renderuj).catch(console.error); };
+// Po nowych kursach także powiadomienia (kwoty „Przygotuj pieniądze” w zł).
+const poKursach = () => {
+  renderuj();
+  zaplanujPowiadomienia();
+};
+const pobierzKursyGdyTrzeba = () => { if (uzywaWalut() && !czyAktualne()) odswiezZNbp(PLIK_KURSOW).then(poKursach).catch(console.error); };
 
 function pokazProwizje() {
   $('prowizja').hidden = !uzywaWalut();
   if (document.activeElement !== $('prowizja-pole')) $('prowizja-pole').value = liczbaKrotka(pobierzProwizje());
 }
 $('prowizja-pole').addEventListener('change', (e) => {
-  ustawProwizje(poprawnaProwizja(Number(String(e.target.value).replace(',', '.'))));
+  const procent = Number(String(e.target.value).replace(',', '.').replace('%', '').trim());
+  if (Number.isFinite(procent)) ustawProwizje(poprawnaProwizja(procent)); // np. „abc” - zostaje poprzednia
   e.target.blur();
   zapiszMojeUstawienia();
   renderuj();
+  zaplanujPowiadomienia(); // „Przygotuj pieniądze” liczy z prowizją
 });
 
 // --- Ustawienia: funkcje i powiadomienia (okno wspólne z PC, ustawieniaOkno.js) ---
@@ -704,11 +734,14 @@ async function usunPlikDanych() {
 }
 
 // Włączenie zapisu w telefonie: obecne dane (np. pobrane z Dysku) trafiają do pliku w telefonie.
+// Nieudany zapis rzuca błąd - „Usuń z Dysku” nie usunie wtedy jedynej kopii danych.
 async function wlaczZapisLokalny() {
   stan.lokalnie = true;
+  const ok = await zapisz();
+  if (!ok) stan.lokalnie = false;
   await zapiszMojeUstawienia();
-  await zapisz();
   odswiezMiejsceZapisu();
+  if (!ok) throw new Error(t('Nie udało się zapisać danych w telefonie.'));
 }
 
 // Wyłączenie zapisu w telefonie: najpierw wysyłka na Dysk, potem plik danych znika z telefonu.
@@ -723,6 +756,7 @@ async function wylaczZapisLokalny() {
     pokazBlad(t('Nie udało się wysłać na Dysk - dane zostają w telefonie.'));
     return false;
   }
+  if (polaczony) stan.doWyslania = false;
   stan.lokalnie = false;
   await zapiszMojeUstawienia();
   await usunPlikDanych().catch((e) => {
@@ -747,6 +781,7 @@ async function usunZTelefonu() {
   }
   clearTimeout(stan.timerWysylki);
   stan.timerWysylki = null;
+  stan.doWyslania = false;
   if (polaczony) await dysk.wylacz().catch(console.error);
   try {
     await usunPlikDanych();
@@ -912,13 +947,21 @@ function zaplanujPowiadomienia() {
 async function planujPowiadomienia() {
   if (!Powiadomienia || !pamiecPowiadomien || stan.zablokowany) return;
   const { teraz, przyszle } = rozplanuj(stan.wpisy, pamiecPowiadomien, new Date(), stan.powiadomienia);
+  // Tylko przyszłe: budzik, którego czas minął, a Android go jeszcze nie pokazał (alarm niedokładny,
+  // oszczędzanie baterii), przyjdzie sam - rozplanuj liczy go już jako dostarczony.
   const { notifications: oczekujace } = await Powiadomienia.getPending();
-  if (oczekujace.length) await Powiadomienia.cancel({ notifications: oczekujace.map((n) => ({ id: n.id })) });
+  const przyszleOczekujace = oczekujace.filter((n) => !(new Date(n.schedule?.at) <= Date.now()));
+  if (przyszleOczekujace.length) await Powiadomienia.cancel({ notifications: przyszleOczekujace.map((n) => ({ id: n.id })) });
   const plan = przyszle.slice(0, MAKS_ZAPLANOWANYCH);
-  const powiadomienie = (p, at, dzien) => ({ id: numer(p.klucz), title: tytul(p), body: tresc(p, dzien), schedule: { at, allowWhileIdle: true } });
+  // Bez zgody na dokładne alarmy - niedokładne (Android pokaże je trochę później), bez otwierania
+  // ekranu „Alarmy i przypomnienia” przy każdym planowaniu (powrót z niego to „resume” i kolejne planowanie).
+  const { exact_alarm } = await Powiadomienia.checkExactNotificationSetting();
+  const dokladne = exact_alarm === 'granted';
+  // „Teraz” bez schedule - wtyczka pokazuje od razu, a następne planowanie nie może ich anulować.
+  const powiadomienie = (p, dzien, schedule) => ({ id: numer(p.klucz), title: tytul(p), body: tresc(p, dzien), isExactNotification: dokladne, ...(schedule && { schedule }) });
   const lista = [
-    ...teraz.map((p) => powiadomienie(p, new Date(Date.now() + 1500), dzis())),
-    ...plan.map((p) => powiadomienie(p, p.godzina)),
+    ...teraz.map((p) => powiadomienie(p, dzis())),
+    ...plan.map((p) => powiadomienie(p, undefined, { at: p.godzina, allowWhileIdle: true })),
   ];
   if (lista.length) await Powiadomienia.schedule({ notifications: lista });
   pamiecPowiadomien.zaplanowane = new Set(plan.map((p) => p.klucz));
@@ -959,18 +1002,33 @@ App?.addListener('backButton', () => {
 });
 // Przejście do innej aplikacji: niewysłane zmiany od razu na Dysk (Android może potem zamrozić albo
 // zamknąć aplikację w tle, a drugie urządzenie nie zobaczyłoby zmiany do następnej edycji).
+// Trwająca wymiana z Dyskiem - wysyłka zaraz po niej (wyslijZaleglosci ustawia licznik od nowa).
 App?.addListener('pause', () => {
-  if (!stan.timerWysylki || stan.synchronizacja) return;
-  clearTimeout(stan.timerWysylki);
-  stan.timerWysylki = null;
-  dysk.synchronizuj(true);
+  if (stan.doWyslania) wyslijZaleglosci();
 });
-// Powrót do aplikacji: świeże terminy i zmiany z komputera.
-App?.addListener('resume', () => {
-  if (przeniesCeny()) zapisz();
+// Nowy dzień (powrót z tła albo północ przy otwartej aplikacji): ceny następne, terminy, powiadomienia, kursy.
+function nowyDzien() {
+  if (przeniesCeny()) zapisz().then(zaplanujWysylke);
   renderuj();
   zaplanujPowiadomienia();
-  if (!dysk.trwaLogowanie()) dysk.synchronizuj(false);
+  pobierzKursyGdyTrzeba();
+}
+// Aplikacja otwarta przez północ (bez wyjścia do tła) - odświeżenie tuż po niej (jak licznik co 30 min na PC).
+let timerPolnocy = null;
+function czekajNaPolnoc() {
+  clearTimeout(timerPolnocy);
+  const jutro = dzis();
+  jutro.setDate(jutro.getDate() + 1);
+  timerPolnocy = setTimeout(() => {
+    nowyDzien();
+    czekajNaPolnoc();
+  }, jutro - Date.now() + 1000);
+}
+// Powrót do aplikacji: świeże terminy i zmiany z komputera; niewysłane zmiany idą przy okazji.
+App?.addListener('resume', () => {
+  nowyDzien();
+  czekajNaPolnoc(); // licznik w tle mógł stanąć (Android usypia aplikację)
+  if (!dysk.trwaLogowanie()) wyslijZaleglosci();
 });
 
 async function start() {
@@ -1021,9 +1079,10 @@ async function start() {
   await wczytajZapamietane(PLIK_KURSOW);
   renderuj();
   dysk.odswiez();
-  if (uzywaWalut()) odswiezZNbp(PLIK_KURSOW).then(renderuj).catch(console.error);
+  if (uzywaWalut()) odswiezZNbp(PLIK_KURSOW).then(poKursach).catch(console.error);
   przygotujPowiadomienia().catch(console.error);
   dysk.synchronizuj(false);
+  czekajNaPolnoc();
 }
 
 start();

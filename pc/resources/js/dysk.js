@@ -76,8 +76,12 @@ async function zlyIdentyfikator() {
 // zawieszone połączenie nie blokuje przycisków Dysku aż do ponownego uruchomienia aplikacji.
 const LIMIT_CZASU = 30000;
 async function siec(adres, opcje) {
+  const signal = AbortSignal.timeout(LIMIT_CZASU);
+  // Na telefonie CapacitorHttp wysyła POST, PATCH i DELETE natywnie, bez limitu czasu i z pominięciem
+  // signal - dlatego dodatkowo wyścig z tym samym limitem.
+  const limit = new Promise((_, nie) => signal.addEventListener('abort', () => nie(signal.reason), { once: true }));
   try {
-    return await fetch(adres, { cache: 'no-store', signal: AbortSignal.timeout(LIMIT_CZASU), ...opcje });
+    return await Promise.race([fetch(adres, { cache: 'no-store', signal, ...opcje }), limit]);
   } catch (e) {
     if (e?.name === 'TimeoutError') throw new Error(t('Google nie odpowiada - spróbuj za chwilę'));
     throw e;

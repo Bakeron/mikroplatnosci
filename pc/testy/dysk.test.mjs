@@ -148,6 +148,24 @@ test('zapytanie do Google bez pamięci podręcznej i z limitem czasu; brak odpow
   assert.ok(opcje.signal instanceof AbortSignal);
 });
 
+test('limit czasu działa także wtedy, gdy fetch pomija signal (CapacitorHttp na telefonie wysyła POST natywnie)', async () => {
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
+  await D.przygotujDysk('test');
+  const zwykly = globalThis.fetch;
+  const zwyklyLimit = AbortSignal.timeout;
+  let przerwij;
+  AbortSignal.timeout = () => { przerwij = new AbortController(); return przerwij.signal; };
+  globalThis.fetch = () => new Promise(() => {});
+  try {
+    const logowanie = D.zacznijLogowanie();
+    przerwij.abort(new DOMException('signal timed out', 'TimeoutError'));
+    await assert.rejects(logowanie, /Google nie odpowiada/);
+  } finally {
+    globalThis.fetch = zwykly;
+    AbortSignal.timeout = zwyklyLimit;
+  }
+});
+
 test('logowanie prosi o zakres drive.file - logowanie kodem odrzuca drive.appdata (invalid_scope)', async () => {
   wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
   await D.przygotujDysk('test');

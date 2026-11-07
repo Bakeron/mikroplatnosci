@@ -123,6 +123,17 @@ test('telefon: wybór pliku bez accept, kopia i CSV w publicznych Dokumentach, z
   for (const z of ['READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE']) assert.match(manifest, new RegExp(`${z}" android:maxSdkVersion="29"`));
 });
 
+test('telefon: dostęp do Google Dysku poza kopią zapasową Androida, CSP łączy się tylko z NBP i Google', () => {
+  const manifest = czytaj('mobile/android/app/src/main/AndroidManifest.xml');
+  assert.match(manifest, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
+  assert.match(manifest, /android:fullBackupContent="@xml\/backup_rules"/);
+  const wylaczenie = /<exclude domain="file" path="Mikroplatnosci\/google\.json" \/>/g;
+  assert.equal(czytaj('mobile/android/app/src/main/res/xml/data_extraction_rules.xml').match(wylaczenie)?.length, 2);
+  assert.equal(czytaj('mobile/android/app/src/main/res/xml/backup_rules.xml').match(wylaczenie)?.length, 1);
+  const csp = czytaj('mobile/src/index.html').match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1];
+  assert.match(csp, /connect-src 'self' https:\/\/api\.nbp\.pl https:\/\/oauth2\.googleapis\.com https:\/\/www\.googleapis\.com;/);
+});
+
 test('telefon: wybrany plik czeka na koniec pobrania z Dysku, zapisana pozycja nie znika za filtrem', () => {
   const kod = czytaj('mobile/src/js/aplikacja.js');
   const start = kod.indexOf("$('plik-wybor').addEventListener");

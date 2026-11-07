@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: cloud backup and device transfer without Google Drive access
+     (google.json - refresh token and project key); a new phone connects with a code again. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="Mikroplatnosci/google.json" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="Mikroplatnosci/google.json" />
+    </device-transfer>
+</data-extraction-rules>

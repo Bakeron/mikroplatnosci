@@ -268,7 +268,8 @@ export function zastosujFormularz(wpisy, edytowany, p) {
   const bezOddajacych = !wpis.ktoOddaje.trim();
   // Formularz bez wyboru tygodni (telefon) zostawia okres, którego nie zna (pole puste); „co ile” zostaje
   // przy tym samym okresie, a przy zmianie okresu wraca do 1.
-  const okresWpisu = p.okres === 'M' || p.okres === 'R' || p.okres === 'T' ? p.okres : wpis.okres || 'M';
+  // Stary wpis bez okresu (np. kwartał z dawnych dat „od” i „do”) zostaje bez okresu - nie miesięczny.
+  const okresWpisu = p.okres === 'M' || p.okres === 'R' || p.okres === 'T' ? p.okres : wpis.okres;
   const coIle = p.coIle ?? (okresWpisu === wpis.okres ? wpis.coIle : 1);
   // Pola, których formularz nie podaje albo podaje źle (np. liczba osób spoza zakresu), zostają jak były.
   const osob = Number.isInteger(p.osob) && p.osob >= 1 && p.osob <= 20 ? p.osob : wpis.osob;
@@ -294,6 +295,7 @@ export function zastosujFormularz(wpisy, edytowany, p) {
     zmieniono: new Date().toISOString(),
   });
   Object.assign(wpis, normalizuj(wpis));
+  if (prognoza === null) wpis.prognozaOd = ''; // wyczyszczona cena następna - dzień liczy się od nowa (jak na PC)
   zapiszZmianeCeny(wpis, staraCena);
   if (przed !== stan()) ustawPoczatekZaplaty(wpis);
   if ((bezPodzialu && wpis.osob > 1) || (bezOddajacych && wpis.ktoOddaje.trim())) bezZaleglegoOdbioru(wpis);
