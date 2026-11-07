@@ -15,6 +15,7 @@ import { wczytajUstawienia, zapiszUstawienia, poprawnyBudzet } from './ustawieni
 import { pokazOAplikacji } from './oAplikacji.js';
 import { pokazUstawienia } from './ustawieniaOkno.js';
 import { polaczSynchronizacje, OPOZNIENIE_WYSYLKI, poWymianie } from './synchronizacja.js';
+import { odczytajKod } from './kodQr.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
 import { rozplanuj, tytul, tresc, wczytajPamiec, zapiszPamiec, DOMYSLNE_RODZAJE } from './powiadomienia.js';
 import { element } from './dom.js';
@@ -600,10 +601,62 @@ const dysk = polaczSynchronizacje({
     zaplanujPowiadomienia();
   },
   klasaBledu: 't-dysk__stan--blad',
-  otworzOdRazu: false, // na telefonie najpierw kod do skopiowania, potem strona Google
   czyLokalnie: () => stan.lokalnie,
   wlaczLokalnie: () => wlaczZapisLokalny(),
   naOdswiez: () => odswiezMiejsceZapisu(),
+});
+
+// Kod QR z komputera: identyfikator i tajny klucz projektu Google bez przepisywania palcem.
+// Skaner Google (usługi Google Play) - bez uprawnienia do aparatu; obraz nie trafia do aplikacji, tylko tekst kodu.
+const Skaner = window.Capacitor?.isNativePlatform() ? Capacitor.registerPlugin('BarcodeScanner') : null;
+const ZAINSTALOWANY = 4; // GoogleBarcodeScannerModuleInstallState: COMPLETED, CANCELED = 3, FAILED = 5
+class BladSkanu extends Error {} // opis dla użytkownika (błędy wtyczki są po angielsku)
+
+// Pierwsze skanowanie: Google pobiera moduł skanera (raz) - czekam na koniec pobierania.
+async function pobierzModulSkanera() {
+  let sluchacz;
+  const gotowe = new Promise((ok, nie) => {
+    sluchacz = Skaner.addListener('googleBarcodeScannerModuleInstallProgress', ({ state }) => {
+      if (state === ZAINSTALOWANY) ok();
+      else if (state === 3 || state === 5) nie(new BladSkanu(t('Nie udało się pobrać skanera Google - sprawdź internet i spróbuj jeszcze raz.')));
+    });
+  });
+  gotowe.catch(() => {}); // błąd przed „await gotowe” nie jest „nieobsłużony”
+  try {
+    await Skaner.installGoogleBarcodeScannerModule();
+    await gotowe;
+  } finally {
+    (await sluchacz).remove();
+  }
+}
+
+$('okno-google-skanuj').addEventListener('click', async () => {
+  const przycisk = $('okno-google-skanuj');
+  const blad = $('okno-google-blad');
+  blad.hidden = true;
+  if (!Skaner) return;
+  const napis = przycisk.textContent;
+  przycisk.disabled = true;
+  try {
+    if (!(await Skaner.isGoogleBarcodeScannerModuleAvailable()).available) {
+      przycisk.textContent = t('pobieram skaner Google…');
+      await pobierzModulSkanera();
+    }
+    const { barcodes } = await Skaner.scan({ formats: ['QR_CODE'] });
+    const projekt = odczytajKod(barcodes?.[0]?.rawValue);
+    if (!projekt) throw new BladSkanu(t('To nie jest kod QR projektu Google z Mikropłatności na komputerze.'));
+    $('okno-google-id').value = projekt.id;
+    $('okno-google-sekret').value = projekt.sekret;
+    $('okno-google-zapisz').click(); // to samo co „Zapisz i połącz” - inny projekt najpierw rozłącza stare konto
+  } catch (e) {
+    if (e?.message === 'scan canceled.') return; // zamknięty skaner - bez komunikatu
+    blad.textContent = e instanceof BladSkanu ? e.message : t('Skanowanie nie udało się - wpisz identyfikator ręcznie.');
+    blad.hidden = false;
+    console.error(e);
+  } finally {
+    przycisk.textContent = napis;
+    przycisk.disabled = false;
+  }
 });
 
 // --- gdzie zapisywać: „Zapisuj w telefonie”, „Usuń z telefonu” ----------

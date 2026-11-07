@@ -1066,6 +1066,11 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .okno__kroki code, .okno .okno__uwaga code { font: 12.5px var(--f-kasa); overflow-wrap: anywhere; }
 .okno__kroki .przycisk-tekst { padding: 0; font-size: 14px; color: var(--atrament); }
 .okno .okno__rozwin .okno__uwaga { margin: 0; }
+/* Kod QR projektu Google dla telefonu (PC): czarny na białym także w ciemnym motywie - z bokiem z SVG. */
+.okno__qr-pokaz { display: block; margin: -4px 0 14px; padding: 0; color: var(--atrament); }
+.okno__qr { display: flex; align-items: center; gap: 16px; margin: 0 0 16px; }
+.okno__qr-obraz { flex: 0 0 auto; width: 200px; line-height: 0; }
+.okno__qr-obraz svg { width: 100%; height: auto; }
 
 /* --- stopka: synchronizacja z Google Dyskiem --- */
 

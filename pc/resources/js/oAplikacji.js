@@ -13,9 +13,13 @@ const APACHE = 'https://www.apache.org/licenses/LICENSE-2.0';
 const OFL = 'https://openfontlicense.org/open-font-license-official-text/';
 
 const BIBLIOTEKI = {
-  pc: [['Neutralinojs 6.10', 'MIT', 'Copyright (c) 2021-2025 Neutralinojs and contributors. Includes WebSocket++, Mbed TLS, cpp-httplib, nlohmann/json, webview and other libraries - full license texts in LICENSE-Neutralinojs.txt in the program folder']],
+  pc: [
+    ['Neutralinojs 6.10', 'MIT', 'Copyright (c) 2021-2025 Neutralinojs and contributors. Includes WebSocket++, Mbed TLS, cpp-httplib, nlohmann/json, webview and other libraries - full license texts in LICENSE-Neutralinojs.txt in the program folder'],
+    ['QR Code Generator for JavaScript (qrcode-generator 2.0.4)', 'MIT', 'Copyright (c) 2009 Kazuhiko Arase. The word "QR Code" is a registered trademark of DENSO WAVE INCORPORATED'],
+  ],
   telefon: [
     [tekst('Capacitor 8 i wtyczki (App, Browser, Filesystem, Local Notifications)'), 'MIT', 'Copyright (c) 2017-present Drifty Co. / Ionic'],
+    ['Capacitor ML Kit Barcode Scanning 8.2.1', 'Apache 2.0', 'Copyright 2023 Robin Genz. Uses Google ML Kit and the Google code scanner from Google Play services (ML Kit Terms: https://developers.google.com/ml-kit/terms)'],
     ['AndroidX, Kotlin, kotlinx.coroutines', 'Apache 2.0', 'Copyright The Android Open Source Project / JetBrains s.r.o.'],
     ['Apache Cordova (Android)', 'Apache 2.0', 'Copyright 2015-2020 The Apache Software Foundation. This product includes software developed at The Apache Software Foundation (http://www.apache.org/)'],
     [tekst('Czcionka Gelasio'), 'SIL OFL 1.1', 'Copyright 2022 The Gelasio Project Authors (https://github.com/SorkinType/Gelasio)'],

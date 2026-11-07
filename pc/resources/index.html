@@ -109,13 +109,13 @@
 
   <dialog class="okno" id="okno-dysk" closedby="any">
     <button type="button" class="okno__x" title="Zamknij" aria-label="Zamknij">×</button>
-    <p>W przeglądarce otwiera się <strong>google.com/device</strong> - wpisz tam ten kod i zgódź się na dostęp:</p>
+    <p>Skopiuj kod, otwórz <strong>google.com/device</strong>, wklej go tam i zgódź się na dostęp:</p>
     <p class="okno__kod" id="okno-dysk-kod" data-bez-tlumaczenia></p>
     <p class="okno__uwaga">Na Twoim Dysku powstanie jeden plik „mikroplatnosci.json” w „Moim dysku” - nie usuwaj go ani nie przenoś. Aplikacja widzi tylko pliki, które sama utworzyła, nie Twoje dokumenty ani zdjęcia. Czekam na zgodę…</p>
     <p class="okno__uwaga" id="okno-dysk-7dni" hidden>Własny projekt Google w trybie testowym: co ok. 7 dni Google kończy połączenie - wtedy włącz synchronizację jeszcze raz i wpisz kod (ok. 1 min).</p>
     <div class="okno__przyciski">
-      <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj" autofocus>Anuluj</button>
-      <button type="button" class="przycisk-tekst" id="okno-dysk-otworz">Kopiuj kod i otwórz Google jeszcze raz</button>
+      <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj">Anuluj</button>
+      <button type="button" class="przycisk-tekst" id="okno-dysk-otworz" autofocus>Kopiuj kod i otwórz Google</button>
     </div>
   </dialog>
 
@@ -130,6 +130,11 @@
     </label>
     <p class="okno__uwaga" id="okno-google-zmiana" hidden>Połączenie z Dyskiem należy do jednego projektu - po zapisaniu nowego identyfikatora albo tajnego klucza aplikacja rozłączy konto Google i trzeba połączyć się jeszcze raz.</p>
     <p class="okno__blad" id="okno-google-blad" role="alert" hidden></p>
+    <button type="button" class="przycisk-tekst okno__qr-pokaz" id="okno-google-qr-pokaz" hidden>Pokaż kod QR dla telefonu</button>
+    <div class="okno__qr" id="okno-google-qr" hidden>
+      <div class="okno__qr-obraz" id="okno-google-qr-obraz" role="img" aria-label="Kod QR z identyfikatorem i tajnym kluczem projektu Google"></div>
+      <p class="okno__uwaga">W telefonie: Mikropłatności → Google Dysk → <b>Zeskanuj kod QR z komputera</b>. Kod zawiera tajny klucz projektu - nie pokazuj go innym osobom. Zniknie za 2 minuty.</p>
+    </div>
     <label class="okno__pomoc"><input type="checkbox"> Nie wiem, skąd to wziąć - pokaż jak</label>
     <div class="okno__rozwin">
       <div>

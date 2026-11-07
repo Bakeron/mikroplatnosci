@@ -78,7 +78,7 @@ beforeEach(() => {
   zapytan = 0;
   odpowiedz = true;
   sync = polaczSynchronizacje({
-    stan, poScaleniu: async () => { zapisow++; }, klasaBledu: 'blad', otworzOdRazu: false,
+    stan, poScaleniu: async () => { zapisow++; }, klasaBledu: 'blad',
     czyLokalnie: () => lokalnie, wlaczLokalnie: async () => { wlaczonoLokalnie++; lokalnie = true; },
   });
 });
@@ -113,6 +113,17 @@ test('uszkodzony plik + wysyłka po zmianie (nie kliknięta) - bez pytania i bez
   await sync.synchronizuj(true, false);
   assert.equal(pytania.length, 0);
   assert.equal(wyslane.length, 0);
+});
+
+test('plik z nowszej wersji aplikacji - bez scalania i bez wysyłki (także kliknięte „Wyślij”), komunikat o aktualizacji', async () => {
+  naDysku = JSON.stringify({ wersja: 3, wpisy: [w('e', '12:00')], usuniete: ['a', 'b', 'c'].map((id) => ({ id, kiedy: T('11:00') })) });
+  await sync.synchronizuj(true, true);
+  assert.deepEqual(idki(), ['a', 'b', 'c', 'd']);
+  assert.equal(pytania.length, 0);
+  assert.equal(wyslane.length, 0);
+  assert.equal(zapisow, 0);
+  assert.match(stanDysku().textContent, /nowsza wersja aplikacji/);
+  assert.ok(stanDysku().classList.contains('blad'));
 });
 
 test('Dysk usuwa 3 pozycje - pytanie; odmowa = dane bez zmian, bez zapisu i bez wysyłki', async () => {

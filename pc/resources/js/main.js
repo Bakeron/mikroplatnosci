@@ -8,6 +8,7 @@ import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc
 import { wypelnijListe } from './spisy.js';
 import { przygotujDysk, czyPolaczony } from './dysk.js';
 import { polaczSynchronizacje, OPOZNIENIE_WYSYLKI, poWymianie } from './synchronizacja.js';
+import { obrazKoduQr } from './kodQrObraz.js';
 import { rozplanuj, tytul, tresc, wczytajPamiec, zapiszPamiec, DOMYSLNE_RODZAJE } from './powiadomienia.js';
 import { wczytajZapamietane, odswiezZNbp, czyAktualne, pobierzKursy, ustawProwizje, pobierzProwizje, poprawnaProwizja, waluta } from './waluty.js';
 import { renderujHistorie } from './historia.js';
@@ -161,7 +162,7 @@ const dysk = polaczSynchronizacje({
     await zapiszTeraz();
   },
   klasaBledu: 'stopka__stan--blad',
-  otworzOdRazu: true,
+  obrazKodu: obrazKoduQr,
   czyLokalnie: () => stan.lokalnie,
   wlaczLokalnie: () => wlaczZapisLokalny(),
   naOdswiez: () => odswiezMiejsceZapisu(),

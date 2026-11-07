@@ -12,8 +12,9 @@ const ADRES_TOKENU = 'https://oauth2.googleapis.com/token';
 export const STRONA_KODU = 'https://www.google.com/device';
 const NAZWA_PLIKU = 'mikroplatnosci.json';
 const MAKS_ROZMIAR = 5 * 1024 * 1024;
-const WZOR_ID = /^[\w-]{5,100}\.apps\.googleusercontent\.com$/;
-const WZOR_SEKRETU = /^[\w-]{10,100}$/;
+export const WZOR_ID = /^[\w-]{5,100}\.apps\.googleusercontent\.com$/;
+export const WZOR_SEKRETU = /^[\w-]{10,100}$/;
+const MAKS_BLEDOW_SIECI = 3; // pod rząd, przy czekaniu na zgodę w Google
 
 // wpisane: identyfikator pochodzi z aplikacji (zapisywany w google.json), nie ze zmiennych.
 const dysk = { id: '', sekret: '', wpisane: false, plikDostepu: '', odswiezajacy: '', dostep: '', wazneDo: 0, idPliku: '' };
@@ -51,11 +52,15 @@ async function zapiszPlik() {
   else await Neutralino.filesystem.remove(dysk.plikDostepu).catch(() => {});
 }
 
+// Wklejone z komunikatora mają często spacje, nowe linie i niewidoczne znaki także w środku -
+// w identyfikatorze i kluczu nie ma ich nigdy, więc znikają wszystkie.
+const bezOdstepow = (tekst) => String(tekst).replace(/[\s­᠎​-‍⁠]/g, '');
+
 // Identyfikator wpisany w aplikacji; zwraca opis błędu albo '' po zapisaniu.
 // Połączenie z Dyskiem należy do jednego projektu - inny identyfikator albo klucz najpierw rozłącza konto Google.
 export async function ustawIdentyfikator(id, sekret) {
-  id = String(id).trim();
-  sekret = String(sekret).trim();
+  id = bezOdstepow(id);
+  sekret = bezOdstepow(sekret);
   if (!WZOR_ID.test(id)) return t('identyfikator klienta kończy się na .apps.googleusercontent.com');
   if (!WZOR_SEKRETU.test(sekret)) return t('tajny klucz to ciąg liter, cyfr i myślników (zwykle zaczyna się od GOCSPX-)');
   if (dysk.odswiezajacy && (id !== dysk.id || sekret !== dysk.sekret)) await rozlacz();
@@ -112,16 +117,26 @@ export async function zacznijLogowanie() {
   if (dane.error === 'invalid_client') throw await zlyIdentyfikator();
   if (!ok|| typeof dane.device_code !== 'string' || typeof dane.user_code !== 'string') throw new Error(opisBledu(dane));
   let anulowane = false;
+  // Co najmniej 5 s między pytaniami. Pojedyncze błędy sieci nie przerywają logowania - na telefonie
+  // aplikacja jest wtedy w tle (użytkownik w przeglądarce), a Android potrafi na chwilę odciąć jej sieć.
   const czekaj = async () => {
-    let odstep = (Number(dane.interval) || 5) * 1000;
+    let odstep = Math.max(Number(dane.interval) || 5, 5) * 1000;
+    let bledySieci = 0;
     const koniec = Date.now() + (Number(dane.expires_in) || 1800) * 1000;
     while (!anulowane && Date.now() < koniec) {
       await new Promise((r) => setTimeout(r, odstep));
       if (anulowane) break;
-      const w = await formularz(ADRES_TOKENU, {
-        client_id: dysk.id, client_secret: dysk.sekret, device_code: dane.device_code,
-        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-      });
+      let w;
+      try {
+        w = await formularz(ADRES_TOKENU, {
+          client_id: dysk.id, client_secret: dysk.sekret, device_code: dane.device_code,
+          grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+        });
+        bledySieci = 0;
+      } catch (e) {
+        if (++bledySieci >= MAKS_BLEDOW_SIECI) throw e;
+        continue;
+      }
       if (w.ok) {
         przyjmijToken(w.dane);
         await zapiszPlik();
@@ -130,6 +145,7 @@ export async function zacznijLogowanie() {
       if (w.dane.error === 'authorization_pending') continue;
       if (w.dane.error === 'slow_down') { odstep += 5000; continue; }
       if (w.dane.error === 'access_denied') throw new Error(t('w Google nie było zgody na dostęp'));
+      if (w.dane.error === 'expired_token') break; // Google uznał kod za wygasły przed czasem
       if (w.dane.error === 'invalid_client') throw await zlyIdentyfikator();
       throw new Error(opisBledu(w.dane));
     }

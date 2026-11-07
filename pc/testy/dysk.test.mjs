@@ -29,10 +29,20 @@ const ID = '123-abc.apps.googleusercontent.com';
 const SEKRET = 'GOCSPX-abcdefghijk';
 const plik = () => (pliki.has(PLIK) ? JSON.parse(pliki.get(PLIK)) : null);
 
+// Odstępy między pytaniami o zgodę (co najmniej 5 s) - zapamiętane i skrócone do zera, żeby testy szły szybko.
+const zwyklyTimeout = globalThis.setTimeout;
+let odstepy = [];
+globalThis.setTimeout = (f, ms, ...reszta) => {
+  if (ms < 1000) return zwyklyTimeout(f, ms, ...reszta);
+  odstepy.push(ms);
+  return zwyklyTimeout(f, 0, ...reszta);
+};
+
 // Moduł trzyma stan - świeża kopia przed każdym testem.
 let D;
 let licznik = 0;
 beforeEach(async () => {
+  odstepy = [];
   pliki.clear();
   wbuduj(undefined);
   odpowiedzi = {};
@@ -69,6 +79,47 @@ test('poprawny wpis zapisany (spacje obcięte) i pamiętany po ponownym uruchomi
   const D2 = await import('../resources/js/dysk.js?' + licznik++);
   await D2.przygotujDysk('test');
   assert.equal(D2.czySkonfigurowany(), true);
+});
+
+test('wklejone z komunikatora - spacje, nowe linie i niewidoczne znaki także w środku znikają', async () => {
+  await D.przygotujDysk('test');
+  const zSmieciami = (s) => `​ ${s.slice(0, 4)}  ${s.slice(4, 9)}‍\r\n${s.slice(9)}﻿⁠ `;
+  assert.equal(await D.ustawIdentyfikator(zSmieciami(ID), zSmieciami(SEKRET)), '');
+  assert.deepEqual(plik(), { id: ID, sekret: SEKRET });
+});
+
+test('czekanie na zgodę: co najmniej 5 s; 2 błędy sieci pod rząd znosi, 3. przerywa', async () => {
+  await D.przygotujDysk('test');
+  await D.ustawIdentyfikator(ID, SEKRET);
+  odpowiedzi = { 'device/code': [200, { device_code: 'd', user_code: 'ABCD-EFGH', interval: 1, expires_in: 600 }] };
+  const zwykly = globalThis.fetch;
+  // Kolejne odpowiedzi na pytanie o token: błąd sieci, czekanie, 2 błędy sieci, zgoda.
+  const kolejka = ['siec', 'czekaj', 'siec', 'siec', 'zgoda'];
+  globalThis.fetch = async (adres, o) => {
+    if (!String(adres).includes('/token')) return zwykly(adres, o);
+    const krok = kolejka.shift();
+    if (krok === 'siec') throw new TypeError('Failed to fetch');
+    if (krok === 'czekaj') return { ok: false, status: 428, json: async () => ({ error: 'authorization_pending' }) };
+    return { ok: true, status: 200, json: async () => ({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }) };
+  };
+  try {
+    await (await D.zacznijLogowanie()).czekaj();
+    assert.equal(D.czyPolaczony(), true);
+    assert.ok(odstepy.length === 5 && odstepy.every((ms) => ms === 5000), String(odstepy));
+    await D.rozlacz();
+    kolejka.push('siec', 'siec', 'siec', 'zgoda');
+    await assert.rejects((await D.zacznijLogowanie()).czekaj(), /Failed to fetch/);
+    assert.equal(D.czyPolaczony(), false);
+  } finally {
+    globalThis.fetch = zwykly;
+  }
+});
+
+test('expired_token - zrozumiały komunikat o wygasłym kodzie', async () => {
+  await D.przygotujDysk('test');
+  await D.ustawIdentyfikator(ID, SEKRET);
+  odpowiedzi = { 'device/code': [200, { device_code: 'd', user_code: 'ABCD-EFGH', interval: 5, expires_in: 600 }], token: [400, { error: 'expired_token' }] };
+  await assert.rejects((await D.zacznijLogowanie()).czekaj(), /kod wygasł/);
 });
 
 test('wpisany identyfikator ma pierwszeństwo przed zmiennymi', async () => {

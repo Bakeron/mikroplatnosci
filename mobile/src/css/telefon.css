@@ -339,3 +339,6 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .anulowane__pozycja { gap: 0 20px; padding-top: 8px; }
 .telefon .anulowane__nazwa, .telefon .anulowane__opis { flex-basis: 100%; }
 .telefon .anulowane__przycisk { min-height: 44px; font-size: 15px; }
+
+/* Okno projektu Google: skanowanie kodu QR z komputera zamiast przepisywania identyfikatora. */
+.okno__skanuj { display: block; width: 100%; margin: 4px 0 8px; }

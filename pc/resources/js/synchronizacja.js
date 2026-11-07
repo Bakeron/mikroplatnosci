@@ -3,9 +3,10 @@
 // zmian z drugiego urządzenia. Obie aplikacje mają te same id elementów (dysk-*, okno-dysk*, okno-google*).
 
 import { scal } from './scalanie.js';
-import { odczytajDane, doZapisu } from './dane.js';
+import { odczytajDane, doZapisu, WERSJA_DANYCH } from './dane.js';
 import { t, tn, godzina } from './teksty.js';
 import { czyPolaczony, czySkonfigurowany, czyWpisany, wpisanyProjekt, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
+import { trescKodu, CZAS_POKAZU } from './kodQr.js';
 
 const $ = (id) => document.getElementById(id);
 // Bez internetu fetch rzuca TypeError z angielskim opisem.
@@ -23,11 +24,33 @@ function ilePozycji(n) {
 }
 
 // stan: { wpisy, usuniete, zablokowany, synchronizacja }; poScaleniu: zapis i odświeżenie widoku;
-// klasaBledu: klasa stanu przy błędzie; otworzOdRazu: strona Google otwierana razem z oknem kodu;
+// klasaBledu: klasa stanu przy błędzie; strona Google otwiera się dopiero przyciskiem „Kopiuj kod i otwórz Google”;
 // czyLokalnie / wlaczLokalnie: „Zapisuj lokalnie” (przed usunięciem z Dysku zapis na urządzeniu
-// musi być włączony, inaczej dane znikną); naOdswiez: po każdej zmianie stanu przycisków.
-export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRazu, czyLokalnie = () => true, wlaczLokalnie = async () => {}, naOdswiez = () => {} }) {
+// musi być włączony, inaczej dane znikną); naOdswiez: po każdej zmianie stanu przycisków;
+// obrazKodu(tekst): element z kodem QR projektu Google dla telefonu (tylko PC - telefon go skanuje).
+export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie = () => true, wlaczLokalnie = async () => {}, naOdswiez = () => {}, obrazKodu = null }) {
   let logowanie = null;
+  let timerKodu = null;
+
+  // Kod QR z tajnym kluczem widać tylko na żądanie, do zamknięcia okna albo przez 2 min.
+  function schowajKod() {
+    if (!obrazKodu) return;
+    clearTimeout(timerKodu);
+    timerKodu = null;
+    $('okno-google-qr').hidden = true;
+    $('okno-google-qr-obraz').replaceChildren();
+    $('okno-google-qr-pokaz').hidden = !czyWpisany();
+  }
+
+  function pokazKod() {
+    const { id, sekret } = wpisanyProjekt();
+    if (!id) return;
+    $('okno-google-qr-obraz').replaceChildren(obrazKodu(trescKodu(id, sekret)));
+    $('okno-google-qr').hidden = false;
+    $('okno-google-qr-pokaz').hidden = true;
+    clearTimeout(timerKodu);
+    timerKodu = setTimeout(schowajKod, CZAS_POKAZU);
+  }
 
   function pokaz(tekst, blad = false) {
     $('dysk-stan').textContent = tekst;
@@ -58,7 +81,11 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     try {
       const tekst = await pobierzZDysku();
       const json = (t) => { try { return JSON.parse(t); } catch { return null; } };
-      const zdalne = tekst === null ? null : odczytajDane(json(tekst), true);
+      const plik = tekst === null ? null : json(tekst);
+      // Plik z nowszej wersji aplikacji (drugie urządzenie już zaktualizowane): bez scalania i bez wysyłki -
+      // ta wersja zgubiłaby pola, których nie zna, i odesłała plik w starym formacie.
+      if (Number(plik?.wersja) > WERSJA_DANYCH) throw new Error(t('dane na Dysku zapisała nowsza wersja aplikacji - zaktualizuj ją na tym urządzeniu'));
+      const zdalne = tekst === null ? null : odczytajDane(plik, true);
       // Nieczytelny plik na Dysku: dane na urządzeniu zostają; kliknięte „Wyślij” może go zastąpić -
       // inaczej synchronizacja byłaby zablokowana na stałe.
       if (tekst !== null && !zdalne) {
@@ -104,6 +131,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
     $('okno-google-sekret').value = sekret;
     $('okno-google-zmiana').hidden = !zmiana;
     $('okno-google-blad').hidden = true;
+    schowajKod();
     $('okno-google').showModal();
   }
 
@@ -123,7 +151,6 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
       $('okno-dysk-kod').textContent = logowanie.kod;
       $('okno-dysk-7dni').hidden = !czyWpisany();
       $('okno-dysk').showModal();
-      if (otworzOdRazu) Neutralino.os.open(STRONA_KODU).catch(console.error);
       await logowanie.czekaj();
       $('okno-dysk').close();
       stan.synchronizacja = false;
@@ -208,8 +235,10 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, otworzOdRaz
   });
   $('okno-google-anuluj').addEventListener('click', () => $('okno-google').close());
   $('okno-google').addEventListener('close', () => {
+    schowajKod();
     if (!czySkonfigurowany()) pokaz('');
   });
+  if (obrazKodu) $('okno-google-qr-pokaz').addEventListener('click', pokazKod);
   $('okno-google-konsola').addEventListener('click', () => Neutralino.os.open('https://console.cloud.google.com/').catch(console.error));
 
   return { synchronizuj, odswiez, pokaz, wylacz, trwaLogowanie: () => logowanie !== null };

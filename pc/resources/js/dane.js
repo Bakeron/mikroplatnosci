@@ -308,4 +308,5 @@ export function zastosujFormularz(wpisy, edytowany, p) {
 }
 
 // Treść pliku danych w formacie wersja 2; PC dokłada w dodatkach swoje ustawienia (motyw).
-export const doZapisu = (stan, dodatki = {}) => ({ wersja: 2, zapisano: new Date().toISOString(), ...dodatki, wpisy: stan.wpisy, usuniete: stan.usuniete });
+export const WERSJA_DANYCH = 2;
+export const doZapisu = (stan, dodatki = {}) => ({ wersja: WERSJA_DANYCH, zapisano: new Date().toISOString(), ...dodatki, wpisy: stan.wpisy, usuniete: stan.usuniete });

@@ -9,6 +9,7 @@
     "aab": "npm test --prefix ../pc && node skrypty/przygotuj.mjs && npx cap sync android && node skrypty/apk.mjs --aab"
   },
   "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "8.2.1",
     "@capacitor/android": "8.6.0",
     "@capacitor/app": "8.1.2",
     "@capacitor/browser": "8.0.5",
