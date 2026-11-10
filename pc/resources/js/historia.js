@@ -22,13 +22,18 @@ let wybranyRok = null; // rok na wykresie - zostaje przy odświeżaniu
 // Cena obowiązująca w danym dniu (historia cen; pierwsza pozycja z pustym „od” - cena sprzed zmian),
 // bez historii - obecny koszt.
 export function cenaWDniu(wpis, dzien) {
-  const iso = isoDnia(dzien);
-  let cena = null;
-  for (const c of wpis.ceny ?? []) if (c.od <= iso) cena = c.kwota;
-  return cena ?? wpis.koszt;
+  return cenaIWalutaWDniu(wpis, dzien).kwota;
 }
 
-// Wpłaty pozycji w roku: [{ dzien, kwota (waluta wpisu, moja część), dokladna }].
+// To samo z walutą: cena sprzed ceny następnej w innej walucie ma swoją (pole waluta), reszta - walutę wpisu.
+function cenaIWalutaWDniu(wpis, dzien) {
+  const iso = isoDnia(dzien);
+  let cena = null;
+  for (const c of wpis.ceny ?? []) if (c.od <= iso) cena = c;
+  return cena ? { kwota: cena.kwota, kod: cena.waluta ?? waluta(wpis) } : { kwota: wpis.koszt, kod: waluta(wpis) };
+}
+
+// Wpłaty pozycji w roku: [{ dzien, kwota (moja część), kod (waluta tej wpłaty), dokladna }].
 export function wplatyWRoku(wpis, rok) {
   const poczatek = new Date(rok, 0, 1);
   const koniecRoku = new Date(rok, 11, 31);
@@ -39,21 +44,23 @@ export function wplatyWRoku(wpis, rok) {
   const osob = osobWpisu(wpis);
   const zapisane = new Map((wpis.historia ?? []).map((h) => [h.termin, h]));
   const wynik = [];
-  const dodaj = (dzien, kwota, dokladna) => {
-    if (dzien >= poczatek && dzien <= koniec && typeof kwota === 'number') wynik.push({ dzien, kwota: kwota / osob, dokladna });
+  const kodWpisu = waluta(wpis);
+  const dodaj = (dzien, kwota, dokladna, kod = kodWpisu) => {
+    if (dzien >= poczatek && dzien <= koniec && typeof kwota === 'number') wynik.push({ dzien, kwota: kwota / osob, kod, dokladna });
   };
   // Terminy od roku wcześniej - zaległość zapłacona w tym roku liczy się w dniu zapłaty.
   for (const d of dniPlatnosci(wpis, new Date(rok - 1, 0, 1), koniec)) {
     const zapis = zapisane.get(isoDnia(d));
     if (zapis) {
       zapisane.delete(zapis.termin);
-      dodaj(parsujDate(zapis.dnia), zapis.kwota, true);
+      dodaj(parsujDate(zapis.dnia), zapis.kwota, true, zapis.waluta);
     } else {
-      dodaj(d, cenaWDniu(wpis, d), false);
+      const cena = cenaIWalutaWDniu(wpis, d);
+      dodaj(d, cena.kwota, false, cena.kod);
     }
   }
   // Zapisane wpłaty spoza obecnego harmonogramu (np. po zmianie okresu) - też się liczą.
-  for (const zapis of zapisane.values()) dodaj(parsujDate(zapis.dnia), zapis.kwota, true);
+  for (const zapis of zapisane.values()) dodaj(parsujDate(zapis.dnia), zapis.kwota, true, zapis.waluta);
   return wynik;
 }
 
@@ -64,10 +71,9 @@ export function wydatkiRoku(wpisy, rok) {
   let bezKursu = 0;
   let szacunek = false;
   for (const wpis of wpisy) {
-    const kod = waluta(wpis);
     const nazwa = nazwaWpisu(wpis);
     for (const w of wplatyWRoku(wpis, rok)) {
-      const pln = przeliczNaPln(w.kwota, kod);
+      const pln = przeliczNaPln(w.kwota, w.kod);
       if (pln === null) {
         bezKursu++;
         continue;
@@ -111,10 +117,12 @@ export function zmianyCen(wpisy) {
     const nazwa = nazwaWpisu(w);
     if (w.ceny?.length >= 2) {
       const ost = w.ceny.at(-1);
-      const z = w.ceny.at(-2).kwota;
-      lista.push({ nazwa, kiedy: ost.od, z, na: ost.kwota, kod, zmian: w.ceny.length - 1 });
+      const przed = w.ceny.at(-2);
+      // kodZ - waluta ceny sprzed zmiany (inna po cenie następnej w innej walucie)
+      lista.push({ nazwa, kiedy: ost.od, z: przed.kwota, na: ost.kwota, kod: ost.waluta ?? kod, kodZ: przed.waluta ?? kod, zmian: w.ceny.length - 1 });
     }
-    const kwoty = (w.historia ?? []).map((h) => h.kwota);
+    // Rozrzut wpłat - tylko w obecnej walucie pozycji.
+    const kwoty = (w.historia ?? []).filter((h) => (h.waluta ?? kod) === kod).map((h) => h.kwota);
     if (w.zmiennaKwota && kwoty.length >= 2) {
       lista.push({ nazwa, kiedy: w.historia.at(-1).dnia, min: Math.min(...kwoty), max: Math.max(...kwoty), ostatnio: kwoty.at(-1), kod, wplat: kwoty.length });
     }
@@ -165,7 +173,10 @@ export function renderujHistorie(kontener, wpisy) {
   const zmienRok = (o) => {
     wybranyRok = rok + o;
     renderujHistorie(kontener, wpisy);
-    kontener.querySelector(o < 0 ? '.historia__strzalka' : '.historia__strzalka:last-of-type')?.focus();
+    // Na końcu zakresu strzałka w tę stronę jest wyłączona - fokus przechodzi na drugą, nie ginie.
+    const [lewa, prawa] = kontener.querySelectorAll('.historia__strzalka');
+    const cel = o < 0 ? lewa : prawa;
+    (cel && !cel.disabled ? cel : o < 0 ? prawa : lewa)?.focus();
   };
   wstecz.addEventListener('click', () => zmienRok(-1));
   dalej.addEventListener('click', () => zmienRok(1));
@@ -241,15 +252,22 @@ export function renderujHistorie(kontener, wpisy) {
       listaCen.append(liniaSpisu(z.nazwa, t('{n} wpłat, od {od} do {do}', { n: z.wplat, od: formatujKoszt(z.min), do: formatujKoszt(z.max) }), t('ostatnio {kwota}', { kwota: formatujKwote(z.ostatnio, z.kod) })));
       continue;
     }
-    const procent = z.z ? Math.round(((z.na - z.z) / z.z) * 100) : 0;
-    const li = liniaSpisu(z.nazwa, `${formatujKoszt(z.z)} → ${formatujKoszt(z.na)}${z.kiedy ? ', ' + t('od {data}', { data: formatujDate(parsujDate(z.kiedy)) }) : ''}`, (procent > 0 ? '▲ +' : procent < 0 ? '▼ ' : '') + procent + '%');
-    li.classList.add(procent > 0 ? 'alarm--drozej' : 'alarm--taniej');
+    // Z 0 zł (darmowy okres próbny) procentu nie da się policzyć - „nowa cena”, jak podwyżka.
+    // Zmiana waluty (cena następna w innej walucie): kwoty z walutą, procent w złotych po kursie NBP.
+    const innaWaluta = z.kodZ !== z.kod;
+    const [zKwota, naKwota] = innaWaluta ? [przeliczNaPln(z.z, z.kodZ), przeliczNaPln(z.na, z.kod)] : [z.z, z.na];
+    const bezKursu = zKwota === null || naKwota === null;
+    const zZera = !zKwota && naKwota > 0;
+    const procent = zKwota ? Math.round(((naKwota - zKwota) / zKwota) * 100) : 0;
+    const kwoty = innaWaluta ? `${formatujKwote(z.z, z.kodZ)} → ${formatujKwote(z.na, z.kod)}` : `${formatujKoszt(z.z)} → ${formatujKoszt(z.na)}`;
+    const li = liniaSpisu(z.nazwa, `${kwoty}${z.kiedy ? ', ' + t('od {data}', { data: formatujDate(parsujDate(z.kiedy)) }) : ''}`, bezKursu ? t('brak kursu NBP') : zZera ? '▲ ' + t('nowa cena') : (procent > 0 ? '▲ +' : procent < 0 ? '▼ ' : '') + procent + '%');
+    if (!bezKursu) li.classList.add(zZera || procent > 0 ? 'alarm--drozej' : 'alarm--taniej');
     listaCen.append(li);
   }
   ceny.append(element('h3', 'historia__podtytul', t('Zmiany cen')), listaCen);
   dol.append(naCo, ceny);
 
-  const uwagi = [t('Płatności „płacę sam” zaznaczone jako zapłacone - dokładnie; pozostałe - szacunek z daty zakupu, okresu i zmian cen.'), t('Wykreślone pozycje się nie liczą, waluty po obecnym kursie.')];
+  const uwagi = [t('Płatności „płacę sam” zaznaczone jako zapłacone - dokładnie; pozostałe - szacunek z daty zakupu, okresu i zmian cen.'), t('Anulowane liczą się do dnia anulowania, usunięte na zawsze - wcale; waluty po obecnym kursie.')];
   if (w.bezKursu) uwagi.push(t('Bez kursu (poza sumą): {ile}.', { ile: w.bezKursu }));
   kontener.replaceChildren(naglowek, odczyt, wykres, dol, element('p', 'historia__uwaga', uwagi.join(' ')));
 }

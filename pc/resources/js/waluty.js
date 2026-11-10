@@ -84,6 +84,10 @@ export async function wczytajZapamietane(plik) {
   }
 }
 
+// Błąd z rodzajem do napisu przy kursach: 'nbp' - serwer NBP odpowiedział źle, 'zapis' - kurs pobrany,
+// ale plik się nie zapisał. Brak sieci - zwykły błąd fetch (bez rodzaju).
+const blad = (tekst, rodzaj) => Object.assign(new Error(tekst), { rodzaj });
+
 // Pobiera bieżącą tabelę A z NBP i zapisuje ją do pliku (tylko gdy coś się zmieniło).
 // Zwraca true, gdy zmieniły się kursy - wtedy trzeba przeliczyć kwoty.
 export async function odswiezZNbp(plik) {
@@ -93,15 +97,21 @@ export async function odswiezZNbp(plik) {
     credentials: 'omit',
     signal: AbortSignal.timeout(LIMIT_CZASU),
   });
-  if (!odp.ok) throw new Error('NBP: HTTP ' + odp.status);
-  const tabela = (await odp.json())?.[0];
+  if (!odp.ok) throw blad('NBP: HTTP ' + odp.status, 'nbp');
+  const tabela = (await odp.json().catch(() => { throw blad('NBP: nieprawidłowa odpowiedź', 'nbp'); }))?.[0];
   const zTabeli = {};
   for (const r of Array.isArray(tabela?.rates) ? tabela.rates : []) if (OBCE.includes(r?.code)) zTabeli[r.code] = r.mid;
   const nowe = wybierzKursy(zTabeli, tabela?.effectiveDate, dzisTekst());
-  if (!poprawneKursy(nowe)) throw new Error('NBP: nieprawidłowa odpowiedź');
+  if (!poprawneKursy(nowe)) throw blad('NBP: nieprawidłowa odpowiedź', 'nbp');
   const zmiana = !kursy || !takieSame(kursy, nowe);
   const doZapisu = zmiana || kursy.pobrano !== nowe.pobrano; // „pobrano” potrzebne do czyAktualne()
   kursy = nowe;
-  if (doZapisu) await Neutralino.filesystem.writeFile(plik, JSON.stringify(kursy, null, 2));
+  if (doZapisu) {
+    try {
+      await Neutralino.filesystem.writeFile(plik, JSON.stringify(kursy, null, 2));
+    } catch (e) {
+      throw Object.assign(blad('kursy: nieudany zapis pliku', 'zapis'), { zmiana, cause: e });
+    }
+  }
   return zmiana;
 }

@@ -29,7 +29,7 @@
     <section class="t-zakladka" id="zakladka-lista" aria-label="Lista">
       <section class="wprowadzenie t-wprowadzenie" id="wprowadzenie" aria-labelledby="wprowadzenie-tytul" hidden>
         <h2 class="wprowadzenie__tytul" id="wprowadzenie-tytul">Pierwsze kroki - notatki ołówkiem</h2>
-        <button type="button" class="wprowadzenie__zmaz" id="wprowadzenie-zmaz" aria-label="Schowaj pierwsze kroki">×</button>
+        <button type="button" class="okno__x wprowadzenie__zmaz" id="wprowadzenie-zmaz" aria-label="Schowaj pierwsze kroki">×</button>
         <ol class="wprowadzenie__kroki">
           <li><b>Dopisz pozycję</b> - „+ Dodaj” na dole: nazwa, koszt i data zakupu.</li>
           <li><b>Ustaw okres</b> - przy dacie zakupu „mies.”, „rok” albo „inny”. Od niego liczy się lont na liście.</li>
@@ -170,9 +170,14 @@
       <label class="t-przelacznik" id="pole-zmienna-kwota" hidden>Kwota za każdym razem inna
         <input type="checkbox" role="switch" class="przelacznik przelacznik--zwykly" name="zmiennaKwota">
       </label>
-      <label class="t-pole" id="pole-prognoza">Cena od następnej płatności
-        <input type="text" name="prognoza" inputmode="decimal" autocomplete="off" placeholder="wpisz…">
-      </label>
+      <div class="t-wiersz" id="pole-prognoza">
+        <label class="t-pole t-pole--szerokie">Cena od następnej płatności
+          <input type="text" name="prognoza" inputmode="decimal" autocomplete="off" placeholder="wpisz…">
+        </label>
+        <label class="t-pole" id="pole-waluta-nastepna">Waluta
+          <select name="walutaNastepna"></select>
+        </label>
+      </div>
       <label class="t-pole">Link
         <input type="url" name="link" maxlength="2000" autocomplete="off" placeholder="https://">
       </label>
@@ -199,6 +204,7 @@
       </details>
       <p class="t-formularz__blad" id="formularz-blad" aria-live="polite"></p>
       <div class="t-formularz__przyciski">
+        <p class="t-formularz__pytanie" id="arkusz-pytanie" role="alert" hidden></p>
         <button type="button" class="t-usun" id="arkusz-usun">Wykreśl</button>
         <button type="button" class="przycisk-tekst" id="arkusz-anuluj">Anuluj</button>
         <button type="submit" class="t-zapisz" id="arkusz-zapisz">Zapisz</button>

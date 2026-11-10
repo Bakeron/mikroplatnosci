@@ -1,6 +1,7 @@
 // Daty, okresy płatności i alarmy.
 
-import { funkcja, reczna, zmiennaKwota, cenaNastepna, anulowana } from './funkcje.js';
+import { funkcja, reczna, zmiennaKwota, cenaNastepna, anulowana, walutaNastepnej } from './funkcje.js';
+import { waluta } from './waluty.js';
 import { dzienRoboczyPrzed } from './swieta.js';
 import { t, tn, data as dataTekst } from './teksty.js';
 
@@ -91,11 +92,32 @@ export function czyWstrzymana(wpis) {
   return !!wznowienie && wznowienie > dzis();
 }
 
-// Początek liczenia terminów: data zakupu, a po pauzie - dzień wznowienia (wtedy pierwsza płatność
-// jest w dniu wznowienia, więc k od 0).
+const dzienPrzed = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+
+// Przerwy w płatnościach po kolei: [{ od (Date albo null), do (dzień wznowienia) }], tylko kończące się po zakupie.
+// Zakończone wcześniej (przerwy - poprzednie pauzy i czas po „nie” przed powrotem na „tak”) to historia -
+// liczą się zawsze; obecna pauza - tylko przy włączonej funkcji „Pauza”.
+function przerwyWpisu(wpis, zakup) {
+  const lista = [...(wpis.przerwy ?? [])];
+  if (funkcja('pauza')) lista.push({ od: wpis.wstrzymanaOd, do: wpis.wstrzymanaDo });
+  return lista
+    .map((p) => ({ od: parsujDate(p.od), do: parsujDate(p.do) }))
+    .filter((p) => p.do && p.do > zakup)
+    .sort((a, b) => a.do - b.do);
+}
+
+// Początek liczenia terminów: data zakupu, a po pauzie - dzień wznowienia ostatniej (wtedy pierwsza płatność
+// jest w dniu wznowienia, więc k od 0). Data zakupu nigdy się nie zmienia - historia liczy się od niej.
 function poczatekTerminow(wpis, zakup) {
-  const wznowienie = wznowienieWpisu(wpis);
-  return wznowienie && zakup && wznowienie > zakup ? { poczatek: wznowienie, k0: 0 } : { poczatek: zakup, k0: 1 };
+  const ostatnia = zakup && wpis.przedluzac !== 'nie' ? przerwyWpisu(wpis, zakup).at(-1) : null;
+  return ostatnia ? { poczatek: ostatnia.do, k0: 0 } : { poczatek: zakup, k0: 1 };
+}
+
+// Najwięcej zapamiętanych przerw na pozycję (starsze odpadają).
+export const MAKS_PRZERW = 50;
+
+export function dodajPrzerwe(wpis, od, doDnia) {
+  wpis.przerwy = [...(wpis.przerwy ?? []), { od: od || '', do: doDnia }].slice(-MAKS_PRZERW);
 }
 
 const koniecMiesiacaDaty = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
@@ -115,11 +137,12 @@ export function okresZDat(od, doDnia) {
 
 // Termin najbliższej płatności: zakup + okres. Przedłużane przesuwają się o kolejne okresy, jednorazowe nie.
 // Stary wpis bez daty zakupu, ale z datą „do” - liczony od niej (to był termin płatności).
+// „Nie” - ostatni termin zapamiętany przy przełączeniu (ostatniTermin), a od początku jednorazowa - zakup + okres.
 export function termin(wpis, okresWpisu = okres(wpis)) {
   if (!okresWpisu.typ) return { data: null };
   const zakup = parsujDate(wpis.od);
   if (!zakup && !parsujDate(wpis.do)) return { data: null };
-  if (wpis.przedluzac === 'nie') return { data: zakup ? dodajOkres(zakup, okresWpisu, 1) : parsujDate(wpis.do) };
+  if (wpis.przedluzac === 'nie') return { data: parsujDate(wpis.ostatniTermin) ?? (zakup ? dodajOkres(zakup, okresWpisu, 1) : parsujDate(wpis.do)) };
   // Po pauzie terminy liczą się od dnia wznowienia (w czasie pauzy termin = dzień wznowienia).
   const { poczatek, k0 } = zakup ? poczatekTerminow(wpis, zakup) : { poczatek: parsujDate(wpis.do), k0: 0 };
   let k = k0;
@@ -169,31 +192,36 @@ function seria(poczatek, ok, n0, koniecMiesiaca, odDnia, doDnia) {
 }
 
 // Dni płatności pozycji w [odDnia, doDnia] - szacunek z daty zakupu i okresu (historia wydatków,
-// przypomnienie o oddaniu części). Zakup to pierwsza płatność, potem co okres; „nie” - tylko zakup.
-// Pauza: bez płatności od wstrzymania do wznowienia, potem od dnia wznowienia co okres.
+// przypomnienie o oddaniu części). Zakup to pierwsza płatność, potem co okres. „Nie” - jak przy „tak”
+// do dnia przed ostatnim terminem (historia zostaje), a od początku jednorazowa - tylko zakup.
+// Pauza i przerwy: bez płatności od wstrzymania do wznowienia, potem od dnia wznowienia co okres.
 // Płatność ręczna: tylko terminy zaznaczone jako zapłacone (do zaplaconyTermin).
 export function dniPlatnosci(wpis, odDnia, doDnia) {
   const ok = okres(wpis);
   const zakup = parsujDate(wpis.od);
   if (!zakup) return [];
   const wZakresie = (d) => d >= odDnia && d <= doDnia;
-  if (!ok.typ || wpis.przedluzac === 'nie') return wZakresie(zakup) ? [zakup] : [];
+  const ostatni = wpis.przedluzac === 'nie' ? parsujDate(wpis.ostatniTermin) : null;
+  if (!ok.typ || (wpis.przedluzac === 'nie' && !ostatni)) return wZakresie(zakup) ? [zakup] : [];
   let koniec = doDnia;
+  if (ostatni && dzienPrzed(ostatni) < koniec) koniec = dzienPrzed(ostatni);
   if (reczna(wpis)) {
     const zaplacony = parsujDate(wpis.zaplaconyTermin) ?? zakup;
     if (zaplacony < koniec) koniec = zaplacony;
   }
   const reczny = reczna(wpis) && wpis.koniecMiesiaca;
   const daty = wZakresie(zakup) ? [zakup] : [];
-  const { poczatek, k0 } = poczatekTerminow(wpis, zakup);
-  if (k0 === 0) {
-    // Przed pauzą: do dnia przed wstrzymaniem (bez daty wstrzymania - do dnia przed wznowieniem).
-    const wstrzymana = parsujDate(wpis.wstrzymanaOd);
-    const przerwa = wstrzymana && wstrzymana > zakup && wstrzymana < poczatek ? wstrzymana : poczatek;
-    const przed = new Date(przerwa.getFullYear(), przerwa.getMonth(), przerwa.getDate() - 1);
-    daty.push(...seria(zakup, ok, 1, reczny, odDnia, przed < koniec ? przed : koniec));
+  let poczatek = zakup;
+  let n0 = 1;
+  for (const p of przerwyWpisu(wpis, zakup)) {
+    // Przed przerwą: do dnia przed wstrzymaniem (bez daty wstrzymania - do dnia przed wznowieniem).
+    const przerwa = p.od && p.od > poczatek && p.od < p.do ? p.od : p.do;
+    const przed = dzienPrzed(przerwa);
+    daty.push(...seria(poczatek, ok, n0, reczny, odDnia, przed < koniec ? przed : koniec));
+    poczatek = p.do;
+    n0 = 0;
   }
-  daty.push(...seria(poczatek, ok, k0, reczny, odDnia, koniec));
+  daty.push(...seria(poczatek, ok, n0, reczny, odDnia, koniec));
   return daty;
 }
 
@@ -205,16 +233,43 @@ export function ostatniaPlatnosc(wpis) {
   return dniPlatnosci(wpis, wstecz, t).at(-1) ?? null;
 }
 
-// Przy zmianie na „Przedłużać: nie” - data zakupu przesunięta na początek bieżącego okresu,
-// żeby termin był najbliższym odnowieniem, a nie pierwszym po dawnym zakupie.
-export function zakupBiezacegoOkresu(wpis) {
-  const ok = okres(wpis);
-  const zakup = parsujDate(wpis.od);
-  if (!ok.typ || !zakup) return wpis.od;
-  const t = dzis();
-  let k = Math.max(0, krokiDo(zakup, t, ok) - 2);
-  while (dodajOkres(zakup, ok, k + 1) < t && k < 6000) k++;
-  return isoDnia(dodajOkres(zakup, ok, k));
+// Najbliższe odnowienie od dziś (RRRR-MM-DD albo '') - jak przy „tak”, z pauzą; płacę sam - bez
+// zaległości (pierwszy termin od dziś, chyba że zapłacone są już dalsze).
+function najblizszeOdnowienie(wpis) {
+  const wczoraj = isoDnia(dzienPrzed(dzis()));
+  const zaplacony = wpis.zaplaconyTermin > wczoraj ? wpis.zaplaconyTermin : wczoraj;
+  const data = termin({ ...wpis, przedluzac: 'tak', ostatniTermin: '', zaplaconyTermin: zaplacony }).data;
+  return data ? isoDnia(data) : '';
+}
+
+// „Przedłużać” (zasada autora: co zapłacone, zostaje zapłacone - zmienia się przyszłość, nie historia).
+// Data zakupu się nie zmienia. „Nie”: ostatni termin = najbliższe odnowienie (dzień, w którym już się nie
+// odnowi) - historia liczy płatności do niego. Powrót na „tak” po ostatnim terminie: czas bez płatności
+// do najbliższego odnowienia zapamiętany jak pauza (przerwy); przed ostatnim terminem - terminy jak przed
+// „nie”, a przy płacę sam bez zaległości sprzed „nie” (do zapłaty jest najbliższy termin).
+export function ustawPrzedluzanie(wpis, nowe) {
+  const nie = nowe === 'nie';
+  const wartosc = nie || nowe === 'tak' ? nowe : ''; // puste „-” liczy się jak „tak”
+  if (nie === (wpis.przedluzac === 'nie')) {
+    wpis.przedluzac = wartosc;
+    return;
+  }
+  if (nie) {
+    wpis.ostatniTermin = najblizszeOdnowienie(wpis);
+  } else {
+    const ostatni = termin(wpis).data;
+    wpis.ostatniTermin = '';
+    wpis.przedluzac = 'tak';
+    if (ostatni && ostatni < dzis()) {
+      const nastepny = najblizszeOdnowienie(wpis);
+      if (nastepny) dodajPrzerwe(wpis, isoDnia(ostatni), nastepny);
+    } else if (ostatni && reczna(wpis)) {
+      const przed = isoDnia(dzienPrzed(ostatni));
+      if (!(wpis.zaplaconyTermin >= przed)) wpis.zaplaconyTermin = przed;
+    }
+  }
+  wpis.przedluzac = wartosc;
+  wpis.prognozaOd = ''; // termin się zmienia - dzień ceny następnej liczy się od nowa
 }
 
 // Poziomy: czerwony / pomaranczowy / zolty / null; „minal” gdy data już przeszła.
@@ -294,39 +349,60 @@ export function oznaczZaplate(wpis, kwota) {
   // Cena od następnej płatności obowiązuje od swojego terminu - zapłata starszej zaległości jest jeszcze po starej cenie.
   const nowaCena = cenaNastepna(wpis) !== null && (!wpis.prognozaOd || wpis.zaplaconyTermin >= wpis.prognozaOd);
   const zaplacono = typeof kwota === 'number' ? kwota : nowaCena ? wpis.prognoza : wpis.koszt;
+  // Ta płatność była już po nowej cenie - cena następna staje się zapłaconą i znika (A3). Przed wpłatą
+  // w historii: przy cenie następnej w innej walucie dawne wpłaty dostają dawną walutę, a ta - już nową.
+  if (nowaCena) zastosujNastepnaCene(wpis, wpis.zaplaconyTermin);
   if (typeof zaplacono === 'number') {
     if (!Array.isArray(wpis.historia)) wpis.historia = [];
     wpis.historia.push({ termin: wpis.zaplaconyTermin, dnia: isoDnia(dzis()), kwota: zaplacono });
     if (wpis.historia.length > MAKS_HISTORII) wpis.historia.splice(0, wpis.historia.length - MAKS_HISTORII);
   }
-  // Ta płatność była już po nowej cenie - cena następna staje się zapłaconą i znika (A3).
-  if (nowaCena) zastosujNastepnaCene(wpis, wpis.zaplaconyTermin);
   if (zmiennaKwota(wpis) && typeof kwota === 'number') wpis.koszt = kwota;
   return true;
 }
 
 // Zmiana zapłaconej ceny w historii cen (od dnia „od”) - do wykresu wydatków i „Zmian cen”.
 // Pierwsza zmiana zapisuje też cenę sprzed niej (z pustym „od” - obowiązywała od początku).
+// Cena w innej walucie niż wpis ma pole waluta (zostawione przy cenie następnej w innej walucie).
 export function dopiszCene(wpis, stara, od) {
   if (typeof stara !== 'number' || typeof wpis.koszt !== 'number' || stara === wpis.koszt) return;
   if (!Array.isArray(wpis.ceny)) wpis.ceny = [];
   if (!wpis.ceny.length) wpis.ceny.push({ od: '', kwota: stara });
   const ostatnia = wpis.ceny.at(-1);
   // Kilka poprawek tego samego dnia (literówka) = jedna zmiana.
-  if (ostatnia.od === od) ostatnia.kwota = wpis.koszt;
-  else wpis.ceny.push({ od, kwota: wpis.koszt });
+  if (ostatnia.od === od) {
+    ostatnia.kwota = wpis.koszt;
+    delete ostatnia.waluta;
+  } else wpis.ceny.push({ od, kwota: wpis.koszt });
   const przed = wpis.ceny.at(-2);
-  if (przed && przed.kwota === wpis.ceny.at(-1).kwota) wpis.ceny.pop(); // powrót do poprzedniej ceny tego samego dnia
+  if (przed && przed.kwota === wpis.ceny.at(-1).kwota && !przed.waluta) wpis.ceny.pop(); // powrót do poprzedniej ceny tego samego dnia
   if (wpis.ceny.length === 1) wpis.ceny.length = 0; // została tylko cena początkowa - bez zmian
   if (wpis.ceny.length > MAKS_CEN) wpis.ceny.splice(0, wpis.ceny.length - MAKS_CEN);
 }
 
 function zastosujNastepnaCene(wpis, od) {
   const stara = wpis.koszt;
-  wpis.koszt = wpis.prognoza;
-  dopiszCene(wpis, stara, od);
+  const dawna = waluta(wpis);
+  const nowa = walutaNastepnej(wpis);
+  if (nowa !== dawna) {
+    // Cena następna w innej walucie (np. 20 zł, potem 200 USD): dawne wpłaty i ceny zostają w dawnej walucie
+    // (historia wydatków liczy je po swojemu), dalej pozycja jest w nowej. Zmiana zawsze zapisana w cenach.
+    for (const h of wpis.historia ?? []) h.waluta ??= dawna;
+    if (!Array.isArray(wpis.ceny)) wpis.ceny = [];
+    if (!wpis.ceny.length && typeof stara === 'number') wpis.ceny.push({ od: '', kwota: stara });
+    for (const c of wpis.ceny) c.waluta ??= dawna;
+    if (wpis.ceny.at(-1)?.od === od) wpis.ceny.pop(); // inna zmiana tego samego dnia
+    wpis.waluta = nowa;
+    wpis.koszt = wpis.prognoza;
+    if (typeof wpis.koszt === 'number') wpis.ceny.push({ od, kwota: wpis.koszt });
+    if (wpis.ceny.length > MAKS_CEN) wpis.ceny.splice(0, wpis.ceny.length - MAKS_CEN);
+  } else {
+    wpis.koszt = wpis.prognoza;
+    dopiszCene(wpis, stara, od);
+  }
   wpis.prognoza = null;
   wpis.prognozaOd = '';
+  wpis.walutaNastepna = '';
 }
 
 // Dzień następnej płatności, od której obowiązuje cena następna. Płatność wypada dziś - liczy się
@@ -357,10 +433,17 @@ export function przeniesNastepnaCene(wpis) {
 
 // Włączenie „płacę sam”, „termin do końca miesiąca” albo zmiana daty zakupu / okresu: liczy się od daty zakupu (zakup = ostatnia
 // zapłata) - pierwszy termin to zakup + okres; jeśli już minął, od razu jest zaległy. Termin się zmienia,
-// więc dzień nowej ceny liczy się od nowa (przeniesNastepnaCene).
-export function ustawPoczatekZaplaty(wpis) {
-  if (wpis.platnoscReczna) wpis.zaplaconyTermin = '';
+// więc dzień nowej ceny liczy się od nowa (przeniesNastepnaCene). „Nie”, które jeszcze trwa - ostatni termin
+// to najbliższe odnowienie po zmianie (zakończonego nie przywraca).
+// odDzis - samo włączenie „płacę sam”: co minęło, pobrało się samo (historia jak przy „pobiera się sama”),
+// do zapłaty jest pierwszy termin od dziś; zapłacone wcześniej dalsze terminy zostają.
+export function ustawPoczatekZaplaty(wpis, odDzis = false) {
+  if (wpis.platnoscReczna) {
+    const wczoraj = isoDnia(dzienPrzed(dzis()));
+    wpis.zaplaconyTermin = !odDzis ? '' : wpis.zaplaconyTermin > wczoraj ? wpis.zaplaconyTermin : wczoraj;
+  }
   wpis.prognozaOd = '';
+  if (wpis.przedluzac === 'nie' && wpis.ostatniTermin && parsujDate(wpis.ostatniTermin) >= dzis()) wpis.ostatniTermin = najblizszeOdnowienie(wpis);
 }
 
 // Natężenie czerwieni wiersza do zapłaty (w %): od DNI_DO_ZAPLATY dni przed terminem coraz mocniej

@@ -239,7 +239,8 @@ function jestWZeszycie(klucz, wpisy) {
 
 // Propozycje do dopisania: [{ klucz, nazwa, kwota, waluta, okres, coIle, ostatnia, ile, min, max, juzJest, dawno }].
 // wpisy - obecne pozycje zeszytu (do oznaczenia „już w zeszycie”).
-export function znajdzPowtarzajace(operacje, wpisy = []) {
+// anulowane - wykreślone do „Anulowanych”: propozycja z nich nie jest zaznaczona (wAnulowanych).
+export function znajdzPowtarzajace(operacje, wpisy = [], anulowane = []) {
   const wydatki = operacje.filter((o) => o.kwota < 0).map((o) => ({ ...o, kwota: -o.kwota, ...odbiorca(o.opis) })).filter((o) => o.klucz);
   if (!wydatki.length) return [];
   const koniecWyciagu = Math.max(...operacje.map((o) => dzien(o.data)));
@@ -274,11 +275,12 @@ export function znajdzPowtarzajace(operacje, wpisy = []) {
         min: Math.min(...kwoty),
         max: Math.max(...kwoty),
         juzJest: jestWZeszycie(ostatnia.klucz, wpisy),
+        wAnulowanych: !jestWZeszycie(ostatnia.klucz, wpisy) && jestWZeszycie(ostatnia.klucz, anulowane),
         // Od ostatniej płatności minęło ponad półtora okresu do końca wyciągu - pewnie już anulowana.
         dawno: koniecWyciagu - dzien(ostatnia.data) > ok.do * 1.5,
       });
     }
   }
   // Najpierw nowe i aktualne, potem droższe.
-  return propozycje.sort((a, b) => a.juzJest - b.juzJest || a.dawno - b.dawno || b.kwota - a.kwota);
+  return propozycje.sort((a, b) => (a.juzJest || a.wAnulowanych) - (b.juzJest || b.wAnulowanych) || a.dawno - b.dawno || b.kwota - a.kwota);
 }

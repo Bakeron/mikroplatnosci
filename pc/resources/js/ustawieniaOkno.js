@@ -7,6 +7,7 @@ import { element, krzyzykOkna } from './dom.js';
 import { FUNKCJE } from './funkcje.js';
 import { formatujKoszt, parsujKoszt } from './dane.js';
 import { t, tekst, JEZYKI } from './teksty.js';
+import { WALUTY } from './waluty.js';
 
 const RODZAJE = [
   ['wycofaj', tekst('Wycofaj'), tekst('Pozycje „nie przedłużać” - przed odnowieniem (rocznie: 3, 2, 1 miesiąc i 3, 2, 1 tydzień, miesięcznie: od 2 tygodni).')],
@@ -18,7 +19,6 @@ const RODZAJE = [
 // Na telefonie nie ma „⋯”, tabeli ani nagłówka z kursami - te opisy funkcji mówią o jego ekranie.
 const OPISY_TELEFONU = {
   platnosc: tekst('Wybór „pobiera się sama / płacę sam” przy edycji pozycji. Wyłączone - wszystko liczone jak „pobiera się sama”.'),
-  waluty: tekst('Waluta przy kwocie, kursy NBP i prowizja banku pod paragonem.'),
   historia: tekst('Wykres i zmiany cen pod paragonem.'),
   archiwum: tekst('Wykreślone pozycje trafiają do „Anulowanych” pod listą (do przywrócenia), a paragon liczy, ile oszczędzasz. Wyłączone - wykreślenie usuwa na zawsze.'),
   kategorie: tekst('Kategoria przy edycji pozycji (rozrywka, praca, AI…), zakładki z filtrem nad listą i paragon z podziałem na kategorie.'),
@@ -46,18 +46,68 @@ function wiersz(id, nazwa, opis, zaznaczone, onZmiana, klasa = '') {
   return { label, pole, teksty, opisEl };
 }
 
-// stan: { telefon, funkcje, powiadomienia, wTle, jezyk, budzet }; zdarzenia: naFunkcje(funkcje), naJezyk(kod), naBudzet(kwota),
+// Waluty do wyboru: zaznaczone w ustawieniach, złote zawsze, a waluty z pozycji nie do odznaczenia
+// (stan.uzyteWaluty: kod -> w ilu pozycjach). Zmiana - naWaluty(lista kodów).
+function wyborWalut(stan, naWaluty) {
+  const wybrane = new Set(stan.waluty ?? ['PLN']);
+  const uzyte = stan.uzyteWaluty ?? new Map();
+  const blok = element('div', 'ustawienia__wiersz ustawienia__wiersz--waluty');
+  blok.setAttribute('role', 'group');
+  const nazwa = element('span', 'ustawienia__nazwa', t('Waluty'));
+  nazwa.id = 'ustawienia-waluty';
+  blok.setAttribute('aria-labelledby', nazwa.id);
+  const teksty = element('span', 'ustawienia__teksty');
+  teksty.append(nazwa, element('span', 'ustawienia__opis', stan.telefon
+    ? t('Do wyboru przy kwocie - dla zaznaczonych kursy NBP i prowizja banku pod paragonem. Same złote - bez wyboru waluty.')
+    : t('Do wyboru przy kwocie - dla zaznaczonych kursy NBP i prowizja banku w nagłówku. Same złote - bez wyboru waluty.')));
+  const lista = element('div', 'ustawienia__waluty');
+  for (const kod of WALUTY) {
+    const ile = uzyte.get(kod) || 0;
+    const pole = element('input');
+    pole.type = 'checkbox';
+    pole.checked = kod === 'PLN' || wybrane.has(kod) || ile > 0;
+    // Zaznaczona na stałe: aria-disabled zamiast disabled - przygaszona kratka była w jasnym motywie prawie niewidoczna.
+    const stala = kod === 'PLN' || ile > 0;
+    if (stala) {
+      pole.setAttribute('aria-disabled', 'true');
+      pole.addEventListener('click', (e) => e.preventDefault());
+    }
+    const etykieta = element('label', 'ustawienia__waluta');
+    etykieta.append(pole, element('span', 'ustawienia__kod', kod === 'PLN' ? t('zł') : kod));
+    if (ile) {
+      etykieta.append(element('span', 'ustawienia__uzyta', t('w użyciu: {n}', { n: ile })));
+      etykieta.title = t('Pozycji w tej walucie: {n} - nie da się jej wyłączyć, dopóki jej używają.', { n: ile });
+    }
+    if (!stala) pole.addEventListener('change', () => {
+      if (pole.checked) wybrane.add(kod);
+      else wybrane.delete(kod);
+      naWaluty([...wybrane]);
+    });
+    lista.append(etykieta);
+  }
+  blok.append(teksty, lista);
+  return blok;
+}
+
+// stan: { telefon, funkcje, powiadomienia, wTle, jezyk, budzet, waluty, uzyteWaluty }; zdarzenia: naFunkcje(funkcje), naWaluty(lista), naJezyk(kod), naBudzet(kwota),
 // naPowiadomienia(p) (może zwrócić Promise<false>: urządzenie nie pozwala na powiadomienia),
 // naWprowadzenie(), naWTle(wlacz) -> Promise<string> (pusty tekst = udało się, inaczej opis błędu),
 // sprawdzWTle() -> Promise<boolean|null>, naUstawieniaTelefonu() - telefon: strona aplikacji w ustawieniach Androida.
 // PC: czesci [{ klucz, nazwa, element }] - dalsze zakładki z gotowych części strony (synchronizacja, kopia),
 // dolCzesc - element do dolnego wiersza („o aplikacji”), schowek - tam części wracają po zamknięciu okna
 // (razem ze zdarzeniami), naZamkniecie(). Bez czesci (telefon) - dwie kolumny jak dotąd.
-export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle, naUstawieniaTelefonu, czesci, dolCzesc, schowek, naZamkniecie }) {
-  document.getElementById('okno-ustawienia')?.remove(); // jego części przejdą niżej do nowego okna
+export function pokazUstawienia(stan, { naFunkcje, naWaluty, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle, naUstawieniaTelefonu, czesci, dolCzesc, schowek, naZamkniecie }) {
+  // Stare okno (np. zmiana języka): sprzątanie jak przy zamknięciu (kod QR, nasłuchy), części przejdą niżej do nowego okna.
+  const stare = document.getElementById('okno-ustawienia');
+  if (stare) {
+    stare.dispatchEvent(new Event('close'));
+    stare.remove();
+  }
   const okno = element('dialog', 'okno okno--szersze okno--ustawienia' + (czesci ? ' okno--zakladki' : ''));
   okno.id = 'okno-ustawienia';
-  okno.setAttribute('closedby', 'any'); // kliknięcie w tło obok okna zamyka je (jak Esc)
+  // Kliknięcie w tło obok okna zamyka je (jak Esc) - dopiero 0,3 s po otwarciu: drugie kliknięcie
+  // szybkiego podwójnego kliknięcia w zębatkę trafiało w tło i od razu zamykało okno.
+  okno.setAttribute('closedby', 'closerequest');
   okno.setAttribute('aria-labelledby', 'ustawienia-tytul');
   const tytul = element('h2', 'okno__tytul', t('Ustawienia'));
   tytul.id = 'ustawienia-tytul';
@@ -80,6 +130,7 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
     }, zalezy ? 'ustawienia__wiersz--zalezny' : '');
     if (zalezy) zalezne.push([zalezy, w.pole, w.label]);
     sekcjaFunkcji.append(w.label);
+    if (klucz === 'pauza' && naWaluty) sekcjaFunkcji.append(wyborWalut(stan, naWaluty)); // tam, gdzie był przełącznik „Waluty obce”
   }
   // Funkcja zależna (np. „Weekend i święta”) bez tej, od której zależy, nic nie robi - przygaszona.
   function odswiezZalezne() {
@@ -103,7 +154,7 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   budzetPole.addEventListener('change', () => {
     const kwota = parsujKoszt(budzetPole.value);
     if (kwota !== undefined) {
-      budzetTeraz = kwota ?? 0;
+      budzetTeraz = Math.min(kwota ?? 0, 10000000);
       naBudzet(budzetTeraz);
     }
     pokazBudzet();
@@ -150,7 +201,7 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
       prog.addEventListener('change', () => {
         const kwota = parsujKoszt(prog.value);
         if (typeof kwota === 'number') {
-          powiadomienia.progDrogich = kwota;
+          powiadomienia.progDrogich = Math.min(kwota, 1000000);
           zmienPowiadomienia();
         }
         prog.value = formatujKoszt(powiadomienia.progDrogich);
@@ -203,17 +254,21 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
       b.addEventListener('click', () => { if (z.klucz !== otwartaZakladka) wybierz(z.klucz, true); }); // otwarta - nic
       return b;
     });
-    // Zmiana zakładki bez skoku, po kolei: stara treść gaśnie (wysokość stoi), potem wysokość płynnie
-    // do nowej i nowa treść się pojawia - razem ok. 0,3 s. Bez animacji przy otwarciu okna i przy
-    // „ogranicz ruch” w systemie.
+    // Zmiana zakładki bez skoku i bez prześwitu, ściśle po kolei: stara treść gaśnie (wysokość stoi), potem
+    // (PC) okno płynnie zmienia wysokość, gdy nic nie widać, i dopiero wtedy pojawia się nowa treść - razem
+    // ok. 0,35 s. Telefon: okno ma stałą wysokość, więc bez zmiany wysokości, a dolny wiersz (język, „Zamknij”)
+    // gaśnie i wraca razem z treścią - nie podjeżdża przez puste miejsce. Bez animacji przy otwarciu okna
+    // i przy „ogranicz ruch” w systemie.
     let animacje = [];
     function wybierz(klucz, animuj = false) {
       const widoczny = zakladki.find((z) => !z.element.hidden && panele.contains(z.element))?.element;
       const nowy = zakladki.find((z) => z.klucz === klucz).element;
       const ruch = animuj && widoczny && widoczny !== nowy && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const dol = stan.telefon ? okno.querySelector('.okno__przyciski') : null;
       // Szybkie klikanie: start od tego, co widać teraz (wysokość i przezroczystość w środku poprzedniej zmiany).
       const wysokoscPrzed = ruch ? panele.offsetHeight : 0;
       const jasnosc = ruch ? getComputedStyle(widoczny).opacity : '1';
+      const jasnoscDolu = ruch && dol ? getComputedStyle(dol).opacity : '1';
       for (const a of animacje) a.cancel();
       animacje = [];
       otwartaZakladka = klucz;
@@ -224,7 +279,9 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
         pokazNowa();
         return;
       }
-      const gasnie = widoczny.animate([{ opacity: jasnosc }, { opacity: 0 }], { duration: 110, easing: 'ease-in', fill: 'forwards' });
+      const zgas = { duration: 100, easing: 'ease-in', fill: 'forwards' };
+      const gasnie = widoczny.animate([{ opacity: jasnosc }, { opacity: 0 }], zgas);
+      const gasnieDol = dol?.animate([{ opacity: jasnoscDolu }, { opacity: 0 }], zgas);
       gasnie.addEventListener('finish', () => {
         gasnie.cancel();
         pokazNowa();
@@ -232,16 +289,32 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
         const tresc = panele.closest('.okno__tresc');
         if (tresc) tresc.scrollTop = 0;
         const wysokoscPo = panele.offsetHeight;
-        const czas = { duration: 180, easing: 'cubic-bezier(0.3, 0, 0.2, 1)' };
-        // W trakcie treść przycięta do rosnącej / malejącej wysokości (nie wchodzi na dolny wiersz okna).
-        panele.style.overflow = 'hidden';
-        const wysokosc = panele.animate([{ height: wysokoscPrzed + 'px' }, { height: wysokoscPo + 'px' }], czas);
-        const odslon = () => { panele.style.overflow = ''; };
-        wysokosc.addEventListener('finish', odslon);
-        wysokosc.addEventListener('cancel', odslon);
-        animacje = [wysokosc, nowy.animate([{ opacity: 0 }, { opacity: 1 }], { ...czas, easing: 'ease-out' })];
+        // Najpierw wysokość (nowa treść jeszcze niewidoczna), potem pojawienie - jedna oś czasu, dwie części.
+        const czasWysokosci = !dol && Math.abs(wysokoscPo - wysokoscPrzed) > 2 ? 130 : 0;
+        const czasPojawienia = 140;
+        const granica = czasWysokosci / (czasWysokosci + czasPojawienia);
+        const czas = { duration: czasWysokosci + czasPojawienia };
+        const pojaw = [{ opacity: 0 }, { opacity: 0, offset: granica, easing: 'ease-out' }, { opacity: 1 }];
+        animacje = [nowy.animate(pojaw, czas)];
+        if (dol) {
+          gasnieDol.cancel();
+          animacje.push(dol.animate(pojaw, czas));
+        }
+        if (czasWysokosci) {
+          // W trakcie treść przycięta do rosnącej / malejącej wysokości (nie wchodzi na dolny wiersz okna).
+          panele.style.overflow = 'hidden';
+          const wysokosc = panele.animate([
+            { height: wysokoscPrzed + 'px', easing: 'cubic-bezier(0.3, 0, 0.2, 1)' },
+            { height: wysokoscPo + 'px', offset: granica },
+            { height: wysokoscPo + 'px' },
+          ], czas);
+          const odslon = () => { panele.style.overflow = ''; };
+          wysokosc.addEventListener('finish', odslon);
+          wysokosc.addEventListener('cancel', odslon);
+          animacje.push(wysokosc);
+        }
       });
-      animacje = [gasnie];
+      animacje = [gasnie, ...(gasnieDol ? [gasnieDol] : [])];
     }
     pasek.append(...przyciskiZakladek);
     panele.append(...zakladki.map((z) => z.element));
@@ -268,9 +341,21 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   // F25: notatki „pierwsze kroki” jeszcze raz - np. gdy z aplikacji ma korzystać ktoś nowy.
   const wprowadzenie = element('button', 'przycisk-tekst', t('Pokaż pierwsze kroki'));
   wprowadzenie.type = 'button';
+  // Po kolei, nie skokiem: najpierw okno płynnie gaśnie razem z przyciemnieniem, dopiero potem notatki
+  // wysuwają się z góry (naWprowadzenie). Przy „ogranicz ruch” w systemie - od razu.
+  let gasnieOkno = false;
   wprowadzenie.addEventListener('click', () => {
-    okno.close();
-    naWprowadzenie();
+    if (gasnieOkno) return; // drugie kliknięcie w trakcie gaśnięcia
+    const pokaz = () => {
+      okno.close();
+      naWprowadzenie();
+    };
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return pokaz();
+    gasnieOkno = true;
+    const czas = { duration: 150, easing: 'ease-in', fill: 'forwards' };
+    okno.animate([{ opacity: getComputedStyle(okno).opacity }, { opacity: 0 }], czas);
+    okno.animate([{ opacity: 1 }, { opacity: 0 }], { ...czas, pseudoElement: '::backdrop' })
+      .finished.then(() => { if (okno.open) pokaz(); }, () => {}); // Esc w trakcie - okno już zamknięte, bez notatek
   });
   if (naJezyk) przyciski.append(jezykPole);
   if (dolCzesc) przyciski.append(dolCzesc);
@@ -293,5 +378,6 @@ export function pokazUstawienia(stan, { naFunkcje, naPowiadomienia, naJezyk, naB
   });
   document.body.append(okno);
   okno.showModal();
+  setTimeout(() => okno.setAttribute('closedby', 'any'), 300);
   okno.querySelector('.ustawienia__zakladki [aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); // telefon: pasek przewijany w bok
 }

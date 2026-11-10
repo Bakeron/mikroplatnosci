@@ -143,6 +143,23 @@ test('usuwanie danych z komputera: plik, plik tymczasowy i wszystkie kopie; inne
   await M.usunDaneLokalne(PLIK, KOPIE);
 });
 
+test('uszkodzony plik danych: przeniesiony do kopii (nie wypiera kopii), „Usuń z komputera” usuwa też jego', async () => {
+  pliki.set(PLIK, '{uszkodzony');
+  const nazwa = await M.odlozUszkodzony(PLIK, KOPIE);
+  assert.match(nazwa, /^uszkodzony-\d{8}-\d{6}\.json$/);
+  assert.equal(pliki.get(`${KOPIE}/${nazwa}`), '{uszkodzony');
+  assert.equal(pliki.has(PLIK), false);
+  await M.usunDaneLokalne(PLIK, KOPIE);
+  assert.equal(pliki.has(`${KOPIE}/${nazwa}`), false);
+  // Nie da się przenieść - błąd idzie dalej, plik zostaje.
+  pliki.set(PLIK, '{uszkodzony');
+  bledy.move = blad('NE_FS_MOVEERR');
+  await assert.rejects(M.odlozUszkodzony(PLIK, KOPIE), { code: 'NE_FS_MOVEERR' });
+  assert.equal(pliki.get(PLIK), '{uszkodzony');
+  bledy = {};
+  pliki.delete(PLIK);
+});
+
 test('usuwanie danych: błąd usuwania idzie dalej (użytkownik musi wiedzieć, że plik został)', async () => {
   pliki.set(PLIK, tresc([]));
   bledy.remove = blad('NE_FS_REMVERR');
@@ -164,19 +181,49 @@ test('blokada: świeża blokada innej kopii zatrzymuje start; stara, „z przysz
   assert.equal(await M.zajmijBlokade(B, 1), true);
 });
 
+test('blokada: dwa uruchomienia naraz - zostaje kopia, której zapis jest w pliku po chwili', async () => {
+  const B = F + '/otwarta.lock';
+  pliki.delete(B);
+  const pierwsza = M.zajmijBlokade(B, 1);
+  setTimeout(() => pliki.set(B, JSON.stringify({ pid: 2, czas: Date.now() })), 100); // druga zapisała tuż po
+  assert.equal(await pierwsza, false);
+  pliki.set(B, '');
+  assert.equal(await M.zajmijBlokade(B, 1), true, 'nieczytelny plik nie blokuje startu');
+});
+
+test('blokada: odświeżanie nie nadpisuje świeżej blokady innej kopii (po uśpieniu)', async () => {
+  const B = F + '/otwarta.lock';
+  pliki.set(B, JSON.stringify({ pid: 2, czas: Date.now() - 10000 }));
+  assert.equal(await M.utrzymajBlokade(B, 1), false);
+  assert.equal(JSON.parse(pliki.get(B)).pid, 2);
+  pliki.set(B, JSON.stringify({ pid: 2, czas: Date.now() - 3 * 60000 }));
+  assert.equal(await M.utrzymajBlokade(B, 1), true);
+  assert.equal(JSON.parse(pliki.get(B)).pid, 1);
+  pliki.delete(B);
+  assert.equal(await M.utrzymajBlokade(B, 1), true);
+  assert.equal(JSON.parse(pliki.get(B)).pid, 1);
+});
+
 test('ustawienia: domyślnie zapis lokalny włączony; zapis i odczyt; śmieci = domyślne', async () => {
   const U = F + '/ustawienia.json';
-  const domyslne = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, budzet: 0 };
+  // Brak pliku - nowa osoba (dawneWalutyObce false); plik bez listy walut - „Waluty obce” były domyślnie włączone.
+  const domyslne = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, budzet: 0, waluty: null, dawneWalutyObce: false };
+  const zPliku = { ...domyslne, dawneWalutyObce: true };
   assert.deepEqual(await wczytajUstawienia(U), domyslne);
   await zapiszUstawienia(U, { lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
-  assert.deepEqual(await wczytajUstawienia(U), { ...domyslne, lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
+  assert.deepEqual(await wczytajUstawienia(U), { ...zPliku, lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
   pliki.set(U, '{zepsute');
   assert.deepEqual(await wczytajUstawienia(U), domyslne);
-  pliki.set(U, JSON.stringify({ lokalnie: 'nie', motyw: '<script>', prowizja: 99, funkcje: 'x', powiadomienia: 5, wTle: 'tak', jezyk: 'xx', wprowadzenie: 1 }));
-  assert.deepEqual(await wczytajUstawienia(U), domyslne);
+  pliki.set(U, JSON.stringify({ lokalnie: 'nie', motyw: '<script>', prowizja: 99, funkcje: 'x', powiadomienia: 5, wTle: 'tak', jezyk: 'xx', wprowadzenie: 1, waluty: 'USD' }));
+  assert.deepEqual(await wczytajUstawienia(U), zPliku);
   // F27 / F25: język i notatki „pierwsze kroki” - zapis i odczyt.
   await zapiszUstawienia(U, { lokalnie: true, jezyk: 'en', wprowadzenie: true });
-  assert.deepEqual(await wczytajUstawienia(U), { ...domyslne, jezyk: 'en', wprowadzenie: true });
+  assert.deepEqual(await wczytajUstawienia(U), { ...zPliku, jezyk: 'en', wprowadzenie: true });
+  // Lista walut: złote zawsze, kolejność stała, nieznane kody pominięte; dawne „Waluty obce: nie”.
+  await zapiszUstawienia(U, { lokalnie: true, waluty: ['EUR', 'XYZ', 'USD'] });
+  assert.deepEqual((await wczytajUstawienia(U)).waluty, ['PLN', 'USD', 'EUR']);
+  pliki.set(U, JSON.stringify({ funkcje: { waluty: false } }));
+  assert.deepEqual(await wczytajUstawienia(U), { ...domyslne, waluty: null, dawneWalutyObce: false });
   // D19: budżet - zapis i odczyt; ujemny, za duży albo tekst = bez limitu.
   await zapiszUstawienia(U, { lokalnie: true, budzet: 450.555 });
   assert.equal((await wczytajUstawienia(U)).budzet, 450.56);

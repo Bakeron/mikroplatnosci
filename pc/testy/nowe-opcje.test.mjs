@@ -3,9 +3,9 @@
 // Stały „dziś”: wtorek 10.11.2026.
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { termin, okres, nazwaOkresu, czyWstrzymana, zbierzAlarmy, dniPlatnosci, ostatniaPlatnosc, oznaczZaplate, doZaplaty, isoDnia, zakupBiezacegoOkresu, przeniesNastepnaCene } from '../resources/js/alarmy.js';
+import { termin, okres, nazwaOkresu, czyWstrzymana, zbierzAlarmy, dniPlatnosci, ostatniaPlatnosc, oznaczZaplate, doZaplaty, isoDnia, ustawPrzedluzanie, przeniesNastepnaCene } from '../resources/js/alarmy.js';
 import { policz } from '../resources/js/podsumowanie.js';
-import { normalizuj, zapiszZmianeCeny, zastosujFormularz, nowyWpis } from '../resources/js/dane.js';
+import { normalizuj, zapiszZmianeCeny, zastosujFormularz, nowyWpis, ustawPauze, usunPauze, odczytajDane } from '../resources/js/dane.js';
 import { przypomnienia } from '../resources/js/powiadomienia.js';
 import { wczytajZapamietane, odswiezZNbp, przeliczNaPln, ustawProwizje } from '../resources/js/waluty.js';
 import { wydatkiRoku, cenaWDniu, zmianyCen } from '../resources/js/historia.js';
@@ -44,8 +44,82 @@ test('okres 2 lata alarmuje jak roczne, „nie” co tydzień bez progów dłuż
   assert.ok(p.every((x) => !/tydzień|tygodnie/.test(x.napis)));
 });
 
-test('zakupBiezacegoOkresu działa też dla tygodni', () => {
-  assert.equal(zakupBiezacegoOkresu({ od: '2026-10-01', okres: 'T', coIle: 2 }), '2026-10-29');
+test('„nie” działa też dla tygodni - ostatni termin to najbliższe odnowienie', () => {
+  const w = wpis({ od: '2026-10-01', okres: 'T', coIle: 2 });
+  ustawPrzedluzanie(w, 'nie');
+  assert.deepEqual([w.od, w.ostatniTermin], ['2026-10-01', '2026-11-12']);
+});
+
+// Zasada autora (08.11.2026): co zapłacone, zostaje zapłacone - „nie” i pauza zmieniają przyszłość, nie historię.
+const platnosciWRoku = (w, rok) => dniPlatnosci(w, new Date(rok, 0, 1), new Date(rok, 11, 31)).map(iso);
+const doDzis = (w, rok) => dniPlatnosci(w, new Date(rok, 0, 1), new Date(2026, 10, 10)).map(iso);
+
+test('historia: „nie” i powrót na „tak” przed ostatnim terminem - przeszłość zostaje', () => {
+  const w = wpis({ koszt: 50, okres: 'M', od: '2024-01-20' });
+  const przed = [platnosciWRoku(w, 2024).length, platnosciWRoku(w, 2025).length, doDzis(w, 2026).length];
+  assert.deepEqual(przed, [12, 12, 10]);
+  ustawPrzedluzanie(w, 'nie');
+  assert.deepEqual([w.od, w.ostatniTermin, iso(termin(w).data)], ['2024-01-20', '2026-11-20', '2026-11-20']);
+  assert.deepEqual([platnosciWRoku(w, 2024).length, platnosciWRoku(w, 2025).length, platnosciWRoku(w, 2026).length], przed);
+  assert.equal(platnosciWRoku(w, 2026).at(-1), '2026-10-20', '20.11 już się nie odnowi');
+  ustawPrzedluzanie(w, 'tak');
+  assert.deepEqual([w.ostatniTermin, w.przerwy, iso(termin(w).data)], ['', [], '2026-11-20']);
+  assert.equal(platnosciWRoku(w, 2026).length, 12);
+});
+
+test('historia: powrót na „tak” po ostatnim terminie - czas bez płatności zostaje pusty', () => {
+  const w = wpis({ koszt: 50, okres: 'M', od: '2024-01-20', przedluzac: 'nie', ostatniTermin: '2026-03-20' });
+  assert.deepEqual(platnosciWRoku(w, 2026), ['2026-01-20', '2026-02-20']);
+  ustawPrzedluzanie(w, 'tak');
+  assert.deepEqual(w.przerwy, [{ od: '2026-03-20', do: '2026-11-20' }]);
+  assert.equal(iso(termin(w).data), '2026-11-20');
+  assert.deepEqual(platnosciWRoku(w, 2026), ['2026-01-20', '2026-02-20', '2026-11-20', '2026-12-20']);
+  assert.equal(platnosciWRoku(w, 2025).length, 12);
+  // Stara pozycja „nie” bez ostatniego terminu (od początku jednorazowa) - koniec po zakup + okres.
+  const stara = wpis({ okres: 'R', od: '2023-03-01', przedluzac: 'nie' });
+  ustawPrzedluzanie(stara, 'tak');
+  assert.deepEqual(stara.przerwy, [{ od: '2024-03-01', do: '2027-03-01' }]);
+  assert.deepEqual(dniPlatnosci(stara, new Date(2023, 0, 1), new Date(2027, 11, 31)).map(iso), ['2023-03-01', '2027-03-01']);
+});
+
+test('płacę sam: „nie” zostawia zapłacone, powrót na „tak” bez zaległości sprzed „nie”', () => {
+  const w = wpis({ okres: 'M', od: '2026-01-20', platnoscReczna: true, zaplaconyTermin: '2026-08-20' });
+  assert.equal(iso(doZaplaty(w)?.data), '2026-09-20', 'wrzesień i październik zaległe');
+  ustawPrzedluzanie(w, 'nie');
+  assert.deepEqual([w.zaplaconyTermin, w.ostatniTermin, doZaplaty(w)], ['2026-08-20', '2026-11-20', null]);
+  assert.equal(doDzis(w, 2026).length, 8, 'zapłacone do sierpnia zostają w historii');
+  ustawPrzedluzanie(w, 'tak');
+  assert.deepEqual([w.zaplaconyTermin, iso(termin(w).data)], ['2026-11-19', '2026-11-20']);
+});
+
+test('dwie pauzy: data zakupu zostaje, historia bez miesięcy wstrzymania', () => {
+  const w = wpis({ koszt: 30, okres: 'M', od: '2026-01-20', wstrzymanaOd: '2026-03-01', wstrzymanaDo: '2026-05-05' });
+  assert.equal(ustawPauze(w, '2027-01-15'), true);
+  assert.deepEqual([w.od, w.przerwy, w.wstrzymanaOd, w.wstrzymanaDo], ['2026-01-20', [{ od: '2026-03-01', do: '2026-05-05' }], '2026-11-10', '2027-01-15']);
+  assert.equal(iso(termin(w).data), '2027-01-15');
+  assert.deepEqual(platnosciWRoku(w, 2026), ['2026-01-20', '2026-02-20', '2026-05-05', '2026-06-05', '2026-07-05', '2026-08-05', '2026-09-05', '2026-10-05', '2026-11-05']);
+  assert.deepEqual(platnosciWRoku(w, 2027).slice(0, 2), ['2027-01-15', '2027-02-15']);
+  // Bez drugiej pauzy - terminy od wznowienia po pierwszej, jak przed drugą.
+  usunPauze(w);
+  assert.equal(iso(termin(w).data), '2026-12-05');
+  assert.deepEqual(platnosciWRoku(w, 2026).slice(0, 3), ['2026-01-20', '2026-02-20', '2026-05-05']);
+});
+
+test('ostatni termin i przerwy: zapis, odczyt i formularz telefonu', () => {
+  const z = normalizuj({ id: 'a', ostatniTermin: '2026-12-01', przerwy: [{ od: '2026-01-01', do: '2026-02-01' }, { do: '2026-05-01' }, { od: 'x', do: 'zle' }, null] });
+  assert.equal(z.ostatniTermin, '2026-12-01');
+  assert.deepEqual(z.przerwy, [{ od: '2026-01-01', do: '2026-02-01' }, { od: '', do: '2026-05-01' }]);
+  assert.deepEqual([normalizuj({ ostatniTermin: '1.12.2026' }).ostatniTermin, normalizuj({ przerwy: 'x' }).przerwy], ['', []]);
+  assert.equal(odczytajDane({ wpisy: [z] }).wpisy[0].ostatniTermin, '2026-12-01');
+  // Telefon: „nie” w formularzu - data zakupu bez zmian, ostatni termin jak na PC; zapis bez zmiany „przedłużać” niczego nie rusza.
+  const w = wpis({ koszt: 50, okres: 'M', od: '2024-01-20', prognoza: 60, prognozaOd: '2026-11-20' });
+  const pola = (zmiany) => ({ nazwa: 'x', opis: '', koszt: '50', waluta: 'PLN', od: '2024-01-20', okres: 'M', przedluzac: 'tak', prognoza: '60', link: '', ...zmiany });
+  zastosujFormularz([w], w, pola({}));
+  assert.equal(w.prognozaOd, '2026-11-20');
+  zastosujFormularz([w], w, pola({ przedluzac: 'nie' }));
+  assert.deepEqual([w.od, w.przedluzac, w.ostatniTermin], ['2024-01-20', 'nie', '2026-11-20']);
+  zastosujFormularz([w], w, pola({ przedluzac: 'tak' }));
+  assert.deepEqual([w.przedluzac, w.ostatniTermin], ['tak', '']);
 });
 
 test('kwota za każdym razem inna: „zapłacone” z kwotą zapisuje historię i zmienia koszt', () => {

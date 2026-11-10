@@ -2,7 +2,7 @@
 // zostaje aż do „✓ zapłacone”, cofnięcie, powiadomienia „Zapłać” (powiadomienia.js) i pola w pliku (dane.js).
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, termin, dzis, dodajMiesiace, isoDnia as iso, DNI_DO_ZAPLATY } from '../resources/js/alarmy.js';
+import { doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, termin, dniPlatnosci, dzis, dodajMiesiace, isoDnia as iso, DNI_DO_ZAPLATY } from '../resources/js/alarmy.js';
 import * as P from '../resources/js/powiadomienia.js';
 import { normalizuj, zastosujFormularz } from '../resources/js/dane.js';
 
@@ -61,10 +61,26 @@ test('„termin do końca miesiąca”: ostatni dzień miesiąca, także po zap�
   assert.equal(normalizuj({ id: 'x', koniecMiesiaca: 'tak' }).koniecMiesiaca, false);
 });
 
-test('liczy się od daty zakupu: zakup 30.09, „płacę sam”, bez zapłaty - 30.10 zaległe (zgłoszenie autora)', () => {
+test('włączenie „płacę sam” przy starej dacie zakupu: co minęło - zapłacone, do zapłaty od dziś (decyzja autora 08.11)', () => {
   // „Dziś” w testach: 10.11.2026.
-  const w = { id: 'e', nazwa: 'Energa', koszt: 200, waluta: 'PLN', okres: 'M', przedluzac: 'tak', platnoscReczna: false, od: '2026-09-30', zaplaconyTermin: '' };
+  const w = { id: 'e', nazwa: 'Energa', koszt: 200, waluta: 'PLN', okres: 'M', przedluzac: 'tak', platnoscReczna: false, od: '2024-09-30', zaplaconyTermin: '' };
   w.platnoscReczna = true;
+  ustawPoczatekZaplaty(w, true);
+  assert.equal(iso(termin(w).data), '2026-11-30');
+  assert.equal(doZaplaty(w), null, 'bez zaległości sprzed włączenia');
+  assert.deepEqual(w.historia ?? [], [], 'bez wpłat z dzisiejszą datą w historii');
+  assert.equal(dniPlatnosci(w, new Date(2026, 0, 1), dzis()).length, 10, 'historia 2026: terminy styczeń-październik zapłacone jak dawniej');
+  // Termin akurat dziś - do zapłaty dziś; zapłacone wcześniej dalsze terminy zostają.
+  const dzisiaj = { ...w, od: '2026-08-10', zaplaconyTermin: '' };
+  ustawPoczatekZaplaty(dzisiaj, true);
+  assert.equal(iso(termin(dzisiaj).data), '2026-11-10');
+  const zgory = { ...w, zaplaconyTermin: '2026-12-30' };
+  ustawPoczatekZaplaty(zgory, true);
+  assert.equal(zgory.zaplaconyTermin, '2026-12-30');
+});
+
+test('zmiana daty zakupu przy „płacę sam”: liczy się od niej - 30.10 zaległe (zgłoszenie autora)', () => {
+  const w = { id: 'e', nazwa: 'Energa', koszt: 200, waluta: 'PLN', okres: 'M', przedluzac: 'tak', platnoscReczna: true, od: '2026-09-30', zaplaconyTermin: '' };
   ustawPoczatekZaplaty(w);
   assert.equal(iso(termin(w).data), '2026-10-30');
   const dz = doZaplaty(w);
@@ -102,7 +118,7 @@ test('po zapłacie powiadomienia dotyczą następnego terminu; „pobiera się s
   assert.equal(P.przypomnienia([prad(5, { platnoscReczna: false })]).length, 0);
 });
 
-test('pola w pliku: śmieci odrzucone, formularz telefonu ustawia „płacę sam” od daty zakupu', () => {
+test('pola w pliku: śmieci odrzucone, formularz telefonu włącza „płacę sam” od dziś', () => {
   const w = normalizuj({ id: 'a', platnoscReczna: 'tak', zaplaconyTermin: 'wczoraj' });
   assert.equal(w.platnoscReczna, false);
   assert.equal(w.zaplaconyTermin, '');
@@ -110,7 +126,10 @@ test('pola w pliku: śmieci odrzucone, formularz telefonu ustawia „płacę sam
   const wpisy = [w];
   zastosujFormularz(wpisy, w, { nazwa: 'Prąd', opis: '', koszt: '180', waluta: 'PLN', od: '2026-06-15', okres: 'M', przedluzac: 'tak', prognoza: '', platnosc: 'reczna', link: '' });
   assert.equal(w.platnoscReczna, true);
-  assert.equal(w.zaplaconyTermin, '');
-  assert.equal(iso(termin(w).data), '2026-07-15', 'pierwszy termin po zakupie - niezapłacony, więc zaległy');
-  assert.equal(doZaplaty(w).zalegle, true);
+  assert.equal(w.zaplaconyTermin, '2026-11-09');
+  assert.equal(iso(termin(w).data), '2026-11-15', 'co minęło - zapłacone, do zapłaty najbliższy termin');
+  assert.equal(doZaplaty(w).zalegle, false);
+  // Zmiana daty zakupu przy włączonym „płacę sam” - od daty zakupu, jak dawniej.
+  zastosujFormularz(wpisy, w, { nazwa: 'Prąd', opis: '', koszt: '180', waluta: 'PLN', od: '2026-06-20', okres: 'M', przedluzac: 'tak', prognoza: '', platnosc: 'reczna', link: '' });
+  assert.equal(iso(termin(w).data), '2026-07-20');
 });

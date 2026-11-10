@@ -1,12 +1,12 @@
 // Mikropłatności na telefonie: lista, terminy, paragon, dodawanie i edycja, synchronizacja z Google Dyskiem.
 // Obliczenia i format danych wspólne z aplikacją PC (pliki kopiowane z pc/resources/js przy budowaniu).
 
-import { termin, doPlatnosci, dniTekst, kiedyTekst, formatujDate, parsujDate, zbierzAlarmy, czyZakonczona, czyWstrzymana, dzis, isoDnia, zakupBiezacegoOkresu, doZaplaty, oznaczZaplate, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, ostatniaPlatnosc } from './alarmy.js';
-import { WALUTY, waluta, naPln, formatujKwote, wczytajZapamietane, odswiezZNbp, czyAktualne, ustawProwizje, pobierzProwizje, poprawnaProwizja } from './waluty.js';
+import { termin, doPlatnosci, dniTekst, kiedyTekst, formatujDate, parsujDate, zbierzAlarmy, czyZakonczona, czyWstrzymana, dzis, isoDnia, doZaplaty, oznaczZaplate, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, ostatniaPlatnosc } from './alarmy.js';
+import { waluta, naPln, formatujKwote, wczytajZapamietane, odswiezZNbp, czyAktualne, ustawProwizje, pobierzProwizje, poprawnaProwizja } from './waluty.js';
 import { renderujPodsumowanie, policz } from './podsumowanie.js';
 import { wypelnijListe } from './spisy.js';
 import { nowyWpis, doZapisu, usun, formatujKoszt, parsujKoszt, zastosujFormularz, nazwaWpisu, bezZaleglegoOdbioru, dodajPrzyklad, nicDoStracenia, OKRESY, KATEGORIE, nazwaKategorii, normalizuj, noweId, odczytajTresc, zastapZKopii } from './dane.js';
-import { funkcja, ustawFunkcje, pobierzFunkcje, reczna, zmiennaKwota, osobWpisu, cenaNastepna, kategoriaWpisu, firmowa } from './funkcje.js';
+import { funkcja, ustawFunkcje, pobierzFunkcje, reczna, zmiennaKwota, osobWpisu, cenaNastepna, kategoriaWpisu, firmowa, ustawWaluty, pobierzWaluty, uzyteWaluty, walutyNaStart, walutyWyboru, walutaNastepnej, zmianaNastepnej } from './funkcje.js';
 import { renderujAnulowane } from './anulowane.js';
 import { renderujHistorie } from './historia.js';
 import { wczytajNaStart, zapiszPlik, usunDaneLokalne, zrobKopie, znacznikCzasu } from './magazyn.js';
@@ -18,7 +18,7 @@ import { polaczSynchronizacje, OPOZNIENIE_WYSYLKI, poWymianie } from './synchron
 import { odczytajKod } from './kodQr.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
 import { rozplanuj, tytul, tresc, wczytajPamiec, zapiszPamiec, DOMYSLNE_RODZAJE } from './powiadomienia.js';
-import { element } from './dom.js';
+import { element, pokazPlynnie, wysunZGory, zamienPlynnie } from './dom.js';
 import { podepnijPomocStrony, przetlumaczPomoc } from './pomoc.js';
 import { t, tn, ustawJezyk, jezyk, region, przetlumaczStrone, dataDluga, liczbaKrotka } from './teksty.js';
 import { pustyFiltr, pasuje, poprawFiltr, renderujFiltr } from './filtr.js';
@@ -54,7 +54,7 @@ const $ = (id) => document.getElementById(id);
 
 function pokazBlad(tekst) {
   $('blad').textContent = tekst;
-  $('blad').hidden = false;
+  pokazPlynnie($('blad'), true); // wysuwa się, a nie wskakuje
 }
 
 // --- dane -------------------------------------------------------------
@@ -193,7 +193,7 @@ function pytanieOKwote(wpis, pole) {
   });
   wiersz.append(element('span', '', t('ile?')), kwota, element('span', '', waluta(wpis)), zapisz);
   pole.addEventListener('change', () => {
-    wiersz.hidden = !pole.checked;
+    pokazPlynnie(wiersz, pole.checked);
     if (pole.checked) {
       kwota.focus();
       kwota.select();
@@ -205,6 +205,7 @@ function pytanieOKwote(wpis, pole) {
 
 function utworzKarte(wpis) {
   const li = element('li');
+  li.dataset.id = wpis.id; // karta zapisanej albo wykreślonej pozycji - płynnie (formularz arkusza)
   const ramka = element('div');
   li.append(ramka);
   const karta = element('button', 'karta');
@@ -226,9 +227,12 @@ function utworzKarte(wpis) {
   // Cena od następnej płatności pod zapłaconą (jak „NASTĘPNA” na PC) - tylko gdy wpisana.
   const nastepnaCena = cenaNastepna(wpis);
   if (nastepnaCena !== null) {
-    const roznica = typeof wpis.koszt === 'number' ? Math.round((nastepnaCena - wpis.koszt) * 100) / 100 : 0;
-    const zmiana = roznica > 0 ? ' ▲ +' + formatujKoszt(roznica) : roznica < 0 ? ' ▼ ' + formatujKoszt(roznica) : '';
-    const nastepna = element('span', 'karta__nastepna', t('następna') + ' ' + formatujKwote(nastepnaCena, waluta(wpis)));
+    // Różnica w walucie kosztu, a przy innej walucie ceny następnej - w złotych po kursie NBP (jak na PC).
+    const z = zmianaNastepnej(wpis);
+    const roznica = z?.roznica ?? 0;
+    const kwotaRoznicy = z && z.kod !== waluta(wpis) ? formatujKwote(roznica, 'PLN') : formatujKoszt(roznica);
+    const zmiana = roznica > 0 ? ' ▲ +' + kwotaRoznicy : roznica < 0 ? ' ▼ ' + kwotaRoznicy : '';
+    const nastepna = element('span', 'karta__nastepna', t('następna') + ' ' + formatujKwote(nastepnaCena, walutaNastepnej(wpis)));
     if (zmiana) nastepna.append(element('span', roznica > 0 ? 'karta__drozej' : 'karta__taniej', zmiana));
     karta.append(nastepna);
   }
@@ -352,7 +356,7 @@ function renderuj() {
   $('karty').replaceChildren(...przefiltrowane.map(utworzKarte));
   renderujFiltr($('filtr'), widoczne, stan.filtr, przefiltrowane.length, (f) => {
     stan.filtr = f;
-    renderuj();
+    zamienPlynnie($('karty'), renderuj); // karty nie znikają skokiem: lista gaśnie i pojawia się już przefiltrowana
   });
   $('pusto').hidden = widoczne.length > 0;
   $('legenda').hidden = !widoczne.length;
@@ -380,17 +384,23 @@ function renderuj() {
 
 let zakladka = 'lista';
 
+// Inna zakładka - po kolei: stara gaśnie, potem pojawia się nowa (zamienPlynnie). Ta sama - tylko na górę.
 function pokazZakladke(nazwa) {
+  const inna = nazwa !== zakladka;
   zakladka = nazwa;
-  for (const przycisk of document.querySelectorAll('[data-zakladka]')) {
-    const ta = przycisk.dataset.zakladka === nazwa;
-    if (ta) przycisk.setAttribute('aria-current', 'page');
+  const przyciski = document.querySelectorAll('[data-zakladka]');
+  for (const przycisk of przyciski) {
+    if (przycisk.dataset.zakladka === nazwa) przycisk.setAttribute('aria-current', 'page');
     else przycisk.removeAttribute('aria-current');
-    $('zakladka-' + przycisk.dataset.zakladka).hidden = !ta;
   }
-  $('tresc').scrollTop = 0;
-  // Etykiety miarki układane dopiero na widocznej zakładce (wymiary ukrytej są zerowe).
-  if (nazwa === 'terminy') ulozMiarke();
+  const pokaz = () => {
+    for (const przycisk of przyciski) $('zakladka-' + przycisk.dataset.zakladka).hidden = przycisk.dataset.zakladka !== zakladka;
+    $('tresc').scrollTop = 0;
+    // Etykiety miarki układane dopiero na widocznej zakładce (wymiary ukrytej są zerowe).
+    if (zakladka === 'terminy') ulozMiarke();
+  };
+  if (inna) zamienPlynnie($('tresc'), pokaz);
+  else pokaz();
 }
 
 const ulozMiarke = () => ulozTory($('miarka').querySelector('.miarka__znaczniki'));
@@ -412,8 +422,15 @@ function otworzArkusz(wpis) {
   pola.nazwa.value = w.nazwa;
   pola.opis.value = w.opis;
   pola.koszt.value = formatujKoszt(w.koszt);
+  // Waluty włączone w ustawieniach i własne pozycji (obca waluta zostaje do zmiany, nawet gdy wyłączona).
+  const opcje = (...kody) => walutyWyboru(...kody).map((kod) => new Option(kod, kod));
+  pola.waluta.replaceChildren(...opcje(waluta(w)));
   pola.waluta.value = waluta(w);
-  $('pole-waluta').hidden = !funkcja('waluty') && waluta(w) === 'PLN'; // obca waluta zostaje do zmiany
+  pola.waluta.dataset.poprzednia = waluta(w);
+  $('pole-waluta').hidden = !funkcja('waluty') && waluta(w) === 'PLN';
+  pola.walutaNastepna.replaceChildren(...opcje(waluta(w), walutaNastepnej(w)));
+  pola.walutaNastepna.value = walutaNastepnej(w);
+  $('pole-waluta-nastepna').hidden = !funkcja('waluty') && waluta(w) === 'PLN' && walutaNastepnej(w) === 'PLN';
   pola.od.value = w.od;
   // mies. / rok - tylko co 1; kwartał, tydzień, 2 lata - „inny”. Wyłączone „Inne okresy” - bez „inny”, chyba że pozycja już go ma.
   const inny = !!w.okres && (w.okres === 'T' || w.coIle > 1);
@@ -468,7 +485,7 @@ function otworzArkusz(wpis) {
 formularz.addEventListener('submit', async (e) => {
   e.preventDefault();
   // Wspólna logika (dane.js, z testami): wpis szukany po id - w trakcie edycji mogły przyjść zmiany z Dysku.
-  const wartosci = Object.fromEntries(['nazwa', 'opis', 'koszt', 'waluta', 'od', 'prognoza', 'platnosc', 'link', 'ktoOddaje', 'kategoria'].map((p) => [p, pola[p].value]));
+  const wartosci = Object.fromEntries(['nazwa', 'opis', 'koszt', 'waluta', 'walutaNastepna', 'od', 'prognoza', 'platnosc', 'link', 'ktoOddaje', 'kategoria'].map((p) => [p, pola[p].value]));
   // „Inny” okres z pól „co [N] [jednostka]”; mies. i rok zawsze co 1; bez wyboru - zostaje, jak było.
   if (pola.okres.value === 'inny') {
     const co = Math.round(Number(pola.coIle.value));
@@ -491,19 +508,32 @@ formularz.addEventListener('submit', async (e) => {
     return;
   }
   if (!pasuje(wpis, stan.filtr)) stan.filtr = pustyFiltr(); // zapisana pozycja nie znika za filtrem
+  const nowa = !stan.edytowany;
   $('arkusz').close();
   await poZmianie();
+  // Nowa pozycja nie wskakuje na listę - karta rośnie od zera, gdy arkusz zjeżdża w dół.
+  const karta = nowa && kartaWpisu(wpis);
+  if (karta) {
+    karta.hidden = true;
+    pokazPlynnie(karta, true, { czas: 260 });
+  }
 });
 
-// Dolne przyciski arkusza: zwykłe (Wykreśl, Anuluj, Zapisz) albo pytanie przed wykreśleniem - wtedy bez
-// „Zapisz” (sugerowało zostawienie pozycji), a „Nie wykreślaj” wraca do edycji z wpisanymi zmianami.
+const kartaWpisu = (wpis) => [...$('karty').children].find((li) => li.dataset.id === wpis.id);
+
+// Dolne przyciski arkusza: zwykłe (Wykreśl, Anuluj, Zapisz) albo pytanie przed wykreśleniem - zwykły tekst
+// „Czy na pewno…?” (nie przycisk) i pod nim proste „Nie” / „Tak”; „Nie” wraca do edycji z wpisanymi zmianami.
 // Zamiana przez krótkie zgaszenie i pojawienie (nie skokiem); przy otwieraniu arkusza - od razu.
-function przyciskiArkusza(pytanie, archiwum = false) {
+function przyciskiArkusza(pytanie, archiwum = false, nazwa = '') {
   const zmien = () => {
-    $('arkusz-usun').textContent = !pytanie ? t('Wykreśl')
-      : archiwum ? t('Wykreślić? Trafi do „Anulowanych” - dotknij jeszcze raz') : t('Wykreślić? Tego nie da się cofnąć - dotknij jeszcze raz');
-    $('arkusz-anuluj').textContent = pytanie ? t('Nie wykreślaj') : t('Anuluj');
+    $('arkusz-pytanie').hidden = !pytanie;
+    $('arkusz-pytanie').textContent = !pytanie ? ''
+      : archiwum ? t('Czy na pewno wykreślić „{nazwa}”? Trafi do „Anulowanych” pod listą - stamtąd można ją przywrócić.', { nazwa })
+        : t('Czy na pewno wykreślić „{nazwa}”? Tego nie da się cofnąć.', { nazwa });
+    $('arkusz-usun').textContent = pytanie ? t('Tak') : t('Wykreśl');
+    $('arkusz-anuluj').textContent = pytanie ? t('Nie') : t('Anuluj');
     $('arkusz-zapisz').hidden = pytanie;
+    rzad.classList.toggle('t-formularz__przyciski--pytanie', pytanie);
     if (!pytanie) delete $('arkusz-usun').dataset.potwierdz;
   };
   const rzad = $('arkusz-usun').parentElement;
@@ -529,7 +559,7 @@ $('arkusz-usun').addEventListener('click', async () => {
   if (!odRazu && !(Date.now() - Number(przycisk.dataset.potwierdz) > 500)) {
     if (przycisk.dataset.potwierdz) return;
     przycisk.dataset.potwierdz = String(Date.now());
-    przyciskiArkusza(true, archiwum);
+    przyciskiArkusza(true, archiwum, wpis ? nazwaWpisu(wpis) : '');
     return;
   }
   $('arkusz').close();
@@ -539,6 +569,9 @@ $('arkusz-usun').addEventListener('click', async () => {
     wpis.anulowano = isoDnia(dzis());
     wpis.zmieniono = new Date().toISOString();
   }
+  // Karta nie znika skokiem: maleje i gaśnie, gdy arkusz zjeżdża w dół, a niższe podjeżdżają.
+  const karta = kartaWpisu(wpis);
+  if (karta) await pokazPlynnie(karta, false, { czas: 260 })?.finished.catch(() => {});
   await poZmianie();
 });
 
@@ -555,25 +588,18 @@ async function usunNaZawsze(wpis) {
   await poZmianie();
 }
 
-// „nie” po kilku okresach - termin ma być najbliższym odnowieniem, a nie pierwszym po dawnym zakupie (jak na PC).
-pola.przedluzac.addEventListener('change', () => {
-  if (pola.przedluzac.checked) return;
-  const inny = pola.okres.value === 'inny';
-  pola.od.value = zakupBiezacegoOkresu({ od: pola.od.value, okres: inny ? pola.jednostka.value : pola.okres.value, coIle: inny ? Math.round(Number(pola.coIle.value)) || 1 : 1 });
-});
-
 // „Termin do końca miesiąca” i „Kwota za każdym razem inna” widać tylko przy „płacę sam” (jak w „⋯” na PC); „Przedłużać” - zawsze.
 function pokazKoniecMiesiaca() {
   const recznie = pola.platnosc.value === 'reczna' && funkcja('platnosc');
-  $('pole-koniec-miesiaca').hidden = !recznie;
-  $('pole-zmienna-kwota').hidden = !recznie || !funkcja('kwotaZmienna');
-  $('pomoc-recznie').hidden = !recznie;
+  pokazPlynnie($('pole-koniec-miesiaca'), recznie);
+  pokazPlynnie($('pole-zmienna-kwota'), recznie && funkcja('kwotaZmienna'));
+  pokazPlynnie($('pomoc-recznie'), recznie);
 }
 pola.platnosc.addEventListener('change', pokazKoniecMiesiaca);
 
 // Pola „inny” okres - gotowe okresy ustawiają „co [N] [jednostka]”; mies. i rok mają własne pola wyboru.
 function pokazOkresInny() {
-  $('pole-okres-inny').hidden = pola.okres.value !== 'inny';
+  pokazPlynnie($('pole-okres-inny'), pola.okres.value === 'inny');
   const co = Math.round(Number(pola.coIle.value));
   for (const b of $('okres-gotowe').children) b.setAttribute('aria-pressed', String(b.dataset.okres === pola.jednostka.value && Number(b.dataset.ile) === co));
 }
@@ -594,7 +620,7 @@ for (const p of [...pola.okres, pola.coIle, pola.jednostka]) p.addEventListener(
 // Pauza jednorazowej się nie ustawia - tę się wycofuje. pauzaNowa: undefined - bez zmian (zastosujFormularz).
 let pauzaNowa;
 function pokazPauze() {
-  $('grupa-pauza').hidden = !pola.przedluzac.checked || !funkcja('pauza');
+  pokazPlynnie($('grupa-pauza'), pola.przedluzac.checked && funkcja('pauza'));
 }
 pola.przedluzac.addEventListener('change', pokazPauze);
 pola.wstrzymanaDo.addEventListener('change', () => { pauzaNowa = pola.wstrzymanaDo.value; });
@@ -609,9 +635,16 @@ $('pauza-usun').addEventListener('click', () => {
   $('pauza-wartosc').textContent = t('bez pauzy');
 });
 
-pola.waluta.append(...WALUTY.map((kod) => new Option(kod, kod)));
+// Waluta ceny następnej idzie za walutą kosztu, dopóki była taka sama (domyślnie ta sama co koszt).
+pola.waluta.addEventListener('change', () => {
+  if (pola.walutaNastepna.value === pola.waluta.dataset.poprzednia) {
+    if (![...pola.walutaNastepna.options].some((o) => o.value === pola.waluta.value)) pola.walutaNastepna.append(new Option(pola.waluta.value, pola.waluta.value));
+    pola.walutaNastepna.value = pola.waluta.value;
+  }
+  pola.waluta.dataset.poprzednia = pola.waluta.value;
+});
 
-// Przy pytaniu „Wykreślić?” - powrót do edycji; inaczej zamknięcie arkusza bez zapisu.
+// Przy pytaniu „Czy na pewno wykreślić?” („Nie”) - powrót do edycji; inaczej zamknięcie arkusza bez zapisu.
 $('arkusz-anuluj').addEventListener('click', () => {
   if ($('arkusz-usun').dataset.potwierdz) przyciskiArkusza(false);
   else $('arkusz').close();
@@ -662,7 +695,7 @@ async function pobierzModulSkanera() {
 $('okno-google-skanuj').addEventListener('click', async () => {
   const przycisk = $('okno-google-skanuj');
   const blad = $('okno-google-blad');
-  blad.hidden = true;
+  pokazPlynnie(blad, false);
   if (!Skaner) return;
   const napis = przycisk.textContent;
   przycisk.disabled = true;
@@ -680,7 +713,7 @@ $('okno-google-skanuj').addEventListener('click', async () => {
   } catch (e) {
     if (e?.message === 'scan canceled.') return; // zamknięty skaner - bez komunikatu
     blad.textContent = e instanceof BladSkanu ? e.message : t('Skanowanie nie udało się - wpisz identyfikator ręcznie.');
-    blad.hidden = false;
+    pokazPlynnie(blad, true);
     console.error(e);
   } finally {
     przycisk.textContent = napis;
@@ -704,10 +737,11 @@ function odswiezMiejsceZapisu() {
 
 const zapiszMojeUstawienia = () => zapiszUstawienia(PLIK_USTAWIEN, {
   lokalnie: stan.lokalnie, prowizja: pobierzProwizje(), funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, jezyk: stan.jezyk, wprowadzenie: stan.wprowadzenie, budzet: stan.budzet,
+  waluty: pobierzWaluty(),
 }).catch(console.error);
 
-// A6, A7: kursy i prowizja potrzebne przy włączonych „Walutach obcych” albo pozycji w walucie obcej.
-const uzywaWalut = () => funkcja('waluty') || stan.wpisy.some((w) => waluta(w) !== 'PLN');
+// A6, A7: kursy i prowizja potrzebne przy włączonej walucie obcej albo pozycji w walucie obcej.
+const uzywaWalut = () => funkcja('waluty') || uzyteWaluty(stan.wpisy).size > 0;
 // Po nowych kursach także powiadomienia (kwoty „Przygotuj pieniądze” w zł).
 const poKursach = () => {
   renderuj();
@@ -742,6 +776,14 @@ function zastosujFunkcje(funkcje) {
   pobierzKursyGdyTrzeba(); // włączone waluty - kursy, jeśli dziś jeszcze nie pobrane
 }
 
+// Waluty do wyboru (zakładka „Zeszyt”, jak na PC): pole waluty i kursy pod paragonem.
+function zastosujWaluty(lista) {
+  ustawWaluty(lista);
+  zapiszMojeUstawienia();
+  renderuj();
+  pobierzKursyGdyTrzeba();
+}
+
 // F27: język strony - teksty z index.html (teksty.js); to, co rysuje kod, odświeża zmienJezyk.
 const pokazWersje = () => { $('wersja').textContent = t('wersja {numer}', { numer: window.WERSJA_APLIKACJI || t('robocza') }); };
 
@@ -772,14 +814,15 @@ const pokazWprowadzenie = () => { $('wprowadzenie').hidden = !stan.wprowadzenie;
 
 $('wprowadzenie-zmaz').addEventListener('click', () => {
   stan.wprowadzenie = false;
-  pokazWprowadzenie();
+  pokazPlynnie($('wprowadzenie'), false, { czas: 240, przesun: -12 }); // jak wysunZGory, tylko w drugą stronę
   zapiszMojeUstawienia();
 });
 
 const otworzUstawienia = () => pokazUstawienia(
-  { telefon: true, funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, jezyk: jezyk(), budzet: stan.budzet },
+  { telefon: true, funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, jezyk: jezyk(), budzet: stan.budzet, waluty: pobierzWaluty(), uzyteWaluty: uzyteWaluty(stan.wpisy) },
   {
     naFunkcje: zastosujFunkcje,
+    naWaluty: zastosujWaluty,
     naJezyk: zmienJezyk,
     naBudzet(kwota) {
       stan.budzet = poprawnyBudzet(kwota);
@@ -788,10 +831,12 @@ const otworzUstawienia = () => pokazUstawienia(
     },
     // Notatki jeszcze raz (przykładowa pozycja tylko przy pustej liście).
     naWprowadzenie() {
+      const bylySchowane = $('wprowadzenie').hidden;
       stan.wprowadzenie = true;
       zapiszMojeUstawienia();
       pokazWprowadzenie();
       pokazZakladke('lista');
+      if (bylySchowane) wysunZGory($('wprowadzenie')); // po zgaśnięciu okna ustawień - płynnie z góry
       if (!stan.wpisy.some((w) => !w.anulowano) && !stan.zablokowany && !$('dodaj').disabled) {
         dodajPrzykladowy();
         poZmianie().catch(console.error);
@@ -993,7 +1038,7 @@ async function wczytajWyciagBankowy(plik) {
   }
   const daty = operacje.map((o) => o.data).sort();
   const info = { plik: plik.name, operacji: operacje.length, od: daty[0], do: daty.at(-1) };
-  pokazWyciag(znajdzPowtarzajace(operacje, stan.wpisy.filter((w) => !w.anulowano)), info, (lista) => dopiszZWyciagu(lista).catch(console.error));
+  pokazWyciag(znajdzPowtarzajace(operacje, stan.wpisy.filter((w) => !w.anulowano), stan.wpisy.filter((w) => w.anulowano)), info, (lista) => dopiszZWyciagu(lista).catch(console.error));
 }
 
 // Data ostatniej płatności = data zakupu - termin następnej liczy się sam (jak na PC).
@@ -1132,6 +1177,8 @@ async function start() {
   const ustawienia = await wczytajUstawienia(PLIK_USTAWIEN);
   stan.lokalnie = ustawienia.lokalnie;
   ustawFunkcje(ustawienia.funkcje);
+  // Plik sprzed listy walut: na razie bez walut z pozycji (dane jeszcze niewczytane) - dopisywane niżej.
+  ustawWaluty(ustawienia.waluty ?? walutyNaStart(ustawienia.dawneWalutyObce, []));
   ustawProwizje(ustawienia.prowizja);
   stan.jezyk = ustawienia.jezyk || '';
   stan.wprowadzenie = ustawienia.wprowadzenie === true;
@@ -1165,6 +1212,11 @@ async function start() {
       dodajPrzykladowy();
       await zapisz();
     }
+    zapiszMojeUstawienia();
+  }
+  // Pierwsze uruchomienie z listą walut: dochodzą waluty, których używają pozycje (jak na PC).
+  if (ustawienia.waluty === null && !stan.zablokowany) {
+    ustawWaluty(walutyNaStart(ustawienia.dawneWalutyObce, stan.wpisy));
     zapiszMojeUstawienia();
   }
   pokazWprowadzenie();

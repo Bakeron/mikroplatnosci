@@ -33,7 +33,7 @@
   <main class="kartka">
     <section class="wprowadzenie" id="wprowadzenie" aria-labelledby="wprowadzenie-tytul" hidden>
       <h2 class="wprowadzenie__tytul" id="wprowadzenie-tytul">Pierwsze kroki - notatki ołówkiem</h2>
-      <button type="button" class="wprowadzenie__zmaz" id="wprowadzenie-zmaz" title="Schowaj pierwsze kroki" aria-label="Schowaj pierwsze kroki">×</button>
+      <button type="button" class="okno__x wprowadzenie__zmaz" id="wprowadzenie-zmaz" title="Schowaj pierwsze kroki" aria-label="Schowaj pierwsze kroki">×</button>
       <ol class="wprowadzenie__kroki">
         <li><b>Dopisz pozycję</b> - „+ dopisz nową pozycję…” pod tabelą: nazwa, koszt i data zakupu.</li>
         <li><b>Ustaw okres</b> - przy dacie zakupu „mies.”, „rok” albo „inny”. Od niego liczy się lont w „Do płatności”.</li>
@@ -125,7 +125,7 @@
     <span class="ustawienia__o-aplikacji" id="czesc-o-aplikacji"><button type="button" class="przycisk-tekst" id="o-aplikacji">o aplikacji</button> <span class="ustawienia__wersja" id="wersja"></span></span>
   </div>
 
-  <dialog class="okno" id="okno-dysk" closedby="any">
+  <dialog class="okno" id="okno-dysk" closedby="closerequest">
     <button type="button" class="okno__x" title="Zamknij" aria-label="Zamknij">×</button>
     <p>Skopiuj kod, otwórz <strong>google.com/device</strong>, wklej go tam i zgódź się na dostęp:</p>
     <p class="okno__kod" id="okno-dysk-kod" data-bez-tlumaczenia></p>
@@ -137,7 +137,7 @@
     </div>
   </dialog>
 
-  <dialog class="okno okno--szersze" id="okno-google" closedby="any">
+  <dialog class="okno okno--szersze" id="okno-google" closedby="closerequest">
     <button type="button" class="okno__x" title="Zamknij" aria-label="Zamknij">×</button>
     <p>Synchronizacja potrzebuje identyfikatora Twojego projektu w Google Cloud (raz, za darmo):</p>
     <label class="okno__pole">Identyfikator klienta

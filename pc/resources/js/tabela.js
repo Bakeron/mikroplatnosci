@@ -1,10 +1,10 @@
 // Tabela mikropłatności: wiersze z edycją w komórkach i przesuwaniem.
 
-import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, zakupBiezacegoOkresu, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
-import { WALUTY, waluta, przeliczNaPln, formatujKwote } from './waluty.js';
+import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, ustawPrzedluzanie, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
+import { waluta, przeliczNaPln, formatujKwote } from './waluty.js';
 import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, OKRESY, nazwaKategorii, ustawPauze, wznowDzis, usunPauze, bezZaleglegoOdbioru } from './dane.js';
-import { element, trescObokKrzyzyka } from './dom.js';
-import { funkcja, reczna as recznaWpisu, zmiennaKwota, osobWpisu, kategoriaWpisu, firmowa } from './funkcje.js';
+import { element, pokazPlynnie, trescObokKrzyzyka, zamienPoKolei } from './dom.js';
+import { funkcja, reczna as recznaWpisu, zmiennaKwota, osobWpisu, kategoriaWpisu, firmowa, walutyWyboru, walutaNastepnej, zmianaNastepnej } from './funkcje.js';
 import { przyciskPomocy } from './pomoc.js';
 import { t, tekst, jezyk, liczba, region } from './teksty.js';
 
@@ -113,7 +113,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const okresOpcje = [['M', t('mies.')], ['R', t('rok')]].map(([wartosc, tekst]) => {
     const opcja = element('button', 'okres-wybor__opcja', tekst);
     opcja.type = 'button';
-    opcja.addEventListener('click', () => { wpis.okres = wartosc; wpis.coIle = 1; ustawPoczatekZaplaty(wpis); odswiez(); onZmiana(); });
+    opcja.addEventListener('click', () => ustawOkres(wartosc, 1));
     okresWybor.append(opcja);
     return [wartosc, opcja];
   });
@@ -183,7 +183,8 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   koszt.placeholder = jezyk() === 'pl' ? '0,00' : '0.00';
   const walutaWybor = element('select', 'pole pole--waluta');
   walutaWybor.setAttribute('aria-label', t('Waluta'));
-  walutaWybor.append(...WALUTY.map((kod) => new Option(kod, kod)));
+  // Waluty włączone w ustawieniach i własna pozycji (zmiana ustawień przebudowuje tabelę).
+  walutaWybor.append(...walutyWyboru(waluta(wpis)).map((kod) => new Option(kod, kod)));
   walutaWybor.value = waluta(wpis);
   const wPln = element('div', 'dopisek dopisek--pln');
   const czesc = element('div', 'dopisek dopisek--czesc'); // „÷ 4 = 15,00 zł” - moja część wspólnej płatności
@@ -199,9 +200,13 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const prognozaEtykieta = element('span', 'nastepna__etykieta', t('następna'));
   prognozaEtykieta.setAttribute('aria-hidden', 'true'); // czytnik ekranu ma etykietę pola
   const prognozaWaluta = element('span', 'prognoza__waluta');
+  // Waluta ceny następnej - domyślnie ta sama co koszt (np. Perplexity: zapłacone 20 zł, następna 200 USD).
+  const prognozaWybor = element('select', 'pole pole--waluta');
+  prognozaWybor.setAttribute('aria-label', t('Waluta ceny następnej'));
+  prognozaWybor.append(...walutyWyboru(waluta(wpis), walutaNastepnej(wpis)).map((kod) => new Option(kod, kod)));
   const prognozaRamka = element('div', 'koszt-ramka nastepna');
   prognozaRamka.title = t('Cena od następnej płatności - gdy kończy się promocja albo serwis zapowiedział podwyżkę. Pusta = zostaje zapłacona.');
-  prognozaRamka.append(prognozaEtykieta, prognoza, prognozaWaluta);
+  prognozaRamka.append(prognozaEtykieta, prognoza, prognozaWaluta, prognozaWybor);
   // „≈ … zł” i „▲ +6,00” w jednej linijce pod drugą ceną.
   const prognozaPln = element('span');
   const prognozaInfo = element('span', 'dopisek--prognoza');
@@ -211,6 +216,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   prognozaDodaj.type = 'button';
   prognozaDodaj.title = t('Dopisz cenę od następnej płatności (koniec promocji, podwyżka)');
   let prognozaOtwarta = false; // kliknięte „+ następna cena”, pole jeszcze puste
+  let prognozaDoFokusu = false; // fokus w polu ceny, gdy już się pojawi (zamienPoKolei)
 
   const link = poleWieloliniowe(wpis.link, t('Link'), 'pole--link', 2000);
   link.inputMode = 'url';
@@ -252,10 +258,10 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     const opcja = element('button', 'okres-wybor__opcja', tekst);
     opcja.type = 'button';
     opcja.addEventListener('click', () => {
-      // Włączenie „płacę sam” - liczy się od daty zakupu. „Przedłużać” widać przy obu sposobach płatności.
+      // Włączenie „płacę sam” - do zapłaty od dziś (co minęło, pobrało się samo). „Przedłużać” widać przy obu sposobach płatności.
       if (reczna && !wpis.platnoscReczna) {
         wpis.platnoscReczna = true;
-        ustawPoczatekZaplaty(wpis);
+        ustawPoczatekZaplaty(wpis, true);
       }
       wpis.platnoscReczna = reczna;
       odswiez();
@@ -367,6 +373,8 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   trescObokKrzyzyka(karteczka, karteczkaX);
 
   function ustawOkres(typ, ile) {
+    // Klik w okres, który już jest wybrany, niczego nie zmienia - inaczej kasowałby zapłacone terminy.
+    if (wpis.okres === typ && (wpis.coIle || 1) === ile) return;
     wpis.okres = typ;
     wpis.coIle = ile;
     ustawPoczatekZaplaty(wpis);
@@ -378,7 +386,13 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   usun.type = 'button';
   usun.title = t('Wykreśl pozycję');
   // Czytnik ekranu słyszy, który wiersz wykreśla (nazwa zmienia się przy pisaniu).
-  const opiszUsun = () => usun.setAttribute('aria-label', t('Wykreśl: {nazwa}', { nazwa: nazwaWpisu(wpis) }));
+  // Nazwa zmienia się przy pisaniu - „×” i karteczka „⋯” od razu mówią, którego wiersza dotyczą.
+  const opiszUsun = () => {
+    const nazwaTekst = nazwaWpisu(wpis);
+    usun.setAttribute('aria-label', t('Wykreśl: {nazwa}', { nazwa: nazwaTekst }));
+    karteczkaTytul.textContent = nazwaTekst;
+    wiecej.setAttribute('aria-label', t('Ustawienia: {nazwa}', { nazwa: nazwaTekst }));
+  };
   opiszUsun();
 
   const linkRamka = element('div', 'link-ramka');
@@ -443,7 +457,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     const reczna = recznaWpisu(wpis) && !jednorazowa && !dz && !wstrzymana;
     terminData.textContent = !ter.data ? '' : wstrzymana ? t('wraca {data}', { data: formatujDate(ter.data) }) : reczna ? t('{data} · ręcznie', { data: formatujDate(ter.data) }) : formatujDate(ter.data);
     terminData.title = wstrzymana ? t('Pauza - w tym dniu pierwsza płatność po przerwie') : reczna ? t('Płacę sam - nie pobiera się z konta') : '';
-    pauza.hidden = !wstrzymana;
+    pokazPlynnie(pauza, wstrzymana);
     // Cały wiersz czerwienieje z każdym dniem do terminu, po terminie - najmocniej (--czerwien w CSS).
     // Zakończona jednorazowa („nie”, termin minął) - tak samo mocno jak zaległa płatność: trzeba coś z nią zrobić.
     const poTerminie = !!dz?.zalegle || zakonczona;
@@ -451,8 +465,8 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     tr.classList.toggle('po-terminie', poTerminie);
     if (dz || zakonczona) tr.style.setProperty('--czerwien', czerwienZaplaty(zakonczona ? -1 : dz.dni) + '%');
     else tr.style.removeProperty('--czerwien');
-    zaplac.hidden = !dz;
-    if (!dz) zaplacKwota.hidden = true;
+    pokazPlynnie(zaplac, !!dz);
+    if (!dz) pokazPlynnie(zaplacKwota, false);
     if (dz) {
       zaplacTekst.textContent = t('zapłać do {data}', { data: jezyk() === 'pl' ? formatujDate(dz.doDnia).slice(0, 5) : dz.doDnia.toLocaleDateString(region(), { day: 'numeric', month: 'short' }) });
       // B8: termin w dzień wolny - „zapłać do” to ostatni dzień roboczy przed nim.
@@ -463,9 +477,9 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     }
     // Wyłączone „Płacę sam” - bez wyboru płatności (wszystko liczone jak „pobiera się sama”).
     platnoscPole.hidden = !funkcja('platnosc');
-    koniecEtykieta.hidden = !recznaWpisu(wpis);
+    pokazPlynnie(koniecEtykieta, recznaWpisu(wpis));
     koniecPole.checked = !!wpis.koniecMiesiaca;
-    zmiennaEtykieta.hidden = !recznaWpisu(wpis) || !funkcja('kwotaZmienna');
+    pokazPlynnie(zmiennaEtykieta, recznaWpisu(wpis) && funkcja('kwotaZmienna'));
     zmiennaPole.checked = !!wpis.zmiennaKwota;
 
     const nazwaTekst = nazwaWpisu(wpis);
@@ -485,15 +499,16 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     pauzaGrupa.det.hidden = jednorazowa || !funkcja('pauza'); // jednorazowej się nie wstrzymuje - wycofuje się ją
     pauzaGrupa.wartosc.textContent = wstrzymana ? t('do {data}', { data: formatujDate(parsujDate(wpis.wstrzymanaDo)) }) : t('nie');
     pauzaPole.value = wstrzymana ? wpis.wstrzymanaDo : '';
-    pauzaPole.min = isoDnia(new Date(dzis().getTime() + 86400000));
-    pauzaKoniec.hidden = !wstrzymana;
-    pauzaUsun.hidden = !wpis.wstrzymanaDo;
+    const jutro = dzis();
+    pauzaPole.min = isoDnia(new Date(jutro.getFullYear(), jutro.getMonth(), jutro.getDate() + 1)); // nie +24 h - w dniu zmiany czasu doba ma 25 h
+    pokazPlynnie(pauzaKoniec, wstrzymana);
+    pokazPlynnie(pauzaUsun, !!wpis.wstrzymanaDo);
 
     // Moja część wspólnej płatności i przypomnienie „odbierz” po płatności (gdy wpisane imiona).
     czesc.textContent = osob > 1 && typeof wpis.koszt === 'number' ? `÷ ${osob} = ${formatujKwote(wpis.koszt / osob, kod)}` : '';
     const ostatnia = osob > 1 && wpis.ktoOddaje.trim() && !wstrzymana ? ostatniaPlatnosc(wpis) : null;
     const doOdebrania = !!ostatnia && isoDnia(ostatnia) > wpis.oddaneTermin;
-    odbierz.hidden = !doOdebrania;
+    pokazPlynnie(odbierz, doOdebrania);
     if (doOdebrania) {
       const kto = wpis.ktoOddaje.trim();
       odbierzTekst.textContent = typeof wpis.koszt === 'number' ? t('odbierz po {kwota}: {kto}', { kwota: formatujKwote(wpis.koszt / osob, kod), kto }) : t('odbierz: {kto}', { kto });
@@ -515,8 +530,9 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     firmaEtykieta.hidden = !funkcja('firma');
     firmaPole.checked = !!wpis.firmowa;
     const ostatniaFirmowa = firmowa(wpis) && !wstrzymana ? ostatniaPlatnosc(wpis) : null;
-    faktura.hidden = !ostatniaFirmowa || isoDnia(ostatniaFirmowa) <= wpis.fakturaTermin;
-    if (!faktura.hidden) {
+    const doFaktury = !!ostatniaFirmowa && isoDnia(ostatniaFirmowa) > wpis.fakturaTermin;
+    pokazPlynnie(faktura, doFaktury);
+    if (doFaktury) {
       fakturaPole.checked = false;
       fakturaPole.setAttribute('aria-label', t('Faktura pobrana - płatność z {data}', { data: formatujDate(ostatniaFirmowa) }));
       faktura.title = t('Płatność z {data}', { data: formatujDate(ostatniaFirmowa) });
@@ -538,28 +554,42 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     uwaga.textContent = zakonczona ? t('sprawdź, czy anulowano') : '';
 
     // „≈ … zł” pod kwotą w walucie obcej.
-    const dopisekPln = (kwota) => {
-      if (kod === 'PLN' || typeof kwota !== 'number') return '';
-      const pln = przeliczNaPln(kwota, kod);
+    const dopisekPln = (kwota, kodKwoty = kod) => {
+      if (kodKwoty === 'PLN' || typeof kwota !== 'number') return '';
+      const pln = przeliczNaPln(kwota, kodKwoty);
       return pln === null ? t('brak kursu NBP') : '≈ ' + formatujKwote(pln);
     };
     wPln.textContent = dopisekPln(wpis.koszt);
-    // Wyłączone „Waluty obce” - wybór waluty tylko przy pozycjach, które już mają obcą.
+    // Same złote w ustawieniach - wybór waluty tylko przy pozycjach, które już mają obcą.
     walutaWybor.hidden = !funkcja('waluty') && kod === 'PLN';
+    const kodNastepnej = walutaNastepnej(wpis);
     // Koszt mógł się zmienić sam (cena następna stała się zapłaconą) - pole pokazuje aktualny.
     if (document.activeElement !== koszt) koszt.value = formatujKoszt(wpis.koszt);
     // Wyłączona „Cena następna” - bez pola i bez „+ następna cena” (wpisana cena czeka w pliku).
     const nastepnaWidoczna = funkcja('nastepna') && (wpis.prognoza !== null || prognozaOtwarta || document.activeElement === prognoza);
-    prognozaRamka.hidden = !nastepnaWidoczna;
-    prognozaDodaj.hidden = nastepnaWidoczna || !funkcja('nastepna');
+    // „+ następna cena” i pole ceny - po kolei: jedno znika, potem pojawia się drugie.
+    if (nastepnaWidoczna) zamienPoKolei(prognozaDodaj, prognozaRamka, () => {
+      if (!prognozaDoFokusu) return;
+      prognozaDoFokusu = false;
+      prognoza.focus();
+    });
+    else if (funkcja('nastepna')) zamienPoKolei(prognozaRamka, prognozaDodaj);
+    else for (const el of [prognozaRamka, prognozaDodaj]) pokazPlynnie(el, false);
+    // Wybór waluty ceny następnej jak przy koszcie; bez niego sam kod waluty kosztu.
+    prognozaWybor.hidden = !funkcja('waluty') && kod === 'PLN' && kodNastepnej === 'PLN';
+    prognozaWybor.value = kodNastepnej;
+    prognozaWaluta.hidden = !prognozaWybor.hidden;
     prognozaWaluta.textContent = kod;
-    prognozaPln.textContent = dopisekPln(wpis.prognoza);
+    prognozaPln.textContent = dopisekPln(wpis.prognoza, kodNastepnej);
     if (document.activeElement !== prognoza) prognoza.value = formatujKoszt(wpis.prognoza);
     let info = '';
     let ocena = '';
-    if (typeof wpis.prognoza === 'number' && typeof wpis.koszt === 'number') {
-      const roznica = Math.round((wpis.prognoza - wpis.koszt) * 100) / 100;
-      info = roznica === 0 ? t('bez zmian') : (roznica > 0 ? '▲ +' : '▼ ') + (jezyk() === 'pl' ? formatujKoszt(roznica) : liczba(roznica));
+    // Różnica w walucie kosztu, a przy innej walucie ceny następnej - w złotych po kursie NBP.
+    const zmiana = zmianaNastepnej(wpis);
+    if (zmiana) {
+      const { roznica } = zmiana;
+      const tekstRoznicy = zmiana.kod !== kod ? formatujKwote(roznica, 'PLN') : jezyk() === 'pl' ? formatujKoszt(roznica) : liczba(roznica);
+      info = roznica === 0 ? t('bez zmian') : (roznica > 0 ? '▲ +' : '▼ ') + tekstRoznicy;
       ocena = roznica > 0 ? 'drozej' : roznica < 0 ? 'taniej' : '';
     }
     prognozaInfo.textContent = info;
@@ -591,6 +621,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   });
   walutaWybor.addEventListener('change', () => {
     wpis.waluta = walutaWybor.value;
+    if (wpis.walutaNastepna === wpis.waluta) wpis.walutaNastepna = ''; // ta sama co koszt = puste
     odswiez();
     onZmiana();
   });
@@ -617,10 +648,15 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     odswiez();
     onZmiana();
   });
+  prognozaWybor.addEventListener('change', () => {
+    wpis.walutaNastepna = prognozaWybor.value === waluta(wpis) ? '' : prognozaWybor.value; // ta sama co koszt = puste
+    odswiez();
+    onZmiana();
+  });
   prognozaDodaj.addEventListener('click', () => {
     prognozaOtwarta = true;
+    prognozaDoFokusu = true;
     odswiez();
-    prognoza.focus();
   });
   // Wyjście z pustego pola - z powrotem samo „+ następna cena” (obsługa „blur” wyżej już poprawiła tekst pola).
   prognoza.addEventListener('blur', () => {
@@ -642,11 +678,8 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     if (adres) onOtworz(adres);
   });
   przedluzac.addEventListener('change', () => {
-    // „nie” po kilku okresach - termin ma być najbliższym odnowieniem, a nie pierwszym po dawnym zakupie.
-    if (!przedluzac.checked) wpis.od = zakupBiezacegoOkresu(wpis);
-    wpis.przedluzac = przedluzac.checked ? 'tak' : 'nie';
-    ustawPoczatekZaplaty(wpis); // np. „nie” → „tak” przy płacę sam - bez zaległości z czasu „nie”
-    od.value = wpis.od;
+    // „nie” - termin to najbliższe odnowienie; data zakupu i historia zostają (reguły w alarmy.js, te same na telefonie).
+    ustawPrzedluzanie(wpis, przedluzac.checked ? 'tak' : 'nie');
     odswiez();
     onZmiana();
   });
@@ -654,7 +687,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   // Kwota za każdym razem inna - najpierw pytanie „ile?” (Enter zapisuje, Esc albo odznaczenie - rezygnacja).
   zaplacPole.addEventListener('change', () => {
     if (zmiennaKwota(wpis)) {
-      zaplacKwota.hidden = !zaplacPole.checked;
+      pokazPlynnie(zaplacKwota, zaplacPole.checked);
       if (zaplacPole.checked) {
         const ostatnia = wpis.historia?.at(-1)?.kwota;
         zaplacKwotaPole.value = formatujKoszt(ostatnia ?? wpis.prognoza ?? wpis.koszt);
@@ -675,7 +708,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
       zaplacKwotaPole.focus();
       return;
     }
-    zaplacKwota.hidden = true;
+    pokazPlynnie(zaplacKwota, false);
     if (!oznaczZaplate(wpis, kwota)) return;
     if (document.activeElement !== koszt) koszt.value = formatujKoszt(wpis.koszt);
     odswiez();
@@ -686,7 +719,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     if (e.key === 'Enter') zapiszZaplate();
     else if (e.key === 'Escape') {
       e.preventDefault();
-      zaplacKwota.hidden = true;
+      pokazPlynnie(zaplacKwota, false);
       zaplacPole.checked = false;
       zaplacPole.focus();
     }
@@ -797,10 +830,12 @@ export function odswiezWiersze(tbody) {
 // po upuszczeniu poUpuszczeniu() dostaje nową kolejność id.
 export function przeciaganieWierszy(tbody, poUpuszczeniu) {
   let przeciagany = null;
+  let naMiejscu = null; // sąsiad sprzed przeciągania - Esc albo upuszczenie poza tabelą cofa wiersz
   tbody.addEventListener('dragstart', (e) => {
     // Tylko wiersz złapany za uchwyt Lp. (draggable) - nie przeciągany tekst z pola.
     przeciagany = e.target.closest?.('tr[draggable="true"]');
     if (!przeciagany) return;
+    naMiejscu = przeciagany.nextElementSibling;
     przeciagany.classList.add('przeciagany');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', przeciagany.dataset.id);
@@ -816,11 +851,15 @@ export function przeciaganieWierszy(tbody, poUpuszczeniu) {
     else tr.before(przeciagany);
   });
   tbody.addEventListener('drop', (e) => e.preventDefault());
-  tbody.addEventListener('dragend', () => {
+  tbody.addEventListener('dragend', (e) => {
     if (!przeciagany) return;
     przeciagany.classList.remove('przeciagany');
     przeciagany.draggable = false;
+    const anulowane = e.dataTransfer?.dropEffect === 'none';
+    if (anulowane) tbody.insertBefore(przeciagany, naMiejscu);
     przeciagany = null;
+    naMiejscu = null;
+    if (anulowane) return;
     poUpuszczeniu([...tbody.rows].map((tr) => tr.dataset.id));
   });
 }

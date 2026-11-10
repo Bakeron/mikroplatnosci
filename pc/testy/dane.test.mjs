@@ -19,7 +19,7 @@ test('plik danych: zapis i ponowny odczyt dają to samo, dodatki PC przed wpisam
   const stan = { wpisy: [normalizuj({ id: 'a', nazwa: 'X', koszt: 1 })], usuniete: [{ id: 'b', kiedy: '2026-10-30T10:00:00.000Z' }] };
   const plik = doZapisu(stan, { motyw: 'jasny' });
   assert.deepEqual(Object.keys(plik), ['wersja', 'zapisano', 'motyw', 'wpisy', 'usuniete']);
-  assert.equal(plik.wersja, 2);
+  assert.equal(plik.wersja, 4);
   assert.deepEqual(odczytajDane(JSON.parse(JSON.stringify(plik))), stan);
   assert.deepEqual(Object.keys(doZapisu(stan)), ['wersja', 'zapisano', 'wpisy', 'usuniete']);
 });

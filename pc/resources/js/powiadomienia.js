@@ -11,7 +11,7 @@
 import { termin, dodajMiesiace, dzis, roznicaDni, formatujDate, isoDnia, okres, czyDlugi, czyWstrzymana, parsujDate, zaplacDo } from './alarmy.js';
 import { waluta, formatujKwote, przeliczNaPln } from './waluty.js';
 import { nazwaWpisu } from './dane.js';
-import { reczna, cenaNastepna, anulowana } from './funkcje.js';
+import { reczna, cenaNastepna, anulowana, walutaNastepnej, zmianaNastepnej } from './funkcje.js';
 import { powodWolnego } from './swieta.js';
 import { t, tn, tekst } from './teksty.js';
 
@@ -41,16 +41,16 @@ export const DOMYSLNE_RODZAJE = { wycofaj: true, zaplac: true, drogie: false, po
 // Początek klucza wg rodzaju - „Wycofaj” bez przedrostka i „zapłać ” jak dotąd (pamięć pokazanych zostaje ważna).
 const PRZEDROSTEK = { wycofaj: '', zaplac: 'zapłać ', drogie: 'drogie ', podwyzka: 'podwyżka ' };
 
-// Kwota płatności w danym terminie: cena następna, jeśli wpisana i obowiązuje już od tego terminu, inaczej koszt.
+// Kwota płatności w danym terminie z walutą: cena następna, jeśli wpisana i obowiązuje już od tego terminu
+// (w swojej walucie), inaczej koszt.
 function kwotaWTerminie(wpis, data) {
   const nowa = cenaNastepna(wpis);
-  return nowa !== null && (!wpis.prognozaOd || isoDnia(data) >= wpis.prognozaOd) ? nowa : wpis.koszt;
+  return nowa !== null && (!wpis.prognozaOd || isoDnia(data) >= wpis.prognozaOd) ? { kwota: nowa, kod: walutaNastepnej(wpis) } : { kwota: wpis.koszt, kod: waluta(wpis) };
 }
 
-// Podwyżka: dzień płatności, od której obowiązuje wyższa cena następna (albo null).
+// Podwyżka: dzień płatności, od której obowiązuje wyższa cena następna (albo null). Inna waluta - w złotych.
 function dzienPodwyzki(wpis, data) {
-  const nowa = cenaNastepna(wpis);
-  if (nowa === null || typeof wpis.koszt !== 'number' || nowa <= wpis.koszt) return null;
+  if (!(zmianaNastepnej(wpis)?.roznica > 0)) return null;
   return parsujDate(wpis.prognozaOd) ?? data;
 }
 
@@ -84,7 +84,8 @@ export function przypomnienia(wpisy, rodzaje = DOMYSLNE_RODZAJE) {
       if (rodzaje.zaplac) dodaj('zaplac', PROGI_ZAPLATY, data, zaplacDo(data));
     } else if (rodzaje.drogie) {
       // Cała kwota schodzi z konta (także przy dzieleniu kosztu) - w złotych, waluta obca po kursie NBP.
-      const pln = przeliczNaPln(kwotaWTerminie(wpis, data), waluta(wpis));
+      const doZaplaty = kwotaWTerminie(wpis, data);
+      const pln = przeliczNaPln(doZaplaty.kwota, doZaplaty.kod);
       if (pln !== null && pln >= (rodzaje.progDrogich ?? DOMYSLNE_RODZAJE.progDrogich)) dodaj('drogie', PROGI_DROGICH, data);
     }
     const podwyzka = rodzaje.podwyzka ? dzienPodwyzki(wpis, data) : null;
@@ -136,7 +137,7 @@ export function tresc(p, dzien = p.dzien) {
   if (p.rodzaj === 'zaplac' || p.rodzaj === 'drogie') {
     // Do zapłaty jest cena od następnej płatności, jeśli wpisana i obowiązuje już od tego terminu.
     const doZaplaty = kwotaWTerminie(p.wpis, p.termin);
-    const kwotaZaplaty = typeof doZaplaty === 'number' ? ` (${formatujKwote(doZaplaty, kod)})` : '';
+    const kwotaZaplaty = typeof doZaplaty.kwota === 'number' ? ` (${formatujKwote(doZaplaty.kwota, doZaplaty.kod)})` : '';
     if (p.rodzaj === 'drogie') return t('Płatność {kiedy}, {data}{kwota} pobierze się sama z konta - przygotuj pieniądze.', { kiedy, data: formatujDate(p.termin), kwota: kwotaZaplaty });
     if (cel < p.termin) {
       return t('Zapłać {kiedy}, do {doDnia}{kwota}: termin {data} wypada {powod}, a przelew w dzień wolny wychodzi dopiero po nim. Nie pobiera się samo.', { kiedy, doDnia: formatujDate(cel), kwota: kwotaZaplaty, data: formatujDate(p.termin), powod: powodWolnego(p.termin) });
@@ -146,7 +147,8 @@ export function tresc(p, dzien = p.dzien) {
   if (p.rodzaj === 'podwyzka') {
     const nowa = cenaNastepna(p.wpis) ?? 0;
     const stara = p.wpis.koszt ?? 0;
-    return t('Od płatności {kiedy}, {data} drożej o {roznica}: {stara} → {nowa}. Dalej chcesz? Jeśli nie - anuluj przed tym dniem.', { kiedy, data: formatujDate(p.termin), roznica: formatujKwote(Math.round((nowa - stara) * 100) / 100, kod), stara: formatujKwote(stara, kod), nowa: formatujKwote(nowa, kod) });
+    const zmiana = zmianaNastepnej(p.wpis) ?? { roznica: Math.round((nowa - stara) * 100) / 100, kod };
+    return t('Od płatności {kiedy}, {data} drożej o {roznica}: {stara} → {nowa}. Dalej chcesz? Jeśli nie - anuluj przed tym dniem.', { kiedy, data: formatujDate(p.termin), roznica: formatujKwote(zmiana.roznica, zmiana.kod), stara: formatujKwote(stara, kod), nowa: formatujKwote(nowa, walutaNastepnej(p.wpis)) });
   }
   const kwota = typeof p.wpis.koszt === 'number' ? ` (${formatujKwote(p.wpis.koszt, waluta(p.wpis))})` : '';
   return t('Odnowienie {kiedy}, {data}{kwota}. Jeśli nie przedłużasz - anuluj subskrypcję.', { kiedy, data: formatujDate(p.termin), kwota });

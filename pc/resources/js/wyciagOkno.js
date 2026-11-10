@@ -35,10 +35,10 @@ export function pokazWyciag(propozycje, info, naDopisz) {
   } else {
     const ul = element('ul', 'wyciag');
     for (const p of propozycje) {
-      const li = element('li', 'wyciag__pozycja' + (p.juzJest || p.dawno ? ' wyciag__pozycja--uwaga' : ''));
+      const li = element('li', 'wyciag__pozycja' + (p.juzJest || p.wAnulowanych || p.dawno ? ' wyciag__pozycja--uwaga' : ''));
       const pole = element('input');
       pole.type = 'checkbox';
-      pole.checked = !p.juzJest && !p.dawno;
+      pole.checked = !p.juzJest && !p.wAnulowanych && !p.dawno;
       if (pole.checked) wybrane.add(p);
       const nazwa = element('input', 'pole wyciag__nazwa');
       nazwa.type = 'text';
@@ -57,6 +57,7 @@ export function pokazWyciag(propozycje, info, naDopisz) {
       const opis = [kwota, nazwaOkresu(p), tn(p.ile, '{n} płatność', '{n} płatności', '{n} płatności'), t('ostatnio {data}', { data: formatujDate(parsujDate(p.ostatnia)) })];
       const uwagi = [];
       if (p.juzJest) uwagi.push(t('chyba już jest w zeszycie'));
+      if (p.wAnulowanych) uwagi.push(t('chyba jest w „Anulowanych” - wykreślona wcześniej'));
       if (p.dawno) uwagi.push(t('dawno nie było płatności - może już anulowana'));
       if (p.max - p.min > 0.01) uwagi.push(t('kwota za każdym razem inna - wpiszę ostatnią'));
       const teksty = element('div', 'wyciag__teksty');

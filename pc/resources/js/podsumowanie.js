@@ -1,10 +1,10 @@
 // Paragon - sumy kosztów w złotówkach.
 
 import { okres, czyZakonczona, parsujDate, formatujDate, czyDlugi, miesiecznie, nazwaOkresu, czyWstrzymana } from './alarmy.js';
-import { przeliczNaPln, waluta, pobierzKursy, formatujKwote, pobierzProwizje } from './waluty.js';
+import { przeliczNaPln, waluta, pobierzKursy, formatujKwote, pobierzProwizje, WALUTY } from './waluty.js';
 import { nazwaWpisu, KATEGORIE, nazwaKategorii } from './dane.js';
 import { element } from './dom.js';
-import { osobWpisu, cenaNastepna, anulowana, funkcja, kategoriaWpisu, firmowa } from './funkcje.js';
+import { osobWpisu, cenaNastepna, anulowana, funkcja, kategoriaWpisu, firmowa, walutaNastepnej, pobierzWaluty } from './funkcje.js';
 import { t, liczba, liczbaKrotka, data, godzina, jezyk } from './teksty.js';
 
 // Ile rocznie kosztowałaby anulowana pozycja, gdyby jej nie anulować (w zł, moja część; bez okresu albo kursu - 0).
@@ -80,7 +80,9 @@ export function policz(wpisy) {
     }
 
     // Prognoza na miesiąc: jak RAZEM / MIESIĄC, ale z prognozowaną ceną tam, gdzie jest.
-    const prognozaPln = przeliczNaPln(cenaNastepna(wpis), kod);
+    const kodNastepnej = walutaNastepnej(wpis);
+    const prognozaPln = przeliczNaPln(cenaNastepna(wpis), kodNastepnej);
+    if (cenaNastepna(wpis) !== null && kodNastepnej !== 'PLN') s.uzyteWaluty.add(kodNastepnej);
     if (prognozaPln !== null) s.jestPrognoza = true;
     const doPrognozy = (prognozaPln ?? plnCalosc ?? 0) / osob;
     if (ok.typ) s.prognozaNaMiesiac += miesiecznie(doPrognozy, ok);
@@ -138,6 +140,7 @@ export function renderujPodsumowanie(kontener, wpisy, opcje = {}) {
   linie.push(
     element('hr', 'paragon__kreska paragon__kreska--podwojna'),
     pozycja(t('RAZEM / MIESIĄC'), formatujKwote(s.lacznieMiesiecznie), 'paragon__pozycja--suma'),
+    element('div', 'paragon__waluta', t('miesięczne + roczne ÷ 12')), // roczne też tu - bez opisu mylące
     pozycja(t('RAZEM / ROK'), formatujKwote(s.lacznieMiesiecznie * 12), 'paragon__pozycja--suma'),
     element('div', 'paragon__waluta', t('miesięczne × 12 + roczne')),
   );
@@ -180,10 +183,11 @@ export function renderujPodsumowanie(kontener, wpisy, opcje = {}) {
   }
 
   const kursy = pobierzKursy();
-  if (kursy || s.walutyObce) linie.push(element('hr', 'paragon__kreska'));
-  if (kursy) {
-    // USD i EUR zawsze, inne waluty - gdy są w zeszycie.
-    const kody = ['USD', 'EUR', ...[...s.uzyteWaluty].filter((k) => k !== 'USD' && k !== 'EUR')].filter((k) => kursy[k]);
+  // Waluty włączone w ustawieniach i te, których używają pozycje (same złote - bez kursów).
+  const wlaczone = pobierzWaluty();
+  const kody = kursy ? WALUTY.filter((k) => k !== 'PLN' && kursy[k] && (wlaczone.includes(k) || s.uzyteWaluty.has(k))) : [];
+  if (kody.length || s.walutyObce) linie.push(element('hr', 'paragon__kreska'));
+  if (kody.length) {
     // Kody walut pod sobą: kolejne wiersze wcięte spacjami na długość napisu przed kodem (dwie spacje po „NBP”).
     const wciecie = ' '.repeat(Math.max(0, t('Kurs NBP  {kod}').indexOf('{kod}')));
     kody.forEach((kod, i) => linie.push(pozycja(i ? wciecie + kod : t('Kurs NBP  {kod}', { kod }), liczba(kursy[kod], 4))));

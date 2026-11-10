@@ -15,10 +15,19 @@
 
 .telefon { overflow: hidden; -webkit-tap-highlight-color: transparent; }
 
+/* Odstępy od pasków Androida (stan u góry, przyciski nawigacji na dole). Aplikacja rysuje się pod paskami
+   (Android 15+), a env(safe-area-inset-*) bywa w WebView równe 0 - wtedy „Anuluj” i „Zapisz” w arkuszu
+   wchodziły pod przyciski Androida. Capacitor (SystemBars) podaje prawdziwe odstępy jako --safe-area-inset-*
+   na <html>; bierzemy większą z obu wartości. */
+:root {
+  --pasek-gora: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --pasek-dol: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+}
+
 /* --- nagłówek --- */
 
 .t-naglowek {
-  padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 8px;
+  padding: calc(var(--pasek-gora) + 12px) 16px 8px;
   border-bottom: 3px double var(--atrament);
 }
 .t-naglowek__gora { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -158,7 +167,7 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .t-zakladki {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  padding: 0 8px env(safe-area-inset-bottom, 0px);
+  padding: 0 8px var(--pasek-dol);
   border-top: 3px double var(--atrament);
   background: var(--papier);
 }
@@ -181,7 +190,7 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
   inset: auto 0 0;
   width: 100%;
   max-width: 100%;
-  max-height: 92vh;
+  max-height: calc(100dvh - var(--pasek-gora) - 12px); /* nad paskiem stanu; dół: odstęp w .t-formularz */
   margin: 0;
   padding: 0;
   overflow: auto;
@@ -193,8 +202,15 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
   box-shadow: 0 -12px 40px rgb(0 0 0 / 0.4);
 }
 .t-arkusz::backdrop { background: rgb(20 15 5 / 0.5); }
+/* arkusz wysuwa się od dołu i tam chowa, przyciemnienie płynnie (nie skokiem); „ogranicz animacje” - w wyglad.css */
+.t-arkusz { translate: 0 100%; transition: translate 0.22s cubic-bezier(0.2, 0, 0.2, 1), overlay 0.22s allow-discrete, display 0.22s allow-discrete; }
+.t-arkusz[open] { translate: 0 0; }
+@starting-style { .t-arkusz[open] { translate: 0 100%; } }
+.t-arkusz::backdrop { opacity: 0; transition: opacity 0.22s ease-out, overlay 0.22s allow-discrete, display 0.22s allow-discrete; }
+.t-arkusz[open]::backdrop { opacity: 1; }
+@starting-style { .t-arkusz[open]::backdrop { opacity: 0; } }
 
-.t-formularz { display: grid; gap: 12px; padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 16px); }
+.t-formularz { display: grid; gap: 12px; padding: 18px 16px calc(var(--pasek-dol) + 16px); }
 .t-formularz__tytul { margin: 0; font: italic 700 20px var(--f-tytul); }
 .t-wiersz { display: flex; gap: 12px; }
 .t-pole { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; border: 0; color: var(--olowek); font: 600 11.5px var(--f-liczby); letter-spacing: 0.08em; text-transform: uppercase; }
@@ -258,6 +274,12 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
   font: italic 15px var(--f-tytul);
   text-align: left;
 }
+/* Pytanie przed wykreśleniem: zwykły tekst w całym wierszu, pod nim „Nie” i „Tak” obok siebie po prawej. */
+.t-formularz__przyciski--pytanie { flex-wrap: wrap; gap: 6px 28px; }
+.t-formularz__pytanie { flex-basis: 100%; margin: 0; color: var(--atrament); font: italic 17px/1.35 var(--f-tytul); }
+.t-formularz__pytanie[hidden] { display: none; }
+.t-formularz__przyciski--pytanie .t-usun { order: 1; min-width: 56px; margin-right: 0; font-weight: 700; font-size: 17px; text-align: center; }
+.t-formularz__przyciski--pytanie .przycisk-tekst { min-width: 56px; min-height: 44px; font-size: 17px; }
 .t-zapisz {
   min-height: 44px;
   padding: 8px 22px;
@@ -271,18 +293,23 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 
 /* okno z kodem Google - na telefonie na całą szerokość */
 .telefon .okno { max-width: calc(100vw - 32px); }
+/* zwykłe okna na środku, ale między paskami Androida (bez tego dół wysokiego okna wchodził pod przyciski) */
+.telefon .okno:not(.okno--zakladki) { inset-block: var(--pasek-gora) var(--pasek-dol); max-height: calc(100dvh - var(--pasek-gora) - var(--pasek-dol) - 32px); }
 .telefon .okno p { font-size: 17px; }
 .telefon .okno__przyciski { flex-wrap: wrap; }
 
 /* F25: pierwsze kroki nad listą - notatki z wyglad.css, „×” do trafienia palcem */
 .t-wprowadzenie { margin: 12px 0 8px; padding: 10px 12px 8px; font-size: 15.5px; }
-.t-wprowadzenie .wprowadzenie__tytul { padding-right: 36px; }
-.t-wprowadzenie .wprowadzenie__zmaz { top: 0; right: 0; width: 44px; height: 44px; }
-.t-wprowadzenie .wprowadzenie__zmaz:hover { color: var(--olowek); } /* dotyk zostawia :hover po puszczeniu */
+.t-wprowadzenie .wprowadzenie__tytul { padding-right: 46px; }
+/* „×” jak w ustawieniach na telefonie: koło w środku notatki (nie na rogu), 44 px do trafienia palcem */
+.t-wprowadzenie > .okno__x { top: 4px; right: 4px; width: 44px; height: 44px; translate: none; box-shadow: none; --x-dlugosc: 16px; }
+.t-wprowadzenie > .okno__x:hover { border-color: var(--linia); color: var(--olowek); } /* dotyk zostawia :hover po puszczeniu */
 
 /* F26: „?” większe niż na PC, dotyk 44 px (niewidoczne pole wokół kółka nie zmienia układu). Dymek na całą
    szerokość ekranu, pod „?” albo nad nim - kotwica „bottom span-left” z PC wyszłaby za lewą krawędź. */
-.telefon .pomoc { position: relative; width: 20px; height: 20px; margin-left: 4px; padding: 1.5px 0 0; font-size: 13px; vertical-align: 0; }
+/* „?” na środku kółka: Barlow (telefon) zostawia nad znakiem mniej miejsca niż Bahnschrift (PC), więc odstęp
+   od góry większy niż na PC - zmierzony na zrzucie przy gęstości ekranu telefonu. */
+.telefon .pomoc { position: relative; width: 20px; height: 20px; margin-left: 4px; padding: 2.75px 0 0; font-size: 13px; vertical-align: 0; }
 .telefon .pomoc::after { content: ""; position: absolute; inset: -12px; }
 .telefon .pomoc--paragon { position: absolute; top: 12px; right: 12px; }
 .telefon .pomoc-okno { position-area: bottom span-all; width: auto; margin: 6px 16px; font-size: 15.5px; }
@@ -296,6 +323,10 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .okno--ustawienia > .okno__tresc { margin-inline: -16px; padding-inline: 16px; }
 .telefon .ustawienia__kolumny { grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .telefon .ustawienia__wiersz { min-height: 44px; }
+/* waluty w ustawieniach: kratki do trafienia palcem (44 px), napis 15 px */
+.telefon .ustawienia__waluty { gap: 0 18px; }
+.telefon .ustawienia__waluta { min-height: 44px; font-size: 15px; }
+.telefon .ustawienia__waluta input { width: 20px; height: 20px; }
 .telefon .ustawienia__wiersz:hover .ustawienia__nazwa { text-decoration: none; } /* dotyk zostawia :hover po puszczeniu */
 .telefon .ustawienia__nazwa { font-size: 16px; }
 .telefon .ustawienia__opis { font-size: 14px; }
@@ -311,8 +342,8 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
    wysokość. Tytuł, zakładki i „×” stoją na górze (ustawienia__gora), przewija się tylko treść pod nimi.
    „×” nie wystaje za róg jak na PC - pod paskiem stanu trudno go trafić - tylko stoi w wierszu tytułu. */
 .telefon .okno--zakladki {
-  --odstep-gora: calc(env(safe-area-inset-top, 0px) + 16px);
-  --odstep-dol: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  --odstep-gora: calc(var(--pasek-gora) + 16px);
+  --odstep-dol: calc(var(--pasek-dol) + 16px);
   height: calc(100dvh - var(--odstep-gora) - var(--odstep-dol));
   max-height: none;
   margin: var(--odstep-gora) auto var(--odstep-dol);
@@ -320,7 +351,8 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .okno--zakladki[open] { display: flex; flex-direction: column; }
 .telefon .okno--zakladki > .okno__tresc { flex: 1; min-height: 0; max-height: none; }
 .telefon .okno--ustawienia .ustawienia__gora { margin-inline: -16px; padding-inline: 16px; }
-.telefon .okno--zakladki > .okno__x { top: 20px; right: 8px; width: 44px; height: 44px; translate: none; box-shadow: none; font-size: 24px; }
+/* „×” w wierszu tytułu, wcięty jak treść okna (16 px od brzegu); kreski z wyglad.css - zawsze na środku koła */
+.telefon .okno--zakladki > .okno__x { top: 20px; right: 16px; width: 44px; height: 44px; translate: none; box-shadow: none; --x-dlugosc: 16px; }
 /* zakładki ustawień jak na PC, w jednym rzędzie przewijanym w bok (jak filtr nad listą) */
 /* Bez przesunięcia (transform) z PC - wystawało 3 px pod pasek i pasek dawał się przewinąć w pionie (drugie
    dotknięcie „powiększało” zakładkę). Otwarta zakładka płynnie rośnie w górę (zakładki stoją na kresce). */

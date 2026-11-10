@@ -7,6 +7,7 @@ import { normalizuj } from '../resources/js/dane.js';
 import { poprawneFunkcje, ustawFunkcje, kategoriaWpisu, firmowa } from '../resources/js/funkcje.js';
 import { pustyFiltr, pasuje, poprawFiltr, czyPusty } from '../resources/js/filtr.js';
 import { doCsv, komorkaCsv } from '../resources/js/eksport.js';
+import { ustawJezyk } from '../resources/js/teksty.js';
 import { dekoduj, parsujCsv, parsujDateWyciagu, parsujKwoteWyciagu, odczytajWyciag, odbiorca, znajdzPowtarzajace } from '../resources/js/wyciag.js';
 
 mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10, 0).getTime() });
@@ -18,6 +19,8 @@ test('D17, D18: przełączniki domyślnie wyłączone, pozostałe funkcje domyś
   assert.equal(f.kategorie, false);
   assert.equal(f.firma, false);
   assert.equal(f.okresy, false); // inne okresy - też domyślnie wyłączone (autor 02.11.2026)
+  assert.equal(f.krzywe, false); // krzywe elementy - domyślnie prosto (autor 10.11.2026)
+  assert.equal(poprawneFunkcje({ krzywe: true }).krzywe, true);
   assert.equal(f.pauza, true);
   assert.deepEqual([poprawneFunkcje({ kategorie: true }).kategorie, poprawneFunkcje({ kategorie: 'tak' }).kategorie, poprawneFunkcje({ pauza: false }).pauza], [true, false, false]);
   ustawFunkcje(undefined);
@@ -90,6 +93,15 @@ test('E23: CSV - BOM, średnik i przecinek po polsku, cudzysłowy, bez formuł E
   assert.ok(linie[2].startsWith("2;'@zła;"));
   assert.ok(linie[2].endsWith('anulowana 2026-11-01'));
   assert.ok(linie[2].includes(';co rok;2026-01-05;;')); // anulowana - bez następnej płatności
+  // Po angielsku też średnik i przecinek dziesiętny - Excel na polskim Windows (decyzja autora 08.11).
+  ustawJezyk('en');
+  try {
+    const en = doCsv([wpis({ nazwa: 'Netflix', koszt: 43.5 })]).trim().split('\r\n');
+    assert.equal(en[0].split(';').length, 18, en[0]);
+    assert.ok(en[1].startsWith('1;Netflix;;') && en[1].includes(';43,50;PLN;'), en[1]);
+  } finally {
+    ustawJezyk('pl');
+  }
 });
 
 // --- E24: wyciąg bankowy -----------------------------------------------------------------------

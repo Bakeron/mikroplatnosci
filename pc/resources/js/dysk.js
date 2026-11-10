@@ -61,8 +61,10 @@ const bezOdstepow = (tekst) => String(tekst).replace(/[\s­᠎​-‍⁠]/g, '')
 export async function ustawIdentyfikator(id, sekret) {
   id = bezOdstepow(id);
   sekret = bezOdstepow(sekret);
+  if (!id) return t('wpisz identyfikator klienta');
   if (!WZOR_ID.test(id)) return t('identyfikator klienta kończy się na .apps.googleusercontent.com');
-  if (!WZOR_SEKRETU.test(sekret)) return t('tajny klucz to ciąg liter, cyfr i myślników (zwykle zaczyna się od GOCSPX-)');
+  if (!sekret) return t('wpisz tajny klucz klienta');
+  if (!WZOR_SEKRETU.test(sekret)) return t('tajny klucz to co najmniej 10 liter, cyfr i myślników (zwykle zaczyna się od GOCSPX-)');
   if (dysk.odswiezajacy && (id !== dysk.id || sekret !== dysk.sekret)) await rozlacz();
   Object.assign(dysk, { id, sekret, wpisane: true });
   await zapiszPlik();
@@ -163,7 +165,7 @@ async function zapomnij() {
 export async function rozlacz() {
   const token = dysk.odswiezajacy;
   await zapomnij();
-  if (token) await formularz('https://oauth2.googleapis.com/revoke', { token }).catch(() => {});
+  if (token) formularz('https://oauth2.googleapis.com/revoke', { token }).catch(() => {});
 }
 
 async function tokenDostepu() {
@@ -189,6 +191,9 @@ async function zapytanie(adres, opcje = {}) {
     // 401 - dostęp odrzucony (np. cofnięty na koncie Google): następnym razem po nowy, a gdy Google
     // odmówi odświeżenia (invalid_grant), aplikacja zapomni dostęp.
     if (odp.status === 401) Object.assign(dysk, { dostep: '', wazneDo: 0 });
+    const powod = await odp.text().catch(() => '');
+    if (/accessNotConfigured|SERVICE_DISABLED/.test(powod)) throw new Error(t('W Twoim projekcie Google wyłączone jest Google Drive API - włącz je (instrukcja „pokaż jak”, krok 2) i spróbuj jeszcze raz.'));
+    if (/storageQuotaExceeded/.test(powod)) throw new Error(t('Twój Google Dysk jest pełny - zwolnij miejsce i spróbuj jeszcze raz.'));
     throw new Error(t('Google Dysk odpowiedział błędem {kod}', { kod: odp.status }));
   }
   return odp;

@@ -66,6 +66,10 @@
 }
 
 * { box-sizing: border-box; }
+/* Przekrzywienie (pieczątki, paragon, „!”, numery w kółkach) - każdy kąt mnożony przez --krzywo. Ustawienie
+   „Krzywe elementy” (funkcje.js) jest domyślnie wyłączone - wtedy wszystko stoi prosto; włączone - klasa .krzywe. */
+:root { --krzywo: 0; }
+:root.krzywe { --krzywo: 1; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 
@@ -198,7 +202,16 @@ button { cursor: pointer; }
   color: var(--olowek);
   font: 13px var(--f-liczby);
   letter-spacing: 0.04em;
+  /* Długi komunikat (np. błąd Dysku) skraca się wielokropkiem (pełny w podpowiedzi i w ustawieniach),
+     zamiast ściskać datę, kursy i „zapisano” do dwóch linijek. */
+  flex: 1 1 0;
+  max-width: max-content;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.naglowek__data { white-space: nowrap; }
 /* Węższe okno: tytuł z datą w pierwszym wierszu, kursy i przyciski w drugim - na całą szerokość,
    zamiast kursów łamanych jeden pod drugim. Próg z zapasem na „bez internetu - kurs zapamiętany”. */
 @media (max-width: 1420px) {
@@ -309,7 +322,7 @@ tr:hover .uchwyt::before,
 .uchwyt:hover::before { opacity: 1; }
 .uchwyt:active { cursor: grabbing; }
 .zeszyt tbody tr.przeciagany td { background: var(--zakreslacz); opacity: 0.6; }
-.zeszyt .kol-koszt { width: 150px; text-align: right; }
+.zeszyt .kol-koszt { width: 162px; text-align: right; } /* 162 px - cena następna z wyborem waluty („49,00 USD”) bez ucinania */
 
 .zeszyt tbody tr:hover td:not(.kol-akcje, .kol-lp),
 .zeszyt tbody tr:focus-within td:not(.kol-akcje, .kol-lp) { background: var(--zakreslacz); }
@@ -677,7 +690,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   display: inline-block;
   color: var(--czerwony);
   font: 900 28px/1 var(--f-tytul);
-  transform: rotate(-8deg);
+  transform: rotate(calc(-8deg * var(--krzywo)));
 }
 .zeszyt th .wykrzyknik { font-size: 13px; }
 /* w wierszu „!” stoi tuż przed nazwą - tylko przy jednorazowych */
@@ -859,7 +872,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .spis--wycofanie .alarm__koszt { color: var(--czerwony-spis); font-weight: 700; }
 
 /* paragon z kasy */
-.paragon-cien { filter: drop-shadow(0 8px 12px var(--cien-paragonu)); transform: rotate(1.3deg); }
+.paragon-cien { filter: drop-shadow(0 8px 12px var(--cien-paragonu)); transform: rotate(calc(1.3deg * var(--krzywo))); }
 .paragon {
   --zab: 8px;
   padding: 22px 22px calc(26px + var(--zab));
@@ -975,10 +988,10 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   font: 700 15px var(--f-liczby);
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  transform: rotate(-4deg);
+  transform: rotate(calc(-4deg * var(--krzywo)));
   transition: transform 0.12s, background 0.12s;
 }
-.pieczatka:hover, .pieczatka:focus-visible { background: rgb(196 46 29 / 0.1); transform: rotate(-4deg) scale(1.05); }
+.pieczatka:hover, .pieczatka:focus-visible { background: rgb(196 46 29 / 0.1); transform: rotate(calc(-4deg * var(--krzywo))) scale(1.05); }
 
 /* okno z kodem do wpisania na google.com/device */
 .okno .okno__kod { text-align: center; font: 700 30px var(--f-kasa); letter-spacing: 0.12em; user-select: all; }
@@ -1055,18 +1068,32 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   place-items: center;
   width: 32px;
   height: 32px;
-  padding: 1px 0 0; /* znak „×” w Bahnschrift siedzi nad środkiem linii - zsunięty, by był na środku koła */
+  padding: 0;
   border: 1px solid var(--linia);
   border-radius: 50%;
   background: var(--papier);
   color: var(--olowek);
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.28);
-  font: 22px/1 var(--f-liczby);
+  font-size: 0; /* znak „×” rysowany niżej - litera z czcionki siedzi w kole różnie na różnych urządzeniach */
   translate: 50% -50%;
   cursor: pointer;
 }
+/* „×” z dwóch kresek dokładnie na środku koła (niezależnie od czcionki - na Androidzie litera była za wysoko) */
+.okno__x::before, .okno__x::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--x-dlugosc, 14px);
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  translate: -50% -50%;
+  rotate: 45deg;
+}
+.okno__x::after { rotate: -45deg; }
 .okno__x:hover, .okno__x:focus-visible { border-color: var(--atrament); color: var(--atrament); }
-.karteczka .okno__x { top: -3px; right: -1px; width: 28px; height: 28px; font-size: 19px; }
+.karteczka .okno__x { top: -3px; right: -1px; width: 28px; height: 28px; --x-dlugosc: 12px; }
 .ustawienia__kolumny { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 36px; margin-bottom: 18px; }
 .ustawienia__naglowek {
   margin: 0 0 4px;
@@ -1129,8 +1156,8 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 /* Po .status - jego skrót „font” zeruje grubość, więc ta reguła musi być niżej. */
 .status--blad { color: var(--czerwony); font-weight: 700; }
 
-/* PC (mysz): nic nie zmienia się skokiem - kolory po najechaniu, podkreślenia, karteczki, dymki „?”, okna
-   i rozwijane listy z krótkim przejściem. Telefon (bez najechania kursorem) - bez tych animacji. */
+/* Nic nie zmienia się skokiem. PC (mysz): kolory po najechaniu i podkreślenia z krótkim przejściem
+   (telefon nie ma najechania kursorem - tam bez nich). Karteczki, dymki „?”, okna i rozwijane listy - niżej, wszędzie. */
 @media (hover: hover) and (pointer: fine) {
   .nastepna-dodaj, .wiecej, .karteczka__nazwa, .historia__strzalka, .slupek, .okno__x, .pomoc,
   .wprowadzenie__zmaz, .anulowane__tytul, .ustawienia__nazwa, .plik__akcja, .motyw span, .okres-wybor__opcja {
@@ -1141,45 +1168,45 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   /* podkreślenie po najechaniu albo wyborze pojawia się płynnie - zanim widać, jest przezroczyste */
   .ustawienia__nazwa, .plik__akcja { text-decoration: underline 1px transparent; text-underline-offset: 3px; }
   .motyw span, .okres-wybor__opcja { text-decoration: underline 2px transparent; }
-
-  /* karteczki („⋯”, prowizja, kopia i import) i dymek „?” - wjeżdżają i znikają, a nie wskakują */
-  .karteczka[popover] {
-    opacity: 0;
-    translate: 0 -4px;
-    transition: opacity 0.14s ease-out, translate 0.14s ease-out, overlay 0.14s allow-discrete, display 0.14s allow-discrete;
-  }
-  .karteczka[popover]:popover-open { opacity: 1; translate: 0 0; }
-  @starting-style { .karteczka[popover]:popover-open { opacity: 0; translate: 0 -4px; } }
-
-  /* okna (Ustawienia, O aplikacji, Wykreślić?, Dysk) i przyciemnienie pod nimi */
-  .okno {
-    opacity: 0;
-    translate: 0 10px;
-    transition: opacity 0.16s ease-out, translate 0.16s ease-out, overlay 0.16s allow-discrete, display 0.16s allow-discrete;
-  }
-  .okno[open] { opacity: 1; translate: 0 0; }
-  @starting-style { .okno[open] { opacity: 0; translate: 0 10px; } }
-  .okno::backdrop { opacity: 0; transition: opacity 0.16s ease-out, overlay 0.16s allow-discrete, display 0.16s allow-discrete; }
-  .okno[open]::backdrop { opacity: 1; }
-  @starting-style { .okno[open]::backdrop { opacity: 0; } }
-
-  /* „Anulowane” pod tabelą i licencje w „O aplikacji” - rozwijane jak grupy w karteczce „⋯” */
-  .anulowane, .okno__licencje { interpolate-size: allow-keywords; }
-  .anulowane::details-content, .okno__licencje::details-content {
-    block-size: 0;
-    overflow: clip;
-    opacity: 0;
-    transition: block-size 0.16s ease-out, opacity 0.16s ease-out, content-visibility 0.16s allow-discrete;
-  }
-  .anulowane[open]::details-content, .okno__licencje[open]::details-content { block-size: auto; opacity: 1; }
 }
+
+/* karteczki („⋯”, prowizja, kopia i import) i dymek „?” - wjeżdżają i znikają, a nie wskakują */
+.karteczka[popover] {
+  opacity: 0;
+  translate: 0 -4px;
+  transition: opacity 0.14s ease-out, translate 0.14s ease-out, overlay 0.14s allow-discrete, display 0.14s allow-discrete;
+}
+.karteczka[popover]:popover-open { opacity: 1; translate: 0 0; }
+@starting-style { .karteczka[popover]:popover-open { opacity: 0; translate: 0 -4px; } }
+
+/* okna (Ustawienia, O aplikacji, Wykreślić?, Dysk) i przyciemnienie pod nimi */
+.okno {
+  opacity: 0;
+  translate: 0 10px;
+  transition: opacity 0.16s ease-out, translate 0.16s ease-out, overlay 0.16s allow-discrete, display 0.16s allow-discrete;
+}
+.okno[open] { opacity: 1; translate: 0 0; }
+@starting-style { .okno[open] { opacity: 0; translate: 0 10px; } }
+.okno::backdrop { opacity: 0; transition: opacity 0.16s ease-out, overlay 0.16s allow-discrete, display 0.16s allow-discrete; }
+.okno[open]::backdrop { opacity: 1; }
+@starting-style { .okno[open]::backdrop { opacity: 0; } }
+
+/* „Anulowane” pod tabelą, licencje w „O aplikacji” i grupy arkusza na telefonie - rozwijane jak grupy w karteczce „⋯” */
+.anulowane, .okno__licencje, .t-grupa { interpolate-size: allow-keywords; }
+.anulowane::details-content, .okno__licencje::details-content, .t-grupa::details-content {
+  block-size: 0;
+  overflow: clip;
+  opacity: 0;
+  transition: block-size 0.16s ease-out, opacity 0.16s ease-out, content-visibility 0.16s allow-discrete;
+}
+.anulowane[open]::details-content, .okno__licencje[open]::details-content, .t-grupa[open]::details-content { block-size: auto; opacity: 1; }
 
 /* Systemowe „ogranicz animacje” (Windows: Ustawienia → Dostępność → Efekty wizualne; Android: Usuń animacje) -
    bez przejść, przesunięć i powiększeń przy najechaniu. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after, ::details-content, ::backdrop { transition: none !important; }
   .otworz:hover:not(:disabled) { transform: none; }
-  .pieczatka:hover, .pieczatka:focus-visible { transform: rotate(-4deg); }
+  .pieczatka:hover, .pieczatka:focus-visible { transform: rotate(calc(-4deg * var(--krzywo))); }
 }
 
 /* --- F26: pomoc w miejscu - „?” obwiedzione ołówkiem jak dopisek na marginesie; okienko to karteczka
@@ -1230,7 +1257,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   color: var(--olowek);
   font: italic 15px/1.5 var(--f-tytul);
 }
-.wprowadzenie__tytul { margin: 0 0 6px; padding-right: 30px; font: italic 600 16px var(--f-tytul); }
+.wprowadzenie__tytul { margin: 0 0 6px; padding-right: 40px; font: italic 600 16px var(--f-tytul); }
 .wprowadzenie__kroki { margin: 0; padding: 0; list-style: none; counter-reset: krok; }
 .wprowadzenie__kroki li { position: relative; margin: 6px 0; padding-left: 34px; counter-increment: krok; }
 .wprowadzenie__kroki li::before {
@@ -1246,24 +1273,13 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   border-radius: 55% 45% 50% 50% / 50% 55% 45% 50%;
   font: 700 13px/1 var(--f-liczby);
   font-style: normal;
-  transform: rotate(-8deg);
+  transform: rotate(calc(-8deg * var(--krzywo)));
 }
 .wprowadzenie__kroki b { color: var(--atrament); font-style: normal; font-weight: 600; }
 .wprowadzenie__przyklad { margin: 8px 0 4px; }
-.wprowadzenie__zmaz {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--olowek);
-  font: 22px/1 var(--f-liczby);
-  cursor: pointer;
-}
-.wprowadzenie__zmaz:hover, .wprowadzenie__zmaz:focus-visible { color: var(--atrament); }
+/* „×” taki sam jak w oknach (.okno__x), w prawym górnym rogu notatki - w środku, bo nad notatką
+   koło przycinał brzeg przewijanej kartki */
+.wprowadzenie > .okno__x { top: 6px; right: 6px; translate: none; }
 
 /* --- C15: Anulowane - przekreślone czerwonym atramentem pod tabelą, zwinięte. --- */
 .anulowane { margin: 10px 0 0 8px; color: var(--olowek); }
@@ -1384,7 +1400,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.8;
-  transform: rotate(-3deg);
+  transform: rotate(calc(-3deg * var(--krzywo)));
 }
 /* D18: „pobierz fakturę” po płatności - atramentem (papier do segregatora), jak „odbierz” ma zielony */
 .faktura { border-left-color: var(--atrament); }
@@ -1396,6 +1412,14 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .paragon__pozycja--ponad { font-size: 15px; }
 .paragon .paragon__ostrzezenie { color: #b3261e; font-weight: 700; opacity: 1; }
 .ustawienia__wiersz--budzet { margin-top: 10px; border-top: 3px double var(--linia); cursor: default; }
+/* Waluty: rząd kratek jak w formularzu na papierze - kod waluty obok kratki; zł i waluty z pozycji zaznaczone na stałe. */
+.ustawienia__wiersz--waluty { flex-direction: column; align-items: stretch; gap: 8px; cursor: default; }
+.ustawienia__wiersz--waluty:hover .ustawienia__nazwa { text-decoration: none; }
+.ustawienia__waluty { display: flex; flex-wrap: wrap; gap: 2px 16px; }
+.ustawienia__waluta { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; color: var(--atrament); font: 600 13px var(--f-liczby); letter-spacing: 0.04em; cursor: pointer; }
+.ustawienia__waluta input { width: 16px; height: 16px; margin: 0; accent-color: var(--atrament); cursor: inherit; }
+.ustawienia__waluta:has(input[aria-disabled="true"]) { cursor: default; }
+.ustawienia__uzyta { color: var(--olowek); font: italic 12px var(--f-tytul); letter-spacing: 0; }
 
 /* --- E23, E24: zakładka „Kopia i import” w ustawieniach - cztery czynności --- */
 .plik__akcja {

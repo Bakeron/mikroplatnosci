@@ -1,6 +1,6 @@
 // Format danych wspólny dla PC i telefonu: nowy wpis i sprawdzanie danych z pliku (także z Google Dysku).
 
-import { okresZDat, ustawPoczatekZaplaty, isoDnia, dzis, dopiszCene, parsujDate, czyWstrzymana, ostatniaPlatnosc, dodajMiesiace, MAKS_HISTORII, MAKS_CEN } from './alarmy.js';
+import { okresZDat, ustawPoczatekZaplaty, ustawPrzedluzanie, dodajPrzerwe, isoDnia, dzis, dopiszCene, parsujDate, czyWstrzymana, ostatniaPlatnosc, dodajMiesiace, MAKS_HISTORII, MAKS_CEN, MAKS_PRZERW } from './alarmy.js';
 import { WALUTY } from './waluty.js';
 import { t, tekst, jezyk } from './teksty.js';
 
@@ -97,6 +97,8 @@ function okresZDatWpisu(od, doDnia) {
 const calkowita = (v, min, max, domyslna) => (Number.isInteger(v) && v >= min && v <= max ? v : domyslna);
 
 // Lista z pliku: tylko poprawne pozycje, najwyżej max ostatnich.
+// Waluta przy wpłacie i cenie z historii tylko, gdy zapisana (brak = waluta wpisu).
+const innaWaluta = (h) => (WALUTY.includes(h.waluta) ? { waluta: h.waluta } : {});
 const lista = (v, sprawdz, max) => (Array.isArray(v) ? v.map(sprawdz).filter(Boolean).slice(-max) : []);
 
 
@@ -119,21 +121,26 @@ export function normalizuj(w) {
     waluta: WALUTY.includes(w.waluta) ? w.waluta : 'PLN',
     link: tekst(w.link, 2000),
     przedluzac: w.przedluzac === 'tak' || w.przedluzac === 'nie' ? w.przedluzac : '',
+    ostatniTermin: data(w.ostatniTermin), // „Przedłużać: nie”: dzień, w którym już się nie odnowi (data zakupu zostaje)
     prognoza: kwota(w.prognoza), // cena od następnej płatności, wpisywana ręcznie
+    walutaNastepna: WALUTY.includes(w.walutaNastepna) ? w.walutaNastepna : '', // jej waluta; puste = jak koszt
     prognozaOd: data(w.prognozaOd), // dzień tej następnej płatności - wtedy cena staje się zapłaconą
     platnoscReczna: w.platnoscReczna === true, // „płacę sam” - nie pobiera się samo z konta
     zaplaconyTermin: data(w.zaplaconyTermin), // ostatni termin oznaczony jako zapłacony
     koniecMiesiaca: w.koniecMiesiaca === true, // płatność ręczna: termin w ostatnim dniu miesiąca
     zmiennaKwota: w.zmiennaKwota === true, // płatność ręczna: przy „zapłacone” pytanie, ile zapłacono
-    // Zapłacone ręcznie: termin, dzień zapłaty i kwota (w walucie wpisu).
-    historia: lista(w.historia, (h) => (h && data(h.termin) && data(h.dnia) && kwota(h.kwota) !== null ? { termin: h.termin, dnia: h.dnia, kwota: h.kwota } : null), MAKS_HISTORII),
-    // Zmiany ceny: od kiedy obowiązuje (pusty = od początku) i kwota.
-    ceny: lista(w.ceny, (c) => (c && typeof c.od === 'string' && (c.od === '' || data(c.od)) && kwota(c.kwota) !== null ? { od: c.od, kwota: c.kwota } : null), MAKS_CEN),
+    // Zapłacone ręcznie: termin, dzień zapłaty i kwota (w walucie wpisu; inna waluta - pole waluta,
+    // np. sprzed ceny następnej w innej walucie).
+    historia: lista(w.historia, (h) => (h && data(h.termin) && data(h.dnia) && kwota(h.kwota) !== null ? { termin: h.termin, dnia: h.dnia, kwota: h.kwota, ...innaWaluta(h) } : null), MAKS_HISTORII),
+    // Zmiany ceny: od kiedy obowiązuje (pusty = od początku) i kwota (waluta jak wyżej).
+    ceny: lista(w.ceny, (c) => (c && typeof c.od === 'string' && (c.od === '' || data(c.od)) && kwota(c.kwota) !== null ? { od: c.od, kwota: c.kwota, ...innaWaluta(c) } : null), MAKS_CEN),
     osob: calkowita(w.osob, 1, 20, 1), // koszt dzielony na tyle osób - w sumach tylko moja część
     ktoOddaje: tekst(w.ktoOddaje, 200), // komu przypominać o oddaniu części („Ania, Tomek”)
     oddaneTermin: data(w.oddaneTermin), // ostatnia płatność, za którą inni już oddali
     wstrzymanaOd: data(w.wstrzymanaOd), // pauza: od kiedy
     wstrzymanaDo: data(w.wstrzymanaDo), // pauza: dzień wznowienia (pierwsza płatność po przerwie)
+    // Zakończone przerwy w płatnościach (poprzednie pauzy, czas po „nie” przed powrotem na „tak”) - do historii i terminów.
+    przerwy: lista(w.przerwy, (p) => (p && data(p.do) ? { od: data(p.od), do: p.do } : null), MAKS_PRZERW),
     kategoria: KATEGORIE.some(([k]) => k === w.kategoria) ? w.kategoria : '', // D17
     firmowa: w.firmowa === true, // D18: koszt firmowy (osobna suma, „pobierz fakturę”)
     fakturaTermin: data(w.fakturaTermin), // D18: ostatnia płatność, za którą faktura już pobrana
@@ -146,13 +153,13 @@ export function normalizuj(w) {
 export const zapiszZmianeCeny = (wpis, stara) => dopiszCene(wpis, stara, isoDnia(dzis()));
 
 // A5: pauza do dnia wznowienia (RRRR-MM-DD, tylko dzień z przyszłości - inaczej false). Nowa pauza po zakończonej
-// poprzedniej: terminy liczyły się od dnia wznowienia - ta data staje się datą zakupu, żeby nowa pauza nie cofnęła
-// terminów do starego zakupu. Pauza przesuwa termin - dzień ceny następnej liczy się od nowa.
+// poprzedniej: poprzednia trafia do przerw (data zakupu i historia zostają, terminy dalej od jej wznowienia).
+// Pauza przesuwa termin - dzień ceny następnej liczy się od nowa.
 export function ustawPauze(wpis, dzien) {
   const wznowienie = parsujDate(dzien);
   if (!wznowienie || wznowienie <= dzis()) return false;
   if (!czyWstrzymana(wpis)) {
-    if (wpis.wstrzymanaDo && wpis.wstrzymanaDo > wpis.od && parsujDate(wpis.wstrzymanaDo) <= dzis()) wpis.od = wpis.wstrzymanaDo;
+    if (wpis.wstrzymanaDo && wpis.wstrzymanaDo > wpis.od && parsujDate(wpis.wstrzymanaDo) <= dzis()) dodajPrzerwe(wpis, wpis.wstrzymanaOd, wpis.wstrzymanaDo);
     wpis.wstrzymanaOd = isoDnia(dzis());
   }
   wpis.wstrzymanaDo = dzien;
@@ -166,7 +173,7 @@ export function wznowDzis(wpis) {
   wpis.prognozaOd = '';
 }
 
-// Bez pauzy - terminy jak przed nią, od daty zakupu.
+// Bez pauzy - terminy jak przed nią (od daty zakupu albo od wznowienia po poprzedniej pauzie).
 export function usunPauze(wpis) {
   wpis.wstrzymanaOd = '';
   wpis.wstrzymanaDo = '';
@@ -260,9 +267,10 @@ export function zastosujFormularz(wpisy, edytowany, p) {
   const wpis = edytowany ? (wpisy.find((w) => w.id === edytowany.id) ?? edytowany) : nowyWpis();
   const link = String(p.link ?? '').trim();
   // Płatność ręczna liczy zaległości od ostatniego zapłaconego terminu - po jej włączeniu albo zmianie
-  // daty, okresu czy „przedłużać” liczy się od najbliższego terminu (jak na PC).
-  const stan = () => `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.coIle}|${wpis.przedluzac}|${wpis.koniecMiesiaca}`;
+  // daty albo okresu liczy się od najbliższego terminu (jak na PC); „przedłużać” - ustawPrzedluzanie.
+  const stan = () => `${wpis.platnoscReczna}|${wpis.od}|${wpis.okres}|${wpis.coIle}|${wpis.koniecMiesiaca}`;
   const przed = stan();
+  const bylaReczna = wpis.platnoscReczna;
   const staraCena = wpis.koszt;
   const bezPodzialu = !(wpis.osob > 1);
   const bezOddajacych = !wpis.ktoOddaje.trim();
@@ -273,16 +281,18 @@ export function zastosujFormularz(wpisy, edytowany, p) {
   const coIle = p.coIle ?? (okresWpisu === wpis.okres ? wpis.coIle : 1);
   // Pola, których formularz nie podaje albo podaje źle (np. liczba osób spoza zakresu), zostają jak były.
   const osob = Number.isInteger(p.osob) && p.osob >= 1 && p.osob <= 20 ? p.osob : wpis.osob;
+  // Pole bez waluty wpisu (telefon ma krótszą listę) zostawia jego walutę - kwota się nie zmienia.
+  const walutaWpisu = WALUTY.includes(p.waluta) ? p.waluta : WALUTY.includes(wpis.waluta) ? wpis.waluta : 'PLN';
   Object.assign(wpis, {
     nazwa: p.nazwa,
     opis: p.opis,
     koszt,
-    // Pole bez waluty wpisu (telefon ma krótszą listę) zostawia jego walutę - kwota się nie zmienia.
-    waluta: WALUTY.includes(p.waluta) ? p.waluta : WALUTY.includes(wpis.waluta) ? wpis.waluta : 'PLN',
+    waluta: walutaWpisu,
+    // Waluta ceny następnej: ta sama co koszt = puste (jak dotąd); pola brak - bez zmian.
+    walutaNastepna: p.walutaNastepna === undefined ? wpis.walutaNastepna : WALUTY.includes(p.walutaNastepna) && p.walutaNastepna !== walutaWpisu ? p.walutaNastepna : '',
     od: p.od,
     okres: okresWpisu,
     coIle,
-    przedluzac: p.przedluzac,
     prognoza,
     platnoscReczna: p.platnosc === 'reczna',
     koniecMiesiaca: p.platnosc === 'reczna' && p.koniecMiesiaca === true,
@@ -297,7 +307,8 @@ export function zastosujFormularz(wpisy, edytowany, p) {
   Object.assign(wpis, normalizuj(wpis));
   if (prognoza === null) wpis.prognozaOd = ''; // wyczyszczona cena następna - dzień liczy się od nowa (jak na PC)
   zapiszZmianeCeny(wpis, staraCena);
-  if (przed !== stan()) ustawPoczatekZaplaty(wpis);
+  if (przed !== stan()) ustawPoczatekZaplaty(wpis, !bylaReczna && wpis.platnoscReczna);
+  ustawPrzedluzanie(wpis, p.przedluzac);
   if ((bezPodzialu && wpis.osob > 1) || (bezOddajacych && wpis.ktoOddaje.trim())) bezZaleglegoOdbioru(wpis);
   // Pauza: undefined - bez zmian, pusty tekst - bez pauzy, dziś - wznowienie, dzień z przyszłości - pauza do tego dnia.
   if (p.wstrzymanaDo === '') usunPauze(wpis);
@@ -307,6 +318,8 @@ export function zastosujFormularz(wpisy, edytowany, p) {
   return { wpis };
 }
 
-// Treść pliku danych w formacie wersja 2; PC dokłada w dodatkach swoje ustawienia (motyw).
-export const WERSJA_DANYCH = 2;
+// Treść pliku danych w formacie wersja 4 (08.11.2026 wersja 3: ostatniTermin i przerwy; 10.11.2026 wersja 4:
+// walutaNastepna i waluta przy wpłatach i cenach - starsza wersja aplikacji zgubiłaby je, więc nie bierze
+// takich danych z Dysku ani z kopii); PC dokłada w dodatkach swoje ustawienia (motyw).
+export const WERSJA_DANYCH = 4;
 export const doZapisu = (stan, dodatki = {}) => ({ wersja: WERSJA_DANYCH, zapisano: new Date().toISOString(), ...dodatki, wpisy: stan.wpisy, usuniete: stan.usuniete });

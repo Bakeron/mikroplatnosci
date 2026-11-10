@@ -8,6 +8,7 @@ export const ILE_KOPII = 5;
 // Zminimalizowane okno WebView2 spowalnia liczniki nawet do raz na minutę - stąd zapas 2 minut.
 export const BLOKADA_WAZNA = 120000;
 const WZOR_KOPII = /^mikroplatnosci-\d{8}-\d{6}\.json$/;
+const WZOR_USZKODZONEGO = /^uszkodzony-\d{8}-\d{6}\.json$/;
 
 // Tylko „nie ma takiej ścieżki” znaczy brak pliku. Inny błąd (uprawnienia, plik zajęty przez inny
 // program) idzie dalej - inaczej aplikacja wystartowałaby z pustą listą i nadpisała dane.
@@ -56,8 +57,8 @@ export function znacznikCzasu(t = new Date()) {
 }
 
 // Brak folderu (telefon przed pierwszą kopią) = brak kopii; zapis kopii sam go tworzy.
-const nazwyKopii = async (folder) => (!(await istnieje(folder)) ? [] : (await Neutralino.filesystem.readDirectory(folder))
-  .filter((e) => e.type === 'FILE' && WZOR_KOPII.test(e.entry))
+const nazwyKopii = async (folder, wzor = WZOR_KOPII) => (!(await istnieje(folder)) ? [] : (await Neutralino.filesystem.readDirectory(folder))
+  .filter((e) => e.type === 'FILE' && wzor.test(e.entry))
   .map((e) => e.entry)
   .sort());
 
@@ -90,15 +91,25 @@ export async function zapiszPlik(plik, tresc) {
   }
 }
 
-// „Usuń z komputera” i wyłączenie „Zapisuj lokalnie”: plik danych, plik tymczasowy i wszystkie kopie.
-// Brak pliku nie jest błędem; każdy inny błąd idzie dalej (użytkownik musi wiedzieć, że coś zostało).
+// Uszkodzony plik danych przed przywróceniem kopii: przeniesiony do folderu kopii jako uszkodzony-….json
+// (nic nie przepada; inna nazwa niż kopie - nie wypiera ich przy sprzątaniu). Folder kopii tworzy start aplikacji.
+// Błąd idzie dalej - wtedy nic nie zmieniamy.
+export async function odlozUszkodzony(plik, folderKopii) {
+  const nazwa = `uszkodzony-${znacznikCzasu()}.json`;
+  await Neutralino.filesystem.move(plik, `${folderKopii}/${nazwa}`);
+  return nazwa;
+}
+
+// „Usuń z komputera” i wyłączenie „Zapisuj lokalnie”: plik danych, plik tymczasowy, wszystkie kopie i odłożone
+// uszkodzone pliki. Brak pliku nie jest błędem; każdy inny błąd idzie dalej (użytkownik musi wiedzieć, że coś zostało).
 export async function usunDaneLokalne(plik, folderKopii) {
   const usunPlik = async (p) => {
     if (await istnieje(p)) await Neutralino.filesystem.remove(p);
   };
   await usunPlik(plik);
   await usunPlik(plik + '.tmp');
-  for (const nazwa of await nazwyKopii(folderKopii)) await Neutralino.filesystem.remove(`${folderKopii}/${nazwa}`);
+  const nazwy = [...(await nazwyKopii(folderKopii)), ...(await nazwyKopii(folderKopii, WZOR_USZKODZONEGO))];
+  for (const nazwa of nazwy) await Neutralino.filesystem.remove(`${folderKopii}/${nazwa}`);
 }
 
 // Jedna kopia aplikacji naraz: otwarta odświeża znacznik w pliku, druga go widzi i się zamyka.
@@ -116,6 +127,19 @@ export async function zajmijBlokade(plik, pid) {
     }
   }
   // Math.abs: czas „z przyszłości” (cofnięty zegar) nie blokuje startu na godziny.
+  if (blokada && blokada.pid !== pid && Math.abs(Date.now() - blokada.czas) < BLOKADA_WAZNA) return false;
+  await odswiezBlokade(plik, pid);
+  // Dwa uruchomienia w tej samej chwili: obie kopie zapisały blokadę - zostaje ta, której zapis jest w pliku.
+  // Nieczytelny plik - start jak dawniej (błąd tu nie może blokować uruchomienia).
+  await new Promise((r) => setTimeout(r, 300));
+  const zapisana = await czytaj().catch(() => null);
+  return !zapisana || zapisana.pid === pid;
+}
+
+// Odświeżanie co 30 s: najpierw odczyt - świeża blokada innej kopii (ta wróciła np. z uśpienia, a w tym
+// czasie uruchomiono drugą) znaczy false, bez zapisu. Nieczytelny plik - zapis jak dawniej.
+export async function utrzymajBlokade(plik, pid) {
+  const blokada = await Neutralino.filesystem.readFile(plik).then(JSON.parse).catch(() => null);
   if (blokada && blokada.pid !== pid && Math.abs(Date.now() - blokada.czas) < BLOKADA_WAZNA) return false;
   await odswiezBlokade(plik, pid);
   return true;

@@ -10,31 +10,54 @@
   .opis { margin: 0 0 30px; color: #9b947f; font-style: italic; }
   figure { margin: 0 0 34px; }
   figcaption { display: flex; gap: 12px; align-items: baseline; margin-bottom: 10px; font: italic 600 19px Georgia, serif; }
-  figcaption b { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 2px solid #93423a; border-radius: 50%; font: 700 15px Bahnschrift, sans-serif; font-style: normal; color: #ff6b56; }
+  figcaption b { flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; border: 2px solid #93423a; border-radius: 50%; font: 700 15px Bahnschrift, sans-serif; font-style: normal; color: #ff6b56; }
+  figcaption div { flex: none; }
   figcaption span { color: #9b947f; font-size: 15px; font-weight: 400; }
-  img { display: block; width: 1500px; border: 1px solid #2f333c; border-radius: 6px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); }
+  img { display: block; max-width: 1500px; border: 1px solid #2f333c; border-radius: 6px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); }
+  .rzad { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .rzad img { max-width: 740px; }
 </style>
 </head>
 <body>
 <script>
+  // Klatka: [plik albo lista plików obok siebie, nazwa, opis].
   const ZESTAWY = {
     '03': {
       tytul: 'Mikropłatności - stany i działania',
-      opis: 'Co widać podczas pracy: wykreślanie, przesuwanie wierszy, płatność ręczna z ustawieniami „⋯” i brak internetu.',
+      opis: 'Co widać podczas pracy: wykreślanie, przesuwanie wierszy, ustawienia pozycji „⋯”, płatność ręczna, filtr i anulowane, prowizja banku i brak internetu.',
       klatki: [
-        ['03a.png', 'Wykreślanie', 'najechanie na „×” przekreśla wiersz, kliknięcie pyta „Na pewno wykreślić…?”'],
+        ['03a.png', 'Wykreślanie', 'kliknięcie „×” pyta „Wykreślić…?” - wykreślona pozycja trafia do „Anulowanych” i da się ją przywrócić'],
         ['03b.png', 'Przesuwanie i błędna kwota', 'wiersz przeciągany za numer Lp. (podświetlony); niepoprawny koszt podkreślony na czerwono'],
-        ['03c.png', 'Płatność ręczna i ustawienia „⋯”', 'po terminie - mocno czerwony wiersz i „NIE ZAPŁACONO”; przed terminem czerwień rośnie z każdym dniem; zapłacone - zielone „✓”; karteczka „⋯”: przedłużać i sposób płatności'],
-        ['03d.png', 'Bez internetu', 'kurs NBP zapamiętany z dopiskiem w nagłówku - aplikacja działa dalej'],
+        [['03c1.png', '03c2.png', '03c3.png'], 'Ustawienia pozycji „⋯”', 'pobiera się sama i koszt dzielony na 4 osoby; płacę sam (termin do końca miesiąca, kwota za każdym razem inna); nie przedłużać. Grupy kategoria, okres, podział, pauza rozwinięte'],
+        ['03d.png', 'Płatność ręczna - zapłacone', 'po terminie - mocno czerwony wiersz; przed terminem czerwień rośnie z każdym dniem; przy kwocie za każdym razem innej „zapłacone” pyta „ile?”'],
+        ['03e.png', 'Filtr kategorii i anulowane', 'zakładka „dom i rachunki” pokazuje tylko swoje pozycje; „Anulowane” rozwinięte - przywróć albo usuń na zawsze, ile oszczędzasz rocznie'],
+        ['03f.png', 'Prowizja banku i objaśnienia „?”', 'prowizja doliczana do kursu NBP przy kwotach w walutach; „?” przy nagłówkach wyjaśnia kolory i znaki'],
+        ['03g.png', 'Bez internetu', 'kurs NBP zapamiętany z dopiskiem w nagłówku - aplikacja działa dalej'],
       ],
     },
     '04': {
-      tytul: 'Mikropłatności - sytuacje szczególne',
-      opis: 'Pierwsze uruchomienie, uszkodzony plik danych i próba otwarcia drugiej kopii aplikacji.',
+      tytul: 'Mikropłatności - ustawienia i okna',
+      opis: 'Okno „Ustawienia” (zębatka) w czterech zakładkach, import z wyciągu bankowego, połączenie z Google Dyskiem i „o aplikacji”.',
       klatki: [
-        ['04a.png', 'Pierwsze uruchomienie', 'pusty zeszyt, spokojna miarka, zerowy paragon'],
-        ['04b.png', 'Uszkodzony plik danych', 'aplikacja ostrzega i niczego nie zapisuje, żeby nie nadpisać danych'],
-        ['04c.png', 'Druga kopia aplikacji', 'komunikat i samoczynne zamknięcie - dane edytuje tylko jedno okno'],
+        ['04a.png', 'Ustawienia - Zeszyt', 'funkcje do włączania i wyłączania (płacę sam, inne okresy, cena następna, podział, pauza, waluty, historia, anulowane, kategorie, firma) i budżet miesięczny'],
+        ['04b.png', 'Ustawienia - Powiadomienia', 'rodzaje powiadomień Windows i powiadomienia przy zamkniętej aplikacji (Harmonogram zadań)'],
+        ['04c.png', 'Ustawienia - Synchronizacja', 'zapis lokalny i synchronizacja z Google Dyskiem, usuwanie danych'],
+        ['04d.png', 'Ustawienia - Kopia i import', 'kopia do pliku, wczytanie kopii, eksport do Excela (CSV), import z wyciągu bankowego'],
+        ['04e.png', 'Import z wyciągu bankowego', 'płatności, które się powtarzają, z uwagami: już w zeszycie, w „Anulowanych”, dawno nie było płatności, kwota za każdym razem inna'],
+        ['04g.png', 'Pierwsze połączenie z Google Dyskiem', 'identyfikator projektu Google i instrukcja krok po kroku'],
+        ['04f.png', 'O aplikacji', 'wersja, opis, kontakt i licencje użytych bibliotek'],
+      ],
+    },
+    '05': {
+      tytul: 'Mikropłatności - sytuacje szczególne',
+      opis: 'Pierwsze uruchomienie, uszkodzony plik danych, druga kopia aplikacji, dane bez zapisu, wersja angielska i zeszyt z wyłączonymi dodatkami.',
+      klatki: [
+        ['05a.png', 'Pierwsze uruchomienie', 'notatki „pierwsze kroki” ołówkiem i przykładowa pozycja do wykreślenia'],
+        ['05b.png', 'Uszkodzony plik danych', 'aplikacja ostrzega i niczego nie zapisuje, żeby nie nadpisać danych'],
+        ['05c.png', 'Druga kopia aplikacji', 'komunikat i samoczynne zamknięcie - dane edytuje tylko jedno okno'],
+        ['05d.png', 'Bez zapisu', 'wyłączony zapis lokalny i synchronizacja - ostrzeżenie, że dane znikną po zamknięciu'],
+        ['05e.png', 'Wersja angielska', 'język w ustawieniach: polski albo English (motyw dzień)'],
+        ['05f.png', 'Wszystkie dodatki wyłączone', 'najprostszy zeszyt: bez kategorii, firmy, walut, ceny następnej, podziału, pauzy i historii'],
       ],
     },
   };
@@ -42,14 +65,18 @@
   const z = ZESTAWY[p.get('zestaw')];
   const folder = p.get('klatki') || '';
   const el = (tag, tekst) => { const e = document.createElement(tag); if (tekst) e.textContent = tekst; return e; };
+  const obraz = (plik) => { const img = el('img'); img.src = folder + plik; return img; };
   document.body.append(el('h1', z.tytul), Object.assign(el('p', z.opis), { className: 'opis' }));
   z.klatki.forEach(([plik, nazwa, opis], i) => {
     const fig = el('figure');
     const cap = el('figcaption');
     cap.append(el('b', String(i + 1)), el('div', nazwa), el('span', '- ' + opis));
-    const img = el('img');
-    img.src = folder + plik;
-    fig.append(cap, img);
+    fig.append(cap);
+    if (Array.isArray(plik)) {
+      const rzad = Object.assign(el('div'), { className: 'rzad' });
+      rzad.append(...plik.map(obraz));
+      fig.append(rzad);
+    } else fig.append(obraz(plik));
     document.body.append(fig);
   });
 </script>

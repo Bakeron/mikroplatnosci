@@ -7,6 +7,7 @@ import { odczytajDane, doZapisu, WERSJA_DANYCH } from './dane.js';
 import { t, tn, godzina } from './teksty.js';
 import { czyPolaczony, czySkonfigurowany, czyWpisany, wpisanyProjekt, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
 import { trescKodu, CZAS_POKAZU } from './kodQr.js';
+import { pokazPlynnie } from './dom.js';
 
 const $ = (id) => document.getElementById(id);
 // Bez internetu fetch rzuca TypeError z angielskim opisem.
@@ -46,8 +47,8 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
     const { id, sekret } = wpisanyProjekt();
     if (!id) return;
     $('okno-google-qr-obraz').replaceChildren(obrazKodu(trescKodu(id, sekret)));
-    $('okno-google-qr').hidden = false;
     $('okno-google-qr-pokaz').hidden = true;
+    pokazPlynnie($('okno-google-qr'), true); // kod rozwija się pod przyciskiem, a nie wskakuje
     clearTimeout(timerKodu);
     timerKodu = setTimeout(schowajKod, CZAS_POKAZU);
   }
@@ -57,6 +58,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
     for (const el of [$('dysk-stan'), $('dysk-stan-ustawienia')]) {
       if (!el) continue;
       el.textContent = tekst;
+      el.title = tekst; // pełny tekst, gdy u góry strony jest skrócony
       el.classList.toggle(klasaBledu, blad);
     }
   }
@@ -70,7 +72,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
       $(id).disabled = stan.zablokowany || stan.synchronizacja;
     }
     // „Zmień projekt Google” - tylko przy projekcie wpisanym w aplikacji (wbudowanego się nie zmienia).
-    $('dysk-projekt').hidden = !polaczony || !czyWpisany();
+    $('dysk-projekt').hidden = !czyWpisany();
     $('dysk-projekt').disabled = stan.zablokowany || stan.synchronizacja;
     // Przycisk kodu QR od razu po wpisaniu projektu (o ile kod nie jest właśnie pokazany).
     if (obrazKodu && $('okno-google-qr').hidden) $('okno-google-qr-pokaz').hidden = !czyWpisany();
@@ -132,7 +134,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
 
   // Okno identyfikatora projektu Google; zmiana = pola wypełnione obecnym projektem i uwaga o rozłączeniu.
   function oknoProjektu(zmiana) {
-    const { id, sekret } = zmiana ? wpisanyProjekt() : { id: $('okno-google-id').value, sekret: '' };
+    const { id, sekret } = zmiana ? wpisanyProjekt() : { id: $('okno-google-id').value, sekret: $('okno-google-sekret').value };
     $('okno-google-id').value = id;
     $('okno-google-sekret').value = sekret;
     $('okno-google-zmiana').hidden = !zmiana;

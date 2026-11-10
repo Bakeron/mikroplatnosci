@@ -1,7 +1,7 @@
 // Daty, terminy i alarmy (alarmy.js). Daty liczone od stałego „dziś”.
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsujDate, dzis, dodajMiesiace, okresZDat, termin, czyZakonczona, dniTekst, zbierzAlarmy, doPlatnosci, zakupBiezacegoOkresu, isoDnia } from '../resources/js/alarmy.js';
+import { parsujDate, dzis, dodajMiesiace, okresZDat, termin, czyZakonczona, dniTekst, zbierzAlarmy, doPlatnosci, ustawPrzedluzanie, isoDnia } from '../resources/js/alarmy.js';
 // Stały „dziś” (10.11.2026, 10:00): pomocnicze funkcje odwracają dodajMiesiace, a pod koniec miesiąca
 // to daje dzień mniej - bez stałej daty testy były czerwone w ok. 35 dniach w roku.
 mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10, 0) });
@@ -89,34 +89,35 @@ test('parsujDate: lata spoza 1900-2200 odrzucone (new Date zamienia 0099 na 1999
   assert.equal(isoDnia(parsujDate('1900-01-01')), '1900-01-01');
 });
 
-test('zakupBiezacegoOkresu: „nie” po kilku okresach - termin to najbliższe odnowienie', () => {
+test('ustawPrzedluzanie: „nie” po kilku okresach - termin to najbliższe odnowienie, data zakupu zostaje', () => {
   const zakup = iso(dodajMiesiace(za(10), -15)); // 15 miesięcy temu + 10 dni
   const wpis = { od: zakup, okres: 'M', przedluzac: 'tak' };
   const najblizsze = termin(wpis).data;
-  const nowy = { ...wpis, od: zakupBiezacegoOkresu(wpis), przedluzac: 'nie' };
-  assert.equal(iso(termin(nowy).data), iso(najblizsze));
-  assert.equal(czyZakonczona(nowy), false);
-  // Zakup w bieżącym okresie albo w przyszłości - bez zmian; bez daty - bez zmian.
-  const swiezy = { od: iso(za(-3)), okres: 'R' };
-  assert.equal(zakupBiezacegoOkresu(swiezy), swiezy.od);
-  assert.equal(zakupBiezacegoOkresu({ od: iso(za(5)), okres: 'M' }), iso(za(5)));
-  assert.equal(zakupBiezacegoOkresu({ od: '', okres: 'M' }), '');
-  // 31. dzień miesiąca nie dryfuje: liczone od pierwotnej daty.
-  const r = parsujDate(zakupBiezacegoOkresu({ od: '2020-01-31', okres: 'M' }));
-  assert.equal(r.getDate(), Math.min(31, new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate()));
+  ustawPrzedluzanie(wpis, 'nie');
+  assert.equal(wpis.od, zakup);
+  assert.equal(wpis.ostatniTermin, iso(najblizsze));
+  assert.equal(iso(termin(wpis).data), iso(najblizsze));
+  assert.equal(czyZakonczona(wpis), false);
+  // Zakup w przyszłości - pierwszy termin po nim; bez daty - bez terminu.
+  const przyszly = { od: iso(za(5)), okres: 'M', przedluzac: 'tak' };
+  ustawPrzedluzanie(przyszly, 'nie');
+  assert.equal(przyszly.ostatniTermin, iso(dodajMiesiace(za(5), 1)));
+  const bezDaty = { od: '', okres: 'M', przedluzac: 'tak' };
+  ustawPrzedluzanie(bezDaty, 'nie');
+  assert.deepEqual([bezDaty.ostatniTermin, termin(bezDaty).data], ['', null]);
+  // Od początku jednorazowa (bez ostatniego terminu) - zakup + okres, jak dotąd.
+  assert.equal(iso(termin({ od: '2026-10-01', okres: 'M', przedluzac: 'nie' }).data), '2026-11-01');
 });
 
-// Znany błąd W7 (robota.md pkt 3, do decyzji autora): przy „nie” zakup przesuwa się na początek bieżącego
-// okresu, a w krótszym miesiącu dzień się obcina - termin wypada 1-3 dni wcześniej. Oznaczony jako „todo”,
-// żeby był widoczny w wyniku, ale nie czerwony; po decyzji autora zdjąć „todo”.
-test('zakupBiezacegoOkresu: zakup 31. dnia - termin po „nie” taki sam jak przed', { todo: 'W7 - do decyzji autora' }, () => {
+// W7: przy zakupie 29-31 dnia termin po „nie” był 1-3 dni wcześniej (data zakupu przesuwana na początek okresu).
+test('ustawPrzedluzanie: zakup 31. dnia - termin po „nie” taki sam jak przed', () => {
   mock.timers.setTime(new Date(2026, 9, 21, 10, 0).getTime());
   try {
     const wpis = { od: '2025-07-31', okres: 'M', przedluzac: 'tak' };
     const przed = iso(termin(wpis).data);
     assert.equal(przed, '2026-10-31');
-    const nowy = { ...wpis, od: zakupBiezacegoOkresu(wpis), przedluzac: 'nie' };
-    assert.equal(iso(termin(nowy).data), przed);
+    ustawPrzedluzanie(wpis, 'nie');
+    assert.equal(iso(termin(wpis).data), przed);
   } finally {
     mock.timers.setTime(new Date(2026, 10, 10, 10, 0).getTime());
   }

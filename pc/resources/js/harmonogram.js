@@ -54,6 +54,12 @@ function utf16(tekst) {
 
 const schtasks = (argumenty) => Neutralino.os.execCommand(`schtasks ${argumenty}`);
 
+// Opis błędu od Windows - bez niego, gdy polskie znaki przyszły zepsute (strona kodowa konsoli → „�”).
+const opisBledu = (wynik) => {
+  const opis = (wynik.stdErr || wynik.stdOut || '').trim();
+  return opis && !opis.includes('\uFFFD') ? opis.slice(0, 200) : t('kod {kod}', { kod: wynik.exitCode });
+};
+
 // Czy zadanie jest w Windows: true / false, null - nie da się sprawdzić.
 export async function czyZadanie() {
   try {
@@ -73,7 +79,7 @@ export async function dodajZadanie(folderDanych) {
   try {
     await Neutralino.filesystem.writeBinaryFile(plik, utf16(xml(program.exe, program.folder)));
     const wynik = await schtasks(`/Create /F /TN "${NAZWA_ZADANIA}" /XML "${plik}"`);
-    if (wynik.exitCode !== 0) return t('Windows nie dodał zadania: {blad}', { blad: (wynik.stdErr || wynik.stdOut || t('kod {kod}', { kod: wynik.exitCode })).trim().slice(0, 200) });
+    if (wynik.exitCode !== 0) return t('Windows nie dodał zadania: {blad}', { blad: opisBledu(wynik) });
     return '';
   } catch (e) {
     console.error(e);
@@ -88,7 +94,7 @@ export async function usunZadanie() {
   try {
     if ((await czyZadanie()) === false) return '';
     const wynik = await schtasks(`/Delete /F /TN "${NAZWA_ZADANIA}"`);
-    return wynik.exitCode === 0 ? '' : t('Windows nie usunął zadania: {blad}', { blad: (wynik.stdErr || wynik.stdOut || '').trim().slice(0, 200) });
+    return wynik.exitCode === 0 ? '' : t('Windows nie usunął zadania: {blad}', { blad: opisBledu(wynik) });
   } catch (e) {
     console.error(e);
     return t('Nie udało się usunąć zadania z Harmonogramu zadań.');

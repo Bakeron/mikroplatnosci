@@ -83,3 +83,21 @@ test('NBP: nowa tabela zapisana raz, ta sama drugi raz bez zapisu', async () => 
   assert.equal(await odswiezZNbp(PLIK), false);
   assert.equal(zapisy, 1);
 });
+
+test('NBP: rodzaj błędu do napisu - serwer NBP, nieudany zapis pliku, brak sieci', async () => {
+  odpowiedzNbp({}, 503);
+  await assert.rejects(odswiezZNbp(PLIK), { rodzaj: 'nbp' });
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('zły JSON'); } });
+  await assert.rejects(odswiezZNbp(PLIK), { rodzaj: 'nbp' });
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
+  await assert.rejects(odswiezZNbp(PLIK), (e) => e instanceof TypeError && !e.rodzaj);
+  const zapis = Neutralino.filesystem.writeFile;
+  Neutralino.filesystem.writeFile = async () => { throw new Error('dysk pełny'); };
+  try {
+    odpowiedzNbp([{ effectiveDate: '2026-11-10', rates: [{ code: 'USD', mid: 3.97 }, { code: 'EUR', mid: 4.27 }] }]);
+    await assert.rejects(odswiezZNbp(PLIK), { rodzaj: 'zapis', zmiana: true });
+    assert.equal(pobierzKursy().USD, 3.97, 'pobrany kurs działa, choć się nie zapisał');
+  } finally {
+    Neutralino.filesystem.writeFile = zapis;
+  }
+});

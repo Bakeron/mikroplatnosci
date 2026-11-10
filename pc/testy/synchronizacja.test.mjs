@@ -2,7 +2,7 @@
 // kilku pozycji, zapis tylko po zmianie, „Usuń z Dysku”. Strona, okno pytania (confirm), Neutralino i Google udawane w pamięci.
 import { test, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { odczytajDane } from '../resources/js/dane.js';
+import { odczytajDane, WERSJA_DANYCH } from '../resources/js/dane.js';
 import { przygotujDysk } from '../resources/js/dysk.js';
 import { polaczSynchronizacje, poWymianie } from '../resources/js/synchronizacja.js';
 
@@ -116,7 +116,7 @@ test('uszkodzony plik + wysyłka po zmianie (nie kliknięta) - bez pytania i bez
 });
 
 test('plik z nowszej wersji aplikacji - bez scalania i bez wysyłki (także kliknięte „Wyślij”), komunikat o aktualizacji', async () => {
-  naDysku = JSON.stringify({ wersja: 3, wpisy: [w('e', '12:00')], usuniete: ['a', 'b', 'c'].map((id) => ({ id, kiedy: T('11:00') })) });
+  naDysku = JSON.stringify({ wersja: WERSJA_DANYCH + 1, wpisy: [w('e', '12:00')], usuniete: ['a', 'b', 'c'].map((id) => ({ id, kiedy: T('11:00') })) });
   await sync.synchronizuj(true, true);
   assert.deepEqual(idki(), ['a', 'b', 'c', 'd']);
   assert.equal(pytania.length, 0);
