@@ -97,7 +97,7 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
       // Nieczytelny plik na Dysku: dane na urządzeniu zostają; kliknięte „Wyślij” może go zastąpić -
       // inaczej synchronizacja byłaby zablokowana na stałe.
       if (tekst !== null && !zdalne) {
-        if (!wyslij || !klikniete || !confirm(t('Plik na Google Dysku jest uszkodzony albo ma nieznany format. Zastąpić go danymi z tego urządzenia?'))) {
+        if (!wyslij || !klikniete || !confirm(t('Plik na Google Dysku jest uszkodzony albo ma nieznany format. Zastąpić go danymi z tego urządzenia (pozycji: {n})?', { n: stan.wpisy.filter((w) => !w.anulowano).length }))) {
           throw new Error(t('plik na Dysku jest uszkodzony - „Wyślij na Dysk” może go zastąpić'));
         }
       }
@@ -209,7 +209,9 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
   $('dysk-wlacz').addEventListener('change', async (e) => {
     if (e.target.checked) {
       await polacz();
-    } else if (czyLokalnie() || confirm(t('Zapis na tym urządzeniu jest wyłączony - bez synchronizacji dane będą tylko w pamięci i znikną po zamknięciu aplikacji. Wyłączyć synchronizację?'))) {
+    } else if (czyLokalnie()
+      ? confirm(t('Wyłączyć synchronizację z Google Dyskiem? Aplikacja zapomni połączenie z kontem Google - żeby włączyć ją znowu, trzeba jeszcze raz wpisać kod na stronie Google. Dane na tym urządzeniu i na Dysku zostają.'))
+      : confirm(t('Zapis na tym urządzeniu jest wyłączony - bez synchronizacji dane będą tylko w pamięci i znikną po zamknięciu aplikacji. Wyłączyć synchronizację?'))) {
       await wylacz();
     } else {
       e.target.checked = true;

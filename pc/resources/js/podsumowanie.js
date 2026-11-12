@@ -163,7 +163,8 @@ export function renderujPodsumowanie(kontener, wpisy, opcje = {}) {
   }
   // D17: RAZEM / MIESIĄC wg kategorii (od największej), gdy choć jedna pozycja ma kategorię.
   if (funkcja('kategorie') && [...s.kategorie.keys()].some(Boolean)) {
-    linie.push(element('hr', 'paragon__kreska'), element('div', 'paragon__sekcja', t('Kategorie / mies.')));
+    linie.push(element('hr', 'paragon__kreska'), element('div', 'paragon__sekcja', t('Kategorie / mies.')),
+      element('div', 'paragon__dopisek', t('roczne i inne okresy przeliczone na 1 miesiąc (np. roczna ÷ 12)')));
     const kolejnosc = [...KATEGORIE.map(([k]) => k), ''];
     const kategorie = [...s.kategorie].sort((a, b) => b[1] - a[1] || kolejnosc.indexOf(a[0]) - kolejnosc.indexOf(b[0]));
     for (const [kat, kwota] of kategorie) linie.push(pozycja(kat ? nazwaKategorii(kat) : t('bez kategorii'), formatujKwote(kwota)));

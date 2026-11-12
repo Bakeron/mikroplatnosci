@@ -2,7 +2,7 @@
 
 import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, ustawPrzedluzanie, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
 import { waluta, przeliczNaPln, formatujKwote } from './waluty.js';
-import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, OKRESY, nazwaKategorii, ustawPauze, wznowDzis, usunPauze, bezZaleglegoOdbioru } from './dane.js';
+import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, OKRESY, nazwaKategorii, ustawPauze, wznowDzis, usunPauze, bezZaleglegoOdbioru, czasZmiany } from './dane.js';
 import { element, pokazPlynnie, trescObokKrzyzyka, zamienPoKolei } from './dom.js';
 import { funkcja, reczna as recznaWpisu, zmiennaKwota, osobWpisu, kategoriaWpisu, firmowa, walutyWyboru, walutaNastepnej, zmianaNastepnej } from './funkcje.js';
 import { przyciskPomocy } from './pomoc.js';
@@ -70,7 +70,7 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   // Przy tym dzień ceny następnej (A3) liczy się od nowa, gdy zmienił się termin; gdyby już minął -
   // cena od razu staje się zapłaconą i wiersz się odświeża.
   const onZmiana = () => {
-    wpis.zmieniono = new Date().toISOString();
+    wpis.zmieniono = czasZmiany(wpis);
     if (przeniesNastepnaCene(wpis) === 'cena') odswiez();
     zglosZmiane();
   };

@@ -197,15 +197,20 @@ export function odczytajUsuniete(lista) {
     .map((u) => ({ id: u.id.slice(0, 64), kiedy: u.kiedy }));
 }
 
-// Plik z Dysku z większą liczbą wpisów jest odrzucany (podmieniony albo uszkodzony - zawiesiłby aplikację).
-const MAKS_WPISOW_Z_DYSKU = 5000;
+// Plik z Dysku albo kopia z większą liczbą wpisów jest odrzucana (podmieniona albo uszkodzona - zawiesiłaby aplikację).
+export const MAKS_WPISOW_Z_DYSKU = 5000;
+
+// Czas zmiany wpisu: „teraz”, ale nie wcześniej niż poprzednia zmiana (zegar mógł być kiedyś do przodu) -
+// inaczej ta edycja przegrałaby przy scalaniu z Dyskiem i znikła po cichu (jak czas usunięcia w usun()).
+export const czasZmiany = (wpis) => new Date(Math.max(Date.now(), (Date.parse(wpis?.zmieniono) || 0) + 1)).toISOString();
 
 // Wpisy i lista usuniętych z pliku danych (PC, telefon, Dysk) - null, gdy plik ma nieznany format.
-// zDysku: czasy „z przyszłości” (zegar drugiego urządzenia do przodu albo podmieniony plik) obcinane
-// do jutra - inaczej taki wpis albo usunięcie wygrywałyby przy scalaniu z każdą późniejszą zmianą.
-export function odczytajDane(dane, zDysku = false) {
+// Czasy „z przyszłości” (zegar urządzenia był do przodu albo podmieniony plik) obcinane do jutra - inaczej
+// taki wpis albo usunięcie wygrywałyby przy scalaniu z każdą późniejszą zmianą. zDysku (i import kopii) -
+// limit liczby wpisów.
+export function odczytajDane(dane, zDysku = false, maks = zDysku ? MAKS_WPISOW_Z_DYSKU : Infinity) {
   if (!dane || !Array.isArray(dane.wpisy)) return null;
-  if (zDysku && dane.wpisy.length > MAKS_WPISOW_Z_DYSKU) return null;
+  if (dane.wpisy.length > maks) return null;
   const wpisy = dane.wpisy.filter((w) => w && typeof w === 'object').map(normalizuj);
   // Powtórzone id (np. dwa identyczne wpisy bez id) dostają numer - usuwanie i scalanie idą po id.
   // Numer dobierany, aż id jest wolne (np. „a”, „a”, „a-1” → „a”, „a-1”, „a-1-1”).
@@ -217,22 +222,21 @@ export function odczytajDane(dane, zDysku = false) {
     uzyte.add(id);
   }
   const usuniete = odczytajUsuniete(dane.usuniete);
-  if (zDysku) {
-    const granica = Date.now() + 86400000;
-    const jutro = new Date(granica).toISOString();
-    for (const w of wpisy) if (Date.parse(w.zmieniono) > granica) w.zmieniono = jutro;
-    for (const u of usuniete) if (Date.parse(u.kiedy) > granica) u.kiedy = jutro;
-  }
+  const granica = Date.now() + 86400000;
+  const jutro = new Date(granica).toISOString();
+  for (const w of wpisy) if (Date.parse(w.zmieniono) > granica) w.zmieniono = jutro;
+  for (const u of usuniete) if (Date.parse(u.kiedy) > granica) u.kiedy = jutro;
   return { wpisy, usuniete };
 }
 
 // Treść pliku danych (PC i telefon): pusty, nieczytelny albo obcy plik = błąd - wtedy aplikacja
 // niczego nie zapisuje, żeby go nie nadpisać.
-export function odczytajTresc(tresc) {
+// maks - limit liczby wpisów (import kopii); plik danych przy starcie bez limitu.
+export function odczytajTresc(tresc, maks = Infinity) {
   // Aplikacja nigdy nie zapisuje pustego pliku - pusty to uszkodzenie (np. zanik prądu w trakcie zapisu).
   if (!tresc.trim()) throw new Error('pusty plik danych');
   const dane = JSON.parse(tresc);
-  const odczytane = odczytajDane(dane);
+  const odczytane = odczytajDane(dane, false, maks);
   if (!odczytane) throw new Error('nieprawidłowy format pliku');
   return { ...odczytane, motyw: dane.motyw };
 }
@@ -302,7 +306,7 @@ export function zastosujFormularz(wpisy, edytowany, p) {
     kategoria: p.kategoria ?? wpis.kategoria,
     firmowa: p.firmowa ?? wpis.firmowa,
     link,
-    zmieniono: new Date().toISOString(),
+    zmieniono: czasZmiany(wpis),
   });
   Object.assign(wpis, normalizuj(wpis));
   if (prognoza === null) wpis.prognozaOd = ''; // wyczyszczona cena następna - dzień liczy się od nowa (jak na PC)
@@ -313,7 +317,9 @@ export function zastosujFormularz(wpisy, edytowany, p) {
   // Pauza: undefined - bez zmian, pusty tekst - bez pauzy, dziś - wznowienie, dzień z przyszłości - pauza do tego dnia.
   if (p.wstrzymanaDo === '') usunPauze(wpis);
   else if (p.wstrzymanaDo === isoDnia(dzis()) && czyWstrzymana(wpis)) wznowDzis(wpis);
-  else if (p.wstrzymanaDo) ustawPauze(wpis, p.wstrzymanaDo);
+  // Przy „Przedłużać: nie” pole pauzy jest schowane - data wpisana przed wyłączeniem nie ustawia pauzy
+  // (wróciłaby po cichu po ponownym włączeniu przedłużania).
+  else if (p.wstrzymanaDo && wpis.przedluzac !== 'nie') ustawPauze(wpis, p.wstrzymanaDo);
   if (!wpisy.includes(wpis)) wpisy.push(wpis);
   return { wpis };
 }

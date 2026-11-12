@@ -1,7 +1,7 @@
 // Sprawdzanie danych z pliku i z Dysku (dane.js) oraz paragon (podsumowanie.js) - bez DOM.
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz, zastapZKopii } from '../resources/js/dane.js';
+import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz, zastapZKopii, czasZmiany, MAKS_WPISOW_Z_DYSKU } from '../resources/js/dane.js';
 import { scal } from '../resources/js/scalanie.js';
 import { policz } from '../resources/js/podsumowanie.js';
 
@@ -125,7 +125,7 @@ test('powtórzone id dostają wolny numer', () => {
   assert.deepEqual(id.slice(0, 2), ['a', 'a-1']);
 });
 
-test('dane z Dysku: czasy z przyszłości obcięte do jutra, za dużo wpisów = odrzucone', () => {
+test('dane z Dysku i z pliku: czasy z przyszłości obcięte do jutra, za dużo wpisów z Dysku albo kopii = odrzucone', () => {
   const daleko = '9999-12-31T00:00:00.000Z';
   const zwykly = '2026-10-30T10:00:00.000Z';
   const plik = { wpisy: [{ id: 'a', zmieniono: daleko }, { id: 'b', zmieniono: zwykly }], usuniete: [{ id: 'c', kiedy: daleko }] };
@@ -134,8 +134,20 @@ test('dane z Dysku: czasy z przyszłości obcięte do jutra, za dużo wpisów = 
   assert.ok(Date.parse(zDysku.wpisy[0].zmieniono) <= jutro + 1000);
   assert.equal(zDysku.wpisy[1].zmieniono, zwykly);
   assert.ok(Date.parse(zDysku.usuniete[0].kiedy) <= jutro + 1000);
-  assert.equal(odczytajDane(plik).wpisy[0].zmieniono, daleko); // plik z komputera bez zmian
-  assert.equal(odczytajDane({ wpisy: Array.from({ length: 5001 }, () => ({})) }, true), null);
+  // Plik z urządzenia też - inaczej ten czas wracałby na Dysk przy każdej wysyłce i wygrywał z edycjami drugiego urządzenia.
+  assert.ok(Date.parse(odczytajDane(plik).wpisy[0].zmieniono) <= jutro + 1000);
+  const duzo = { wpisy: Array.from({ length: 5001 }, () => ({})) };
+  assert.equal(odczytajDane(duzo, true), null);
+  assert.throws(() => odczytajTresc(JSON.stringify(duzo), MAKS_WPISOW_Z_DYSKU)); // import kopii
+  assert.equal(odczytajTresc(JSON.stringify(duzo)).wpisy.length, 5001); // plik danych przy starcie bez limitu
+});
+
+test('czas zmiany: „teraz”, ale nie wcześniej niż poprzednia zmiana (zegar był do przodu)', () => {
+  const przed = Date.now();
+  assert.ok(Date.parse(czasZmiany({ zmieniono: '2020-01-01T00:00:00.000Z' })) >= przed);
+  assert.ok(Date.parse(czasZmiany({})) >= przed);
+  const pozniej = new Date(przed + 3600000).toISOString();
+  assert.equal(czasZmiany({ zmieniono: pozniej }), new Date(Date.parse(pozniej) + 1).toISOString());
 });
 
 test('nazwa wpisu: pusta zastąpiona „(bez nazwy)”', () => {
@@ -181,6 +193,9 @@ test('formularz: pauza - bez zmian, ustawienie, wznowienie dziś, data z przesz�
     assert.equal(w.wstrzymanaDo, '2026-11-10', 'wznowienie dziś');
     zapisz('');
     assert.deepEqual([w.wstrzymanaOd, w.wstrzymanaDo], ['', '']);
+    // Data pauzy wpisana, a potem „Przedłużać: nie” (pole pauzy schowane) - bez pauzy.
+    zastosujFormularz([w], w, pola({ od: '2026-01-05', koszt: '99', wstrzymanaDo: '2027-01-15', przedluzac: 'nie' }));
+    assert.deepEqual([w.przedluzac, w.wstrzymanaDo], ['nie', '']);
   } finally {
     mock.timers.reset();
   }

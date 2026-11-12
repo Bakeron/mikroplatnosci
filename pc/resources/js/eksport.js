@@ -6,7 +6,7 @@ import { termin, okres, miesiecznie, nazwaOkresu, czyWstrzymana, isoDnia, parsuj
 import { przeliczNaPln, waluta } from './waluty.js';
 import { formatujKoszt, nazwaKategorii } from './dane.js';
 import { t, tekst } from './teksty.js';
-import { walutaNastepnej } from './funkcje.js';
+import { walutaNastepnej, osobWpisu } from './funkcje.js';
 
 const KOLUMNY = [
   tekst('Lp.'), tekst('Nazwa'), tekst('Opis'), tekst('Kategoria'), tekst('Na firmę'), tekst('Koszt'), tekst('Waluta'),
@@ -15,11 +15,12 @@ const KOLUMNY = [
 ];
 
 // Komórka bez formuł: tekst zaczynający się od = + - @ Excel wykonałby jako formułę (wstrzyknięcie do CSV) -
-// dostaje apostrof z przodu. Separator, cudzysłów i nowa linia - w cudzysłowie.
+// dostaje apostrof z przodu. Separator, przecinek przed = + - @ (Excel z przecinkiem jako separatorem listy podzieliłby
+// komórkę i nowa zaczęłaby się od „=”), cudzysłów i nowa linia - w cudzysłowie.
 export function komorkaCsv(v, sep = ';') {
   let s = v === null || v === undefined ? '' : String(v);
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
-  return s.includes(sep) || /["\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  return s.includes(sep) || /["\r\n]|,\s*[=+\-@\t\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
 function stanWpisu(w) {
@@ -37,7 +38,7 @@ export function doCsv(wpisy) {
   wpisy.forEach((w, i) => {
     const ok = okres(w);
     const pln = przeliczNaPln(w.koszt, waluta(w));
-    const naMiesiac = ok.typ && pln !== null ? Math.round((miesiecznie(pln, ok) / (w.osob > 1 ? w.osob : 1)) * 100) / 100 : null;
+    const naMiesiac = ok.typ && pln !== null ? Math.round((miesiecznie(pln, ok) / osobWpisu(w)) * 100) / 100 : null;
     const nastepna = w.anulowano || !parsujDate(w.od) ? null : termin(w).data;
     wiersze.push([
       i + 1, w.nazwa, w.opis, nazwaKategorii(w.kategoria), tak(w.firmowa), kwota(w.koszt), waluta(w),

@@ -100,9 +100,10 @@ button { cursor: pointer; }
 /* --- nagłówek: tytuł jak na okładce zeszytu --- */
 
 .naglowek {
-  display: flex;
+  display: grid;
+  grid-template: "t k p s" / max-content minmax(0, 1fr) max-content max-content;
   align-items: baseline;
-  gap: 18px;
+  gap: 6px 26px;
   margin: 0 28px;
   padding: 18px 0 10px;
   border-bottom: 3px double var(--atrament);
@@ -122,7 +123,7 @@ button { cursor: pointer; }
 
 .kursy {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* zawija się tylko w najwęższym układzie nagłówka (.naglowek--5) */
   gap: 4px 14px;
   align-items: baseline;
   margin: 0 0 0 auto;
@@ -131,6 +132,10 @@ button { cursor: pointer; }
   letter-spacing: 0.03em;
 }
 .kursy__opis { font-size: 11px; font-style: italic; }
+/* „kurs średni”: drobny dopisek pod spodem, że to ani kupna, ani sprzedaży (linia bazowa = dopisek, więc
+   stoi równo z kursami, a „kurs średni w zł:” nad nim). */
+.kursy__opis { display: block; align-self: last baseline; line-height: 1.15; text-align: right; }
+.kursy__opis-dopisek { display: block; }
 .kursy__kurs strong { color: var(--atrament); font-weight: 600; font-variant-numeric: tabular-nums; }
 .kursy__uwaga { font-style: italic; }
 .kursy__uwaga--offline { color: var(--pomarancz); }
@@ -160,24 +165,47 @@ button { cursor: pointer; }
   font: italic 14px var(--f-tytul);
 }
 .odswiez:hover:not(:disabled) { color: var(--atrament); }
-.odswiez:disabled { opacity: 0.45; cursor: progress; }
+.odswiez:disabled { cursor: progress; }
 
 .odswiez {
   margin-left: 18px;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.12s, opacity 0.12s;
+  transition: color 0.12s;
 }
+/* Ikonki kreską (odśwież, księżyc, słońce) - rysunek piórem w kolorze napisu, wysokości małej litery z górką. */
+.odswiez__ikona, .motyw__ikona {
+  width: 15px;
+  height: 15px;
+  margin-right: 4px;
+  vertical-align: -2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: rotate 0.35s ease-out;
+}
+/* Odśwież: po najechaniu strzałka zawraca o pół obrotu; w trakcie pobierania kręci się (main.js - klasa
+   .odswiez--pobiera), a napisy kursów stoją w miejscu - nic się nie przesuwa. */
+.odswiez:hover:not(:disabled) .odswiez__ikona { rotate: 180deg; }
+.odswiez--pobiera { color: var(--atrament); cursor: progress; }
+.odswiez--pobiera .odswiez__ikona { animation: odswiez-kreci 0.7s linear infinite; }
+@keyframes odswiez-kreci { to { rotate: 360deg; } }
 
 .motyw {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-left: 18px;
 }
 .motyw span { text-underline-offset: 4px; }
 :root[data-motyw="ciemny"] .motyw__noc,
 :root:not([data-motyw="ciemny"]) .motyw__dzien { color: var(--atrament); text-decoration: underline 2px var(--margines); }
 .motyw:hover span { color: var(--atrament); }
+/* Po najechaniu: słońce obraca promienie o jeden (45°), księżyc kołysze się jak na huśtawce. */
+.motyw__ikona--ksiezyc { transition: rotate 0.45s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.motyw:hover .motyw__ikona--slonce { rotate: 45deg; }
+.motyw:hover .motyw__ikona--ksiezyc { rotate: -22deg; }
 
 /* Ustawienia: zębatka (rysunek w index.html) zamiast napisu - ołówek, po najechaniu atrament i obrót
    o jeden ząb (45°, wygląda tak samo po obrocie - na telefonie zostawiony :hover nic nie psuje). */
@@ -194,42 +222,42 @@ button { cursor: pointer; }
 .zebatka svg { transition: rotate 0.35s ease-out; }
 .zebatka:hover, .zebatka:focus-visible { color: var(--atrament); }
 .zebatka:hover svg { rotate: 45deg; }
-@media (prefers-reduced-motion: reduce) { .zebatka svg { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .zebatka svg { transition: none; }
+  .odswiez--pobiera .odswiez__ikona { animation: none; }
+}
 .ustawienia-przycisk { align-self: center; margin-left: 18px; }
 
 .status {
-  margin-left: 18px;
   color: var(--olowek);
   font: 13px var(--f-liczby);
   letter-spacing: 0.04em;
-  /* Długi komunikat (np. błąd Dysku) skraca się wielokropkiem (pełny w podpowiedzi i w ustawieniach),
-     zamiast ściskać datę, kursy i „zapisano” do dwóch linijek. */
-  flex: 1 1 0;
-  max-width: max-content;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .naglowek__data { white-space: nowrap; }
-/* Węższe okno: tytuł z datą w pierwszym wierszu, kursy i przyciski w drugim - na całą szerokość,
-   zamiast kursów łamanych jeden pod drugim. Próg z zapasem na „bez internetu - kurs zapamiętany”. */
-@media (max-width: 1420px) {
-  .naglowek { flex-wrap: wrap; row-gap: 4px; }
-  .naglowek::before { content: ''; order: 1; flex-basis: 100%; } /* łamanie wiersza */
-  .kursy, .prowizja, .odswiez, .motyw, .ustawienia-przycisk, .status { order: 2; }
-  /* Kursy zajmują resztę wiersza, ale nie mniej niż ich treść (inaczej data NBP wchodziła pod „prowizję banku”) -
-     za długi dopisek („bez internetu…”) skraca się wielokropkiem. */
-  .kursy { flex: 1 1 0; flex-wrap: nowrap; margin-left: 0; white-space: nowrap; }
-  .kursy > * { flex-shrink: 0; }
-  .kursy > .kursy__uwaga { flex-shrink: 1; overflow: hidden; min-width: 0; text-overflow: ellipsis; }
-  /* Stan zapisu bierze tylko wolne miejsce - długa nazwa pliku skraca się wielokropkiem (pełna w podpowiedzi). */
-  .status { flex: 1 1 0; max-width: max-content; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-}
-/* Najwęższe okno (np. przy skalowaniu ekranu 150%): z przycisku zostaje sama ikonka ↻. */
-@media (max-width: 860px) {
-  .odswiez__tekst { display: none; }
-}
+/* Układ nagłówka bez wielokropków (autor 11.11.2026: nic nie może być ucięte „…”). Cztery grupy:
+   tytuł z datą, kursy (z prowizją i „odśwież”), noc / dzień z zębatką, stan zapisu i Dysku. main.js
+   (ulozNaglowek) wybiera pierwszy układ, w którym wszystko się mieści:
+   1 - jeden wiersz; 2 - tytuł, pod nim reszta; 3 - tytuł z przyciskami i stanem po prawej, kursy pod nim;
+   4 - trzy wiersze, stan na dole (długi komunikat się zawija); 5 - jak 4, a kursy też mogą się zawinąć. */
+.naglowek__tytul, .naglowek__kursy, .naglowek__przyciski, .naglowek__stan { display: flex; align-items: baseline; gap: 18px; min-width: 0; }
+.naglowek__tytul { grid-area: t; }
+.naglowek__kursy { grid-area: k; }
+.naglowek__przyciski { grid-area: p; justify-content: flex-end; }
+.naglowek__stan { grid-area: s; justify-content: flex-end; }
+.naglowek > div > * { margin-left: 0; }
+.naglowek__kursy:not(:has(> :not([hidden], [popover]))), .naglowek__stan:not(:has(> :not(:empty))) { display: none; }
+.naglowek--1 { grid-template: "t k p s" / max-content minmax(0, 1fr) max-content max-content; }
+.naglowek--1 .naglowek__kursy { justify-content: flex-end; }
+.naglowek--2 { grid-template: "t t t" "k p s" / minmax(0, 1fr) max-content max-content; }
+.naglowek--3 { grid-template: "t p s" "k k k" / minmax(0, 1fr) max-content max-content; }
+.naglowek--4, .naglowek--5 { grid-template: "t p" "k k" "s s" / minmax(0, 1fr) max-content; }
+.naglowek--4 .naglowek__stan, .naglowek--5 .naglowek__stan { flex-wrap: wrap; justify-content: flex-start; row-gap: 2px; }
+.naglowek--4 .status, .naglowek--5 .status { white-space: normal; }
+.naglowek--5 .naglowek__kursy, .naglowek--5 .kursy { flex-wrap: wrap; row-gap: 2px; }
+.kursy { white-space: nowrap; }
+.kursy > * { flex-shrink: 0; }
+.naglowek--5 .kursy__uwaga { flex-shrink: 1; white-space: normal; }
 
 .blad {
   margin: 12px 28px 0;
@@ -256,6 +284,17 @@ button { cursor: pointer; }
 /* nagłówek przyklejany przy przewijaniu skryptem (main.js) - position: sticky nie działa w .zeszyt-ramka;
    z-index nad wierszami, które mają własne elementy z pozycją (lont, pola) */
 .zeszyt thead { position: relative; z-index: 2; }
+/* Przesunięcie nagłówka = przewinięcie kartki ponad początek tabeli (zakres ustawia main.js). Bez przejść -
+   wyjątek od „nic skokiem” (autor 11.11.2026): każde opóźnienie odsłaniało wiersze nad nagłówkiem. */
+.kartka { scroll-timeline: --kartka y; }
+@supports (animation-timeline: scroll()) {
+  .zeszyt thead {
+    animation: przyklej-naglowek linear both;
+    animation-timeline: --kartka;
+    animation-range: var(--przyklej-od, 0px) var(--przyklej-do, 1px);
+  }
+}
+@keyframes przyklej-naglowek { from { transform: none; } to { transform: translateY(var(--przyklej-maks, 0px)); } }
 .zeszyt th {
   position: relative;
   z-index: 1;
@@ -890,7 +929,8 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .paragon__kwota { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .paragon__sekcja { margin-bottom: 2px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .paragon__pozycja--podsuma { margin-top: 2px; padding-top: 2px; border-top: 1px solid currentColor; font-weight: 700; }
-.paragon__brak { font-size: 11.5px; font-style: italic; opacity: 0.7; }
+.paragon__brak, .paragon__dopisek { font-size: 11.5px; font-style: italic; opacity: 0.7; }
+.paragon__dopisek { margin: -2px 0 2px; line-height: 1.3; }
 .paragon__pozycja--wycofanie .paragon__nazwa,
 .paragon__pozycja--wycofanie .paragon__kwota { text-decoration: line-through; opacity: 0.7; }
 .paragon__pozycja--suma { font-size: 15px; font-weight: 700; }
@@ -1103,11 +1143,12 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.ustawienia__wiersz { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px dotted var(--linia); cursor: pointer; }
+/* PC: przełącza się tylko samym przełącznikiem „tak / nie” (main.js), nie kliknięciem w tekst wiersza;
+   telefon: cały wiersz, bo palcem trudniej trafić. */
+.ustawienia__wiersz { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px dotted var(--linia); }
 .ustawienia__teksty { display: flex; flex-direction: column; gap: 2px; }
 .ustawienia__nazwa { font: italic 600 15px var(--f-tytul); }
 .ustawienia__opis { color: var(--olowek); font: 12.5px/1.35 var(--f-tekst); }
-.ustawienia__wiersz:hover .ustawienia__nazwa { text-decoration: underline 1px var(--margines); text-underline-offset: 3px; }
 /* zależna od „Płacę sam” - wcięta za marginesem; bez „Płacę sam” przygaszona (przełącznik nieaktywny) */
 .ustawienia__wiersz--zalezny { margin-left: 10px; padding-left: 12px; border-left: 2px solid var(--margines); }
 .ustawienia__wiersz--wylaczony { opacity: 0.45; cursor: default; }
@@ -1168,6 +1209,11 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   /* podkreślenie po najechaniu albo wyborze pojawia się płynnie - zanim widać, jest przezroczyste */
   .ustawienia__nazwa, .plik__akcja { text-decoration: underline 1px transparent; text-underline-offset: 3px; }
   .motyw span, .okres-wybor__opcja { text-decoration: underline 2px transparent; }
+  /* Przełącznik „tak / nie” po najechaniu: delikatna obwódka, a kółko lekko rusza w stronę drugiego stanu. */
+  .przelacznik { transition: border-color 0.15s, box-shadow 0.15s; }
+  .przelacznik:hover:not(:disabled) { box-shadow: 0 0 0 4px color-mix(in srgb, var(--atrament) 13%, transparent); }
+  .przelacznik:hover:not(:disabled)::before { transform: translateX(4px); }
+  .przelacznik:checked:hover:not(:disabled)::before { transform: translateX(30px); }
 }
 
 /* karteczki („⋯”, prowizja, kopia i import) i dymek „?” - wjeżdżają i znikają, a nie wskakują */
@@ -1235,6 +1281,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   border-top: 3px solid var(--olowek);
   font: italic 14px/1.45 var(--f-tytul);
 }
+.pomoc-okno .wykrzyknik { margin-right: 2px; font-size: 19px; line-height: 0; font-style: normal; }
 .pomoc--paragon {
   position: absolute;
   top: 14px;
@@ -1306,6 +1353,14 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 
 /* --- F27: wybór języka w „Ustawieniach” (lewa strona paska przycisków). --- */
 .ustawienia__jezyk { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+/* Lista języków: łapka i linijka pod nazwą, która płynnie ciemnieje po najechaniu (jak pole przy fokusie). */
+.ustawienia__jezyk select {
+  box-shadow: inset 0 -1px 0 transparent;
+  cursor: pointer;
+  transition: box-shadow 0.15s, color 0.15s;
+}
+.ustawienia__jezyk select:hover { box-shadow: inset 0 -1px 0 var(--atrament); }
+.ustawienia__jezyk select:focus { box-shadow: inset 0 -2px 0 var(--atrament); }
 
 /* --- D17: kategorie - zakładki indeksowe wystające znad kartki (filtr) i fiszka w wierszu. Każda kategoria
    ma swój kolor paska jak samoprzylepne zakładki, ale zawsze z nazwą - kolor tylko pomaga. --- */

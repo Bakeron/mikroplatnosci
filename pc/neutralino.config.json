@@ -38,7 +38,7 @@
       "title": "Mikropłatności",
       "width": 1500,
       "height": 860,
-      "minWidth": 1100,
+      "minWidth": 825,
       "minHeight": 480,
       "center": true,
       "fullScreen": false,

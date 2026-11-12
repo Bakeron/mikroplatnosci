@@ -4,7 +4,7 @@ import { zbierzAlarmy, formatujDate, parsujDate, dzis, przeniesNastepnaCene, iso
 import { renderujPodsumowanie } from './podsumowanie.js';
 import { utworzWiersz, odswiezWiersze, numeruj, przeciaganieWierszy } from './tabela.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
-import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc, zastapZKopii, dodajPrzyklad, nicDoStracenia, WERSJA_DANYCH } from './dane.js';
+import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc, zastapZKopii, dodajPrzyklad, nicDoStracenia, czasZmiany, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
 import { wypelnijListe } from './spisy.js';
 import { przygotujDysk, czyPolaczony } from './dysk.js';
 import { polaczSynchronizacje, OPOZNIENIE_WYSYLKI, poWymianie } from './synchronizacja.js';
@@ -243,7 +243,13 @@ async function wlaczZapisLokalny() {
   stan.wczytano = true;
   stan.niezapisane = true;
   await zapiszTeraz();
+  // Nieudany zapis (pełny dysk, plik zajęty) rzuca błąd - „Usuń z Dysku” nie usunie wtedy jedynej kopii danych.
+  if (stan.niezapisane) {
+    stan.lokalnie = false;
+    await zapiszMojeUstawienia();
+  }
   odswiezMiejsceZapisu();
+  if (stan.niezapisane) throw new Error(t('Nie udało się zapisać danych na komputerze.'));
 }
 
 // Wyłączenie zapisu lokalnego: najpierw wysyłka na Dysk, potem plik danych i kopie znikają z komputera.
@@ -291,7 +297,7 @@ async function usunZKomputera() {
   await stan.zapis;
   if (polaczony) await dysk.wylacz().catch(console.error);
   try {
-    await usunDaneLokalne(stan.plik, stan.folderKopii);
+    await usunDaneLokalne(stan.plik, stan.folderKopii, [stan.plikPowiadomien]);
   } catch (e) {
     pokazStatus(t('Nie udało się usunąć wszystkich plików z komputera.'), true);
     console.error(e);
@@ -310,6 +316,10 @@ $('lokalnie-wlacz').addEventListener('change', async (e) => {
   try {
     if (pole.checked) await wlaczZapisLokalny();
     else if (!(await wylaczZapisLokalny())) pole.checked = true;
+  } catch (blad) {
+    pole.checked = false;
+    pokazBlad(blad.message);
+    console.error(blad);
   } finally {
     odswiezMiejsceZapisu();
   }
@@ -395,7 +405,7 @@ async function wczytajKopie(plik) {
       alert(t('Kopię „{plik}” zapisała nowsza wersja aplikacji - najpierw zaktualizuj aplikację na tym komputerze.', { plik: plik.name }));
       return;
     }
-    dane = odczytajTresc(tresc);
+    dane = odczytajTresc(tresc, MAKS_WPISOW_Z_DYSKU);
   } catch (e) {
     alert(t('„{plik}” to nie jest kopia danych Mikropłatności (albo plik jest uszkodzony).', { plik: plik.name }));
     console.error(e);
@@ -585,9 +595,16 @@ async function odswiezWszystko() {
   const przycisk = $('odswiez');
   if (przycisk.disabled) return;
   przycisk.disabled = true;
+  // Ikonka kręci się co najmniej jeden obrót - szybka odpowiedź NBP nie wygląda jak mrugnięcie.
+  przycisk.classList.add('odswiez--pobiera');
+  przycisk.setAttribute('aria-busy', 'true');
+  const obrot = new Promise((r) => setTimeout(r, 700));
   try {
     await odswiezKursy(true);
   } finally {
+    await obrot;
+    przycisk.classList.remove('odswiez--pobiera');
+    przycisk.removeAttribute('aria-busy');
     przycisk.disabled = false;
   }
 }
@@ -600,7 +617,7 @@ function przeniesCeny() {
   let zmiana = false;
   for (const w of stan.wpisy) {
     const wynik = przeniesNastepnaCene(w);
-    if (wynik === 'cena') w.zmieniono = new Date().toISOString();
+    if (wynik === 'cena') w.zmieniono = czasZmiany(w);
     if (wynik) zmiana = true;
   }
   return zmiana;
@@ -633,7 +650,7 @@ function pokazFiltr() {
 // C15: przywrócenie z „Anulowanych” - wiersz wraca na swoje miejsce w tabeli.
 function przywrocWpis(wpis) {
   wpis.anulowano = '';
-  wpis.zmieniono = new Date().toISOString();
+  wpis.zmieniono = czasZmiany(wpis);
   renderujTabele();
   akcjeWiersza.onZmiana();
   wierszWpisu(wpis)?.querySelector('input')?.focus(); // fokus i widok na przywróconym wierszu
@@ -858,6 +875,11 @@ const otworzUstawienia = () => pokazUstawienia(
   },
 );
 $('ustawienia').addEventListener('click', otworzUstawienia);
+// Wiersz ustawień przełącza się tylko samym przełącznikiem „tak / nie” - kliknięcie w nazwę albo opis
+// nic nie zmienia (np. przypadkowe wyłączenie synchronizacji). Telefon zostawia cały wiersz (palec).
+document.addEventListener('click', (e) => {
+  if (e.target.closest?.('label.ustawienia__wiersz') && !e.target.closest('input, select, button, textarea')) e.preventDefault();
+}, true);
 
 $('motyw').addEventListener('click', () => {
   ustawMotyw(stan.motyw === 'ciemny' ? 'jasny' : 'ciemny');
@@ -877,13 +899,17 @@ function usunWpis(wpis, naZawsze) {
   if (naZawsze) usun(stan, wpis);
   else {
     wpis.anulowano = isoDnia(dzis());
-    wpis.zmieniono = new Date().toISOString();
+    wpis.zmieniono = czasZmiany(wpis);
   }
   const tr = wierszWpisu(wpis);
   // Fokus był na wykreślanym wierszu (albo wrócił z okna na jego „×”) - przechodzi na „×” sąsiada, nie na początek strony.
   const fokusTu = !tr || tr.contains(document.activeElement) || document.activeElement === document.body;
   const sasiad = [tr?.nextElementSibling, tr?.previousElementSibling].find((w) => w && !w.hidden);
-  if (fokusTu) (sasiad?.querySelector('.wykresl') ?? $('dodaj')).focus();
+  if (fokusTu) {
+    (sasiad?.querySelector('.wykresl') ?? $('dodaj')).focus();
+    // Fokus na „×” sąsiada pokazuje podgląd przekreślenia (tabela.js) - tu go nikt nie wskazał, więc bez podglądu.
+    sasiad?.classList.remove('wykreslany');
+  }
   // Nie skokiem: wiersz gaśnie, a wiersze pod nim podjeżdżają na jego miejsce. Przy „ogranicz ruch” - od razu.
   const zabierz = () => {
     const ponizej = tr?.isConnected ? [...tbody.rows].filter((w) => !w.hidden && tr.compareDocumentPosition(w) & Node.DOCUMENT_POSITION_FOLLOWING) : [];
@@ -909,17 +935,30 @@ for (const x of document.querySelectorAll('dialog > .okno__x')) {
 }
 
 // Nagłówek tabeli zostaje na górze przy przewijaniu kartki w pionie. Samo position: sticky tu nie
-// działa, bo tabela ma własny poziomy pasek przewijania (.zeszyt-ramka).
+// działa, bo tabela ma własny poziomy pasek przewijania (.zeszyt-ramka). Przesuwa go animacja związana
+// z przewijaniem kartki (wyglad.css) - liczona razem z przewinięciem, więc nagłówek nie zostaje w tyle
+// i nic nie prześwituje (skrypt przy zdarzeniu „scroll” spóźniał się o klatkę). Tu tylko zakres:
+// od miejsca tabeli w kartce do jej końca.
 const kartka = document.querySelector('.kartka');
 const ramkaTabeli = document.querySelector('.zeszyt-ramka');
 const naglowekTabeli = document.querySelector('.zeszyt thead');
+const przewijanieWCss = CSS.supports('animation-timeline: scroll()');
 function przyklejNaglowekTabeli() {
-  const wysuniecie = kartka.getBoundingClientRect().top - ramkaTabeli.getBoundingClientRect().top;
+  const od = ramkaTabeli.getBoundingClientRect().top - kartka.getBoundingClientRect().top + kartka.scrollTop;
   const maks = Math.max(ramkaTabeli.clientHeight - naglowekTabeli.offsetHeight, 0); // nie niżej niż koniec tabeli
-  const y = Math.min(Math.max(wysuniecie, 0), maks);
+  if (przewijanieWCss) {
+    naglowekTabeli.style.setProperty('--przyklej-od', `${od}px`);
+    naglowekTabeli.style.setProperty('--przyklej-do', `${od + Math.max(maks, 1)}px`);
+    naglowekTabeli.style.setProperty('--przyklej-maks', `${maks}px`);
+    return;
+  }
+  const y = Math.min(Math.max(kartka.scrollTop - od, 0), maks);
   naglowekTabeli.style.transform = y ? `translateY(${y}px)` : '';
 }
-kartka.addEventListener('scroll', przyklejNaglowekTabeli, { passive: true });
+if (przewijanieWCss) {
+  const obserwator = new ResizeObserver(przyklejNaglowekTabeli);
+  for (const el of [kartka, ramkaTabeli, $('wprowadzenie'), $('filtr')]) obserwator.observe(el);
+} else kartka.addEventListener('scroll', przyklejNaglowekTabeli, { passive: true });
 
 let timerMiarki = null;
 window.addEventListener('resize', () => {
@@ -935,7 +974,10 @@ function renderujKursy() {
   if (kursy) {
     const opis = document.createElement('span');
     opis.className = 'kursy__opis';
-    opis.textContent = t('kurs średni w zł:');
+    const dopisek = document.createElement('span');
+    dopisek.className = 'kursy__opis-dopisek';
+    dopisek.textContent = t('ani kupna, ani sprzedaży');
+    opis.append(t('kurs średni w zł:'), dopisek);
     czesci.push(opis);
     // Włączone waluty i te z pozycji (bez kursu w tabeli NBP - pominięte).
     const wlaczone = pobierzWaluty();
@@ -954,7 +996,9 @@ function renderujKursy() {
     czesci.push(zrodlo);
   }
   const uwagi = {
-    pobieram: t('pobieram kursy…'),
+    // Są już kursy - zostają bez dopisku do końca pobierania (widać je po kręcącym się „odśwież”);
+    // dopisek „pobieram kursy…” przesuwał cały nagłówek.
+    pobieram: kursy ? '' : t('pobieram kursy…'),
     offline: kursy ? t('bez internetu - kurs zapamiętany') : t('brak kursów - bez internetu'),
     nbp: kursy ? t('błąd serwera NBP - kurs zapamiętany') : t('brak kursów - błąd serwera NBP'),
     zapis: t('kurs pobrany, ale nie zapisał się na dysku'),
@@ -963,11 +1007,39 @@ function renderujKursy() {
     const uwaga = document.createElement('span');
     uwaga.className = 'kursy__uwaga' + (stan.kursyStatus !== 'pobieram' ? ' kursy__uwaga--offline' : '');
     uwaga.textContent = uwagi[stan.kursyStatus];
-    uwaga.title = uwagi[stan.kursyStatus]; // pełny tekst, gdy w wąskim oknie jest skrócony
     czesci.push(uwaga);
   }
   el.replaceChildren(...czesci);
 }
+
+// Nagłówek bez wielokropków: pierwszy z układów (wyglad.css, .naglowek--1…5), w którym nic nie wystaje
+// poza swoje miejsce. Liczone od nowa przy zmianie szerokości okna i treści (kursy, stan zapisu i Dysku).
+const naglowek = document.querySelector('.naglowek');
+const UKLADY_NAGLOWKA = ['naglowek--1', 'naglowek--2', 'naglowek--3', 'naglowek--4', 'naglowek--5'];
+function ulozNaglowek() {
+  // Każdy element w granicach swojej grupy - z obu stron (kursy dosunięte do prawej wystawały w lewo,
+  // a tego scrollWidth nie widzi).
+  const miesci = () => naglowek.scrollWidth <= naglowek.clientWidth + 1 && [...naglowek.children].every((g) => {
+    const r = g.getBoundingClientRect();
+    return [...g.querySelectorAll('*')].every((e) => {
+      if (e.closest('[popover]') || !e.getClientRects().length) return true;
+      const b = e.getBoundingClientRect();
+      return b.left >= r.left - 1 && b.right <= r.right + 1;
+    });
+  });
+  for (const uklad of UKLADY_NAGLOWKA) {
+    naglowek.classList.remove(...UKLADY_NAGLOWKA);
+    naglowek.classList.add(uklad);
+    if (miesci()) return;
+  }
+}
+let szerokoscNaglowka = 0;
+new ResizeObserver(() => {
+  if (naglowek.clientWidth === szerokoscNaglowka) return; // sama zmiana wysokości (inny układ) - bez pętli
+  szerokoscNaglowka = naglowek.clientWidth;
+  ulozNaglowek();
+}).observe(naglowek);
+new MutationObserver(ulozNaglowek).observe(naglowek, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
 
 // Kursy NBP: przy każdym uruchomieniu (wymus) i raz dziennie, gdy okno jest długo otwarte.
 // Bez internetu nic się nie zmienia - zostają ostatnie zapamiętane kursy.
@@ -1130,6 +1202,8 @@ Neutralino.events.on('windowClose', async () => {
   // Bez zapisu lokalnego niewysłane zmiany idą na Dysk przed zamknięciem (najwyżej 15 s) - także gdy
   // akurat trwa inna wymiana z Dyskiem (wtedy wysyłka zaraz po niej, a nie dopiero za 3 s).
   if (stan.doWyslania) await Promise.race([poWymianie(stan).then(wyslijZaleglosci), new Promise((r) => setTimeout(r, LIMIT_WYSYLKI_PRZY_ZAMKNIECIU))]);
+  // Wysyłka się nie udała (np. brak internetu), a zmian nie ma na komputerze - bez pytania przepadłyby po cichu.
+  if (stan.doWyslania && !stan.lokalnie && !confirm(t('Nie udało się wysłać zmian na Google Dysk (brak internetu?). Zamknąć mimo to? Te zmiany przepadną.'))) return;
   await zwolnijBlokade(); // druga kopia (bez zajętej blokady) niczego nie usuwa
   Neutralino.app.exit();
 });

@@ -5,7 +5,7 @@ import { termin, doPlatnosci, dniTekst, kiedyTekst, formatujDate, parsujDate, zb
 import { waluta, naPln, formatujKwote, wczytajZapamietane, odswiezZNbp, czyAktualne, ustawProwizje, pobierzProwizje, poprawnaProwizja } from './waluty.js';
 import { renderujPodsumowanie, policz } from './podsumowanie.js';
 import { wypelnijListe } from './spisy.js';
-import { nowyWpis, doZapisu, usun, formatujKoszt, parsujKoszt, zastosujFormularz, nazwaWpisu, bezZaleglegoOdbioru, dodajPrzyklad, nicDoStracenia, OKRESY, KATEGORIE, nazwaKategorii, normalizuj, noweId, odczytajTresc, zastapZKopii } from './dane.js';
+import { nowyWpis, doZapisu, usun, formatujKoszt, parsujKoszt, zastosujFormularz, nazwaWpisu, bezZaleglegoOdbioru, dodajPrzyklad, nicDoStracenia, OKRESY, KATEGORIE, nazwaKategorii, normalizuj, noweId, odczytajTresc, zastapZKopii, czasZmiany, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
 import { funkcja, ustawFunkcje, pobierzFunkcje, reczna, zmiennaKwota, osobWpisu, cenaNastepna, kategoriaWpisu, firmowa, ustawWaluty, pobierzWaluty, uzyteWaluty, walutyNaStart, walutyWyboru, walutaNastepnej, zmianaNastepnej } from './funkcje.js';
 import { renderujAnulowane } from './anulowane.js';
 import { renderujHistorie } from './historia.js';
@@ -20,8 +20,8 @@ import { renderujMiarke, ulozTory } from './miarka.js';
 import { rozplanuj, tytul, tresc, wczytajPamiec, zapiszPamiec, DOMYSLNE_RODZAJE } from './powiadomienia.js';
 import { element, pokazPlynnie, wysunZGory, zamienPlynnie } from './dom.js';
 import { podepnijPomocStrony, przetlumaczPomoc } from './pomoc.js';
-import { t, tn, ustawJezyk, jezyk, region, przetlumaczStrone, dataDluga, liczbaKrotka } from './teksty.js';
-import { pustyFiltr, pasuje, poprawFiltr, renderujFiltr } from './filtr.js';
+import { t, tn, tekst, ustawJezyk, jezyk, region, przetlumaczStrone, dataDluga, liczbaKrotka } from './teksty.js';
+import { czyPusty, pustyFiltr, pasuje, poprawFiltr, renderujFiltr } from './filtr.js';
 import { doCsv } from './eksport.js';
 import { dekoduj, odczytajWyciag, znajdzPowtarzajace } from './wyciag.js';
 import { pokazWyciag } from './wyciagOkno.js';
@@ -73,15 +73,18 @@ async function wczytaj() {
 // Zapisy po kolei (dwa naraz pisałyby do tego samego pliku tymczasowego); zapis przez plik
 // tymczasowy i podmianę - zanik zasilania w trakcie zapisu nie zostawia uciętego pliku.
 // Zwraca false, gdy zapis w telefonie się nie udał.
+const BLAD_ZAPISU = tekst('Błąd zapisu na telefonie - ostatnia zmiana może zniknąć.');
 let kolejkaZapisu = Promise.resolve(true);
 function zapisz() {
   kolejkaZapisu = kolejkaZapisu.then(async () => {
     if (stan.zablokowany || !stan.lokalnie) return true;
     try {
       await zapiszPlik(PLIK, JSON.stringify(doZapisu(stan), null, 2));
+      // Udany zapis po wcześniejszym błędzie zapisu - komunikat o nim już nieaktualny (inne błędy zostają).
+      if (!$('blad').hidden && $('blad').textContent === t(BLAD_ZAPISU)) pokazPlynnie($('blad'), false);
       return true;
     } catch (e) {
-      pokazBlad(t('Błąd zapisu na telefonie - ostatnia zmiana może zniknąć.'));
+      pokazBlad(t(BLAD_ZAPISU));
       console.error(e);
       return false;
     }
@@ -97,7 +100,7 @@ function przeniesCeny() {
   let zmiana = false;
   for (const w of stan.wpisy) {
     const wynik = przeniesNastepnaCene(w);
-    if (wynik === 'cena') w.zmieniono = new Date().toISOString();
+    if (wynik === 'cena') w.zmieniono = czasZmiany(w);
     if (wynik) zmiana = true;
   }
   return zmiana;
@@ -180,7 +183,9 @@ function pytanieOKwote(wpis, pole) {
   kwota.value = formatujKoszt(wpis.historia?.at(-1)?.kwota ?? wpis.prognoza ?? wpis.koszt);
   const zapisz = element('button', 't-zapisz', t('zapisz'));
   zapisz.type = 'button';
+  let zapisane = false; // drugie dotknięcie w trakcie zapisu nie zaznacza zapłaty następnego terminu
   zapisz.addEventListener('click', async () => {
+    if (zapisane) return;
     const wartosc = parsujKoszt(kwota.value);
     if (typeof wartosc !== 'number') {
       kwota.classList.add('pole--blad');
@@ -188,8 +193,26 @@ function pytanieOKwote(wpis, pole) {
       return;
     }
     if (!oznaczZaplate(wpis, wartosc)) return;
-    wpis.zmieniono = new Date().toISOString();
+    zapisane = true;
+    wpis.zmieniono = czasZmiany(wpis);
     await poZmianie();
+  });
+  // Jak na PC (zalozenia.md): Enter zapisuje, Esc rezygnuje; czerwona ramka znika, gdy kwota jest już dobra.
+  const zwin = () => {
+    pokazPlynnie(wiersz, false);
+    pole.checked = false;
+    pole.focus();
+  };
+  wiersz.zwin = zwin; // „Wstecz” Androida
+  kwota.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') zapisz.click();
+    else if (e.key === 'Escape') {
+      e.preventDefault();
+      zwin();
+    }
+  });
+  kwota.addEventListener('input', () => {
+    if (typeof parsujKoszt(kwota.value) === 'number') kwota.classList.remove('pole--blad');
   });
   wiersz.append(element('span', '', t('ile?')), kwota, element('span', '', waluta(wpis)), zapisz);
   pole.addEventListener('change', () => {
@@ -277,7 +300,8 @@ function utworzKarte(wpis) {
     }
     dol.append(lont);
   } else {
-    dol.append(element('span', 'karta__brak', t('brak daty zakupu - uzupełnij')));
+    // Bez terminu: brakuje daty zakupu albo okresu (stary wpis z dawnych dat „od” i „do”, np. kwartał).
+    dol.append(element('span', 'karta__brak', wpis.od && !wpis.okres ? t('brak okresu - uzupełnij') : t('brak daty zakupu - uzupełnij')));
   }
   // Płatność ręczna blisko terminu - czerwony margines i „zapłać do …” (jak na PC); „☐ zapłacone” obok karty.
   const dz = doZaplaty(wpis);
@@ -313,7 +337,7 @@ function utworzKarte(wpis) {
     else {
       pole.addEventListener('change', async () => {
         if (!pole.checked || !oznaczZaplate(wpis)) return;
-        wpis.zmieniono = new Date().toISOString();
+        wpis.zmieniono = czasZmiany(wpis);
         await poZmianie();
       });
     }
@@ -325,7 +349,7 @@ function utworzKarte(wpis) {
     const tekst = typeof wpis.koszt === 'number' ? t('odbierz po {kwota}: {kto}', { kwota: formatujKwote(wpis.koszt / osob, waluta(wpis)), kto }) : t('odbierz: {kto}', { kto });
     li.append(dopisekZPolem('t-dopisek', tekst, t('oddane'), t('Oddane - płatność z {data}', { data: formatujDate(ostatnia) }), async () => {
       bezZaleglegoOdbioru(wpis);
-      wpis.zmieniono = new Date().toISOString();
+      wpis.zmieniono = czasZmiany(wpis);
       await poZmianie();
     }));
   }
@@ -334,7 +358,7 @@ function utworzKarte(wpis) {
   if (ostatniaFirmowa && isoDnia(ostatniaFirmowa) > wpis.fakturaTermin) {
     li.append(dopisekZPolem('t-dopisek t-dopisek--faktura', t('pobierz fakturę'), t('pobrana'), t('Faktura pobrana - płatność z {data}', { data: formatujDate(ostatniaFirmowa) }), async () => {
       wpis.fakturaTermin = isoDnia(ostatniaFirmowa);
-      wpis.zmieniono = new Date().toISOString();
+      wpis.zmieniono = czasZmiany(wpis);
       await poZmianie();
     }));
   }
@@ -484,6 +508,9 @@ function otworzArkusz(wpis) {
 
 formularz.addEventListener('submit', async (e) => {
   e.preventDefault();
+  // Arkusz już się zamyka (drugie dotknięcie „Zapisz” w trakcie wysuwania - stan.edytowany wyzerowany,
+  // zapis dodałby kopię pozycji) albo czeka na odpowiedź „wykreślić?” (Enter w polu nie zapisuje).
+  if (!$('arkusz').open || $('arkusz-usun').dataset.potwierdz) return;
   // Wspólna logika (dane.js, z testami): wpis szukany po id - w trakcie edycji mogły przyjść zmiany z Dysku.
   const wartosci = Object.fromEntries(['nazwa', 'opis', 'koszt', 'waluta', 'walutaNastepna', 'od', 'prognoza', 'platnosc', 'link', 'ktoOddaje', 'kategoria'].map((p) => [p, pola[p].value]));
   // „Inny” okres z pól „co [N] [jednostka]”; mies. i rok zawsze co 1; bez wyboru - zostaje, jak było.
@@ -567,7 +594,7 @@ $('arkusz-usun').addEventListener('click', async () => {
   if (odRazu || !archiwum) usun(stan, wpis);
   else {
     wpis.anulowano = isoDnia(dzis());
-    wpis.zmieniono = new Date().toISOString();
+    wpis.zmieniono = czasZmiany(wpis);
   }
   // Karta nie znika skokiem: maleje i gaśnie, gdy arkusz zjeżdża w dół, a niższe podjeżdżają.
   const karta = kartaWpisu(wpis);
@@ -578,7 +605,7 @@ $('arkusz-usun').addEventListener('click', async () => {
 // „Anulowane”: przywrócenie na listę z tymi samymi danymi albo usunięcie na zawsze (jak na PC).
 async function przywroc(wpis) {
   wpis.anulowano = '';
-  wpis.zmieniono = new Date().toISOString();
+  wpis.zmieniono = czasZmiany(wpis);
   await poZmianie();
 }
 
@@ -755,7 +782,7 @@ function pokazProwizje() {
 }
 $('prowizja-pole').addEventListener('change', (e) => {
   const procent = Number(String(e.target.value).replace(',', '.').replace('%', '').trim());
-  if (Number.isFinite(procent)) ustawProwizje(poprawnaProwizja(procent)); // np. „abc” - zostaje poprzednia
+  if (Number.isFinite(procent)) ustawProwizje(poprawnaProwizja(Math.min(Math.max(procent, 0), 10))); // „abc” - zostaje poprzednia; ponad 10% - 10% (jak na PC), nie 0
   e.target.blur();
   zapiszMojeUstawienia();
   renderuj();
@@ -865,9 +892,10 @@ const otworzUstawienia = () => pokazUstawienia(
 $('ustawienia').addEventListener('click', otworzUstawienia);
 
 // Plik danych, plik tymczasowy i wszystkie kopie zapasowe (po zapisach, które jeszcze trwają).
-async function usunPlikDanych() {
+// inne - dodatkowe pliki („Usuń z telefonu”: pamięć powiadomień z terminami płatności).
+async function usunPlikDanych(inne = []) {
   await kolejkaZapisu;
-  await usunDaneLokalne(PLIK, FOLDER_KOPII);
+  await usunDaneLokalne(PLIK, FOLDER_KOPII, inne);
 }
 
 // Włączenie zapisu w telefonie: obecne dane (np. pobrane z Dysku) trafiają do pliku w telefonie.
@@ -921,7 +949,7 @@ async function usunZTelefonu() {
   stan.doWyslania = false;
   if (polaczony) await dysk.wylacz().catch(console.error);
   try {
-    await usunPlikDanych();
+    await usunPlikDanych([PLIK_POWIADOMIEN]);
   } catch (e) {
     pokazBlad(t('Nie udało się usunąć pliku danych z telefonu.'));
     console.error(e);
@@ -1000,13 +1028,19 @@ $('plik-wybor').addEventListener('change', async (e) => {
 async function wczytajKopie(plik) {
   let dane;
   try {
-    dane = odczytajTresc(await plik.text());
+    const tresc = await plik.text();
+    // Kopia z nowszej wersji aplikacji straciłaby tu nieznane pola - a potem wygrała na Dysku jako „najnowsza” (jak na PC).
+    if (Number(JSON.parse(tresc)?.wersja) > WERSJA_DANYCH) {
+      alert(t('Kopię „{plik}” zapisała nowsza wersja aplikacji - najpierw zaktualizuj aplikację na tym telefonie.', { plik: plik.name }));
+      return;
+    }
+    dane = odczytajTresc(tresc, MAKS_WPISOW_Z_DYSKU);
   } catch (e) {
     alert(t('„{plik}” to nie jest kopia danych Mikropłatności (albo plik jest uszkodzony).', { plik: plik.name }));
     console.error(e);
     return;
   }
-  const obecne = ilePozycji(stan.wpisy.length);
+  const obecne = ilePozycji(stan.wpisy.filter((w) => !w.anulowano).length); // jak na PC - bez anulowanych
   const nowe = ilePozycji(dane.wpisy.length);
   const pytanie = stan.lokalnie
     ? t('Zastąpić obecne dane ({obecne}) danymi z pliku „{plik}” ({nowe})? Obecne dane najpierw trafią do kopii zapasowej w telefonie.', { obecne, nowe, plik: plik.name })
@@ -1127,15 +1161,29 @@ const ustawMotyw = () => { document.documentElement.dataset.motyw = ciemny.match
 ciemny.addEventListener('change', ustawMotyw);
 ustawMotyw();
 
-// Przycisk „Wstecz” Androida: chowa dymek „?”, zamyka otwarte okno (ostatnie), potem wraca do listy, dopiero potem chowa aplikację.
+// Przycisk „Wstecz” Androida cofa ostatni ruch: chowa dymek „?”, zwija grupę w arkuszu, zamyka otwarte okno (ostatnie; arkusz edycji
+// jak „Anuluj” - przy pytaniu „wykreślić?” to „Nie”), zwija „ile?”, wraca do listy, zwija „Anulowane”, czyści filtr,
+// dopiero potem chowa aplikację.
 const App = window.Capacitor?.isNativePlatform() ? Capacitor.registerPlugin('App') : null;
 App?.addListener('backButton', () => {
   const dymek = $('pomoc-okno');
-  const okno = [...document.querySelectorAll('dialog[open]')].at(-1);
+  // Ostatnie otwarte okno: ustawienia są zawsze pod spodem (okna Google, „O aplikacji”, wyciąg otwierają się
+  // nad nimi), choć w HTML stoją na końcu - kolejność w HTML nie mówi, które jest na wierzchu.
+  const otwarte = [...document.querySelectorAll('dialog[open]')];
+  const okno = otwarte.filter((d) => d.id !== 'okno-ustawienia').at(-1) ?? otwarte.at(-1);
+  const grupa = okno?.id === 'arkusz' && okno.querySelector('details.t-grupa[open]');
+  const ile = !okno && document.querySelector('.t-ile:not([hidden])');
   if (dymek.matches(':popover-open')) dymek.hidePopover();
+  else if (grupa) grupa.open = false; // rozwinięta „Dzielę koszt” / „Pauza” - zwinięta, arkusz zostaje
+  else if (okno?.id === 'arkusz') $('arkusz-anuluj').click();
   else if (okno) okno.close();
+  else if (ile) ile.zwin(); // „ile?” po „☐ zapłacone” - jak Esc: rezygnacja bez zapisu
   else if (zakladka !== 'lista') pokazZakladke('lista');
-  else App.minimizeApp();
+  else if ($('anulowane').open && !$('anulowane').hidden) $('anulowane').open = false;
+  else if (!czyPusty(stan.filtr)) {
+    stan.filtr = pustyFiltr();
+    zamienPlynnie($('karty'), renderuj);
+  } else App.minimizeApp();
 });
 // Przejście do innej aplikacji: niewysłane zmiany od razu na Dysk (Android może potem zamrozić albo
 // zamknąć aplikację w tle, a drugie urządzenie nie zobaczyłoby zmiany do następnej edycji).

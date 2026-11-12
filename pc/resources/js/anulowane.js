@@ -33,7 +33,7 @@ export function renderujAnulowane(kontener, wpisy, { naPrzywroc, naUsun }) {
     if (rok) opis.push(t('{kwota} / rok', { kwota: formatujKwote(rok) }));
     const przywroc = element('button', 'przycisk-tekst anulowane__przycisk', t('przywróć'));
     przywroc.type = 'button';
-    przywroc.title = t('Wraca do tabeli na swoje miejsce, z tymi samymi danymi');
+    przywroc.title = t('Wraca na swoje miejsce na liście, z tymi samymi danymi');
     przywroc.addEventListener('click', () => naPrzywroc(w));
     const usun = element('button', 'przycisk-tekst anulowane__przycisk anulowane__przycisk--usun', t('usuń na zawsze'));
     usun.type = 'button';

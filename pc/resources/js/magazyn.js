@@ -102,12 +102,15 @@ export async function odlozUszkodzony(plik, folderKopii) {
 
 // „Usuń z komputera” i wyłączenie „Zapisuj lokalnie”: plik danych, plik tymczasowy, wszystkie kopie i odłożone
 // uszkodzone pliki. Brak pliku nie jest błędem; każdy inny błąd idzie dalej (użytkownik musi wiedzieć, że coś zostało).
-export async function usunDaneLokalne(plik, folderKopii) {
+// Najpierw plik tymczasowy - przerwanie po usunięciu pliku danych nie przywróci danych z .tmp przy starcie.
+// inne - dodatkowe pliki („Usuń z komputera / z telefonu”: pamięć powiadomień z terminami płatności).
+export async function usunDaneLokalne(plik, folderKopii, inne = []) {
   const usunPlik = async (p) => {
     if (await istnieje(p)) await Neutralino.filesystem.remove(p);
   };
-  await usunPlik(plik);
   await usunPlik(plik + '.tmp');
+  await usunPlik(plik);
+  for (const p of inne) await usunPlik(p);
   const nazwy = [...(await nazwyKopii(folderKopii)), ...(await nazwyKopii(folderKopii, WZOR_USZKODZONEGO))];
   for (const nazwa of nazwy) await Neutralino.filesystem.remove(`${folderKopii}/${nazwa}`);
 }

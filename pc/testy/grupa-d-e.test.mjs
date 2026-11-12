@@ -81,6 +81,8 @@ test('E23: CSV - BOM, średnik i przecinek po polsku, cudzysłowy, bez formuł E
   assert.equal(komorkaCsv('=HYPERLINK("x")'), '"\'=HYPERLINK(""x"")"');
   assert.equal(komorkaCsv('+48 123'), "'+48 123");
   assert.equal(komorkaCsv('a;b'), '"a;b"');
+  assert.equal(komorkaCsv('x,=WEBSERVICE("y")'), '"x,=WEBSERVICE(""y"")"'); // Excel z przecinkiem jako separatorem
+  assert.equal(komorkaCsv('12,50'), '12,50');
   assert.equal(komorkaCsv('zwykły'), 'zwykły');
   const csv = doCsv([
     wpis({ nazwa: 'Netflix', opis: 'plan "Standard"; 4K', koszt: 43, kategoria: 'rozrywka' }),

@@ -246,7 +246,7 @@ export function renderujHistorie(kontener, wpisy) {
   const ceny = element('div');
   const listaCen = element('ul', 'spis');
   const zmiany = zmianyCen(wpisy);
-  if (!zmiany.length) listaCen.append(pusty(t('Jeszcze bez zmian - zmiana kwoty w kolumnie „Koszt” zapisze się tutaj.')));
+  if (!zmiany.length) listaCen.append(pusty(t('Jeszcze bez zmian - zmiana kosztu pozycji zapisze się tutaj.')));
   for (const z of zmiany.slice(0, 8)) {
     if ('min' in z) {
       listaCen.append(liniaSpisu(z.nazwa, t('{n} wpłat, od {od} do {do}', { n: z.wplat, od: formatujKoszt(z.min), do: formatujKoszt(z.max) }), t('ostatnio {kwota}', { kwota: formatujKwote(z.ostatnio, z.kod) })));

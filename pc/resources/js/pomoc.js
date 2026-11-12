@@ -43,7 +43,8 @@ export function podepnijPomoc(przycisk, tekst, czego) {
   przycisk.setAttribute('aria-describedby', o.id);
   const pokaz = () => {
     clearTimeout(chowanie);
-    o.textContent = t(tekst);
+    // „{!}” w tekście = ten sam czerwony „!” co w tabeli, a nie jego opis słowami.
+    o.replaceChildren(...t(tekst).split('{!}').flatMap((kawalek, i) => (i ? [element('span', 'wykrzyknik', '!'), kawalek] : [kawalek])));
     o.style.setProperty('position-anchor', kotwica);
     if (!o.matches(':popover-open')) o.showPopover();
   };

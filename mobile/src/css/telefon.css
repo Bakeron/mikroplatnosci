@@ -54,6 +54,7 @@
 .t-karty { margin: 0; padding: 0; list-style: none; }
 .karta {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* długi tekst bez spacji zawija się zamiast poszerzać kartę poza ekran */
   gap: 4px;
   width: 100%;
   padding: 12px 2px;
@@ -69,8 +70,8 @@
 .karta__gora { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .karta__nazwa { display: flex; align-items: baseline; gap: 4px; min-width: 0; font: 600 16px var(--f-tekst); overflow-wrap: anywhere; }
 .karta__nazwa .wykrzyknik { font-size: 20px; }
-.karta__koszt { flex-shrink: 0; font: 500 15px var(--f-liczby); font-variant-numeric: tabular-nums; }
-.karta__opis { color: var(--olowek); font: italic 13.5px var(--f-tytul); }
+.karta__koszt { flex-shrink: 0; max-width: 60%; text-align: right; font: 500 15px var(--f-liczby); font-variant-numeric: tabular-nums; } /* bardzo długa kwota zawija się, nazwa zostaje widoczna */
+.karta__opis { color: var(--olowek); font: italic 13.5px var(--f-tytul); overflow-wrap: anywhere; }
 .karta__dol { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
 .karta__lont { max-width: 160px; }
 .karta__termin, .karta__brak { color: var(--olowek); font: 12.5px var(--f-liczby); white-space: nowrap; }

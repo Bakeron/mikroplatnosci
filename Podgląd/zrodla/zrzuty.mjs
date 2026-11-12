@@ -31,9 +31,13 @@ async function wolnyPort(port) {
 
 // --- Edge i CDP ---
 let edge;
+let profilEdge;
 async function uruchomEdge() {
   if (!(await wolnyPort(PORT_CDP))) throw new Error(`port ${PORT_CDP} zajęty - inny proces (np. adb forward), nie łączę się`);
-  const profil = path.join(os.tmpdir(), 'podglad-edge-profil');
+  // Świeży profil przy każdym przebiegu: Edge zabity taskkill przywracał przy następnym starcie karty z aplikacją -
+  // bez skryptu startowego, więc taka karta otwierała prawdziwy folder danych (12.11.2026 - plik blokady w prawdziwym folderze).
+  profilEdge = path.join(os.tmpdir(), 'podglad-edge-profil-' + Date.now());
+  const profil = profilEdge;
   edge = spawn(EDGE, ['--headless=new', `--remote-debugging-port=${PORT_CDP}`, `--user-data-dir=${profil}`, '--no-first-run',
     '--disable-extensions', '--hide-scrollbars', '--force-device-scale-factor=1', '--lang=pl', 'about:blank'], { stdio: 'ignore' });
   for (let i = 0; i < 50; i++) {
@@ -389,4 +393,7 @@ try {
 } finally {
   zatrzymajSerwer();
   try { execFileSync('taskkill', ['/PID', String(edge.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* zamknięty */ }
+  // Profil sprzątany po zamknięciu Edge (chwila na zwolnienie plików).
+  await czekaj(1000);
+  try { fs.rmSync(profilEdge, { recursive: true, force: true }); } catch { /* zostanie w folderze tymczasowym */ }
 }
