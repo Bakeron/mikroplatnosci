@@ -124,9 +124,9 @@
     </section>
     <section class="ustawienia__czesc" id="czesc-plik">
       <h3 class="ustawienia__naglowek">Kopia, eksport, import</h3>
-      <button type="button" class="plik__akcja" id="plik-zapisz">Zapisz kopię jako…<span class="plik__opis">cały zeszyt w jednym pliku - np. na pendrive albo inny dysk</span></button>
+      <button type="button" class="plik__akcja" id="plik-zapisz">Zapisz kopię jako…<span class="plik__opis">cały zeszyt w jednym pliku; miejsce wybierasz w oknie Windows (na początku Dokumenty) - np. pendrive albo inny dysk</span></button>
       <button type="button" class="plik__akcja" id="plik-wczytaj">Wczytaj kopię…<span class="plik__opis">zastępuje obecne dane; one najpierw trafiają do kopii zapasowej</span></button>
-      <button type="button" class="plik__akcja" id="plik-csv">Eksport do Excela (CSV)…<span class="plik__opis">tabela ze wszystkimi pozycjami - do arkusza albo wydruku</span></button>
+      <button type="button" class="plik__akcja" id="plik-csv">Eksport do Excela (CSV)…<span class="plik__opis">tabela ze wszystkimi pozycjami - do arkusza albo wydruku; miejsce wybierasz w oknie Windows (na początku Dokumenty)</span></button>
       <button type="button" class="plik__akcja" id="plik-bank">Import z wyciągu bankowego…<span class="plik__opis">plik CSV z banku (mBank, PKO, ING, Pekao, Revolut…) - znajdę płatności, które się powtarzają; plik nie wychodzi z komputera</span></button>
       <input type="file" id="plik-wybor" hidden>
     </section>
@@ -138,6 +138,7 @@
     <p>Skopiuj kod, otwórz <strong>google.com/device</strong>, wklej go tam i zgódź się na dostęp:</p>
     <p class="okno__kod" id="okno-dysk-kod" data-bez-tlumaczenia></p>
     <p class="okno__uwaga">Na Twoim Dysku powstanie jeden plik „mikroplatnosci.json” w „Moim dysku” - nie usuwaj go ani nie przenoś. Aplikacja widzi tylko pliki, które sama utworzyła, nie Twoje dokumenty ani zdjęcia. Czekam na zgodę…</p>
+    <p class="okno__uwaga">Kod możesz wpisać na innym urządzeniu - np. na telefonie osoby, z którą chcesz mieć wspólne dane (dane zostaną na jej Dysku).</p>
     <p class="okno__uwaga" id="okno-dysk-7dni" hidden>Własny projekt Google w trybie testowym: co ok. 7 dni Google kończy połączenie - wtedy włącz synchronizację jeszcze raz i wpisz kod (ok. 1 min).</p>
     <div class="okno__przyciski">
       <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj">Anuluj</button>

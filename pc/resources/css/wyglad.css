@@ -1416,7 +1416,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
   transform: translateY(3px);
-  transition: transform 0.12s, color 0.12s;
+  transition: transform 0.18s ease-out, color 0.18s, background-color 0.18s, border-top-color 0.18s, box-shadow 0.18s;
 }
 .zakladka:hover { color: var(--atrament); transform: translateY(1px); }
 .zakladka[aria-pressed="true"] {
@@ -1429,7 +1429,17 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .zakladka__ile { font-weight: 400; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 /* „tylko …” - spinacz zamiast koloru: ✓ przed napisem, gdy włączone */
 .zakladka--tylko { --kat: var(--margines); text-transform: none; letter-spacing: 0.02em; font-size: 12.5px; }
-.zakladka--tylko[aria-pressed="true"] .zakladka__napis::before { content: "\2713  "; }
+.zakladka--tylko .zakladka__napis::before {
+  content: "\2713";
+  display: inline-block;
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  vertical-align: bottom;
+  transition: width 0.18s ease-out, opacity 0.18s;
+}
+.zakladka--tylko[aria-pressed="true"] .zakladka__napis::before { width: 1.1em; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .zakladka--tylko .zakladka__napis::before { transition: none; } }
 .zakladki__licznik { align-self: center; margin-left: auto; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
 .zakladki__wyczysc { padding: 0 2px; font-size: 13.5px; }
 @media (prefers-reduced-motion: reduce) { .zakladka { transition: none; } }

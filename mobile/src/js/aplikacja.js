@@ -5,7 +5,7 @@ import { termin, doPlatnosci, dniTekst, kiedyTekst, formatujDate, parsujDate, zb
 import { waluta, naPln, formatujKwote, wczytajZapamietane, odswiezZNbp, czyAktualne, ustawProwizje, pobierzProwizje, poprawnaProwizja } from './waluty.js';
 import { renderujPodsumowanie, policz } from './podsumowanie.js';
 import { wypelnijListe } from './spisy.js';
-import { nowyWpis, doZapisu, usun, formatujKoszt, parsujKoszt, zastosujFormularz, nazwaWpisu, bezZaleglegoOdbioru, dodajPrzyklad, nicDoStracenia, OKRESY, KATEGORIE, nazwaKategorii, normalizuj, noweId, odczytajTresc, zastapZKopii, czasZmiany, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
+import { nowyWpis, doZapisu, usun, formatujKoszt, parsujKoszt, zastosujFormularz, nazwaWpisu, bezZaleglegoOdbioru, dodajPrzyklad, nicDoStracenia, OKRESY, KATEGORIE, nazwaKategorii, normalizuj, noweId, odczytajTresc, zastapZKopii, czasZmiany, przesunWpis, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
 import { funkcja, ustawFunkcje, pobierzFunkcje, reczna, zmiennaKwota, osobWpisu, cenaNastepna, kategoriaWpisu, firmowa, ustawWaluty, pobierzWaluty, uzyteWaluty, walutyNaStart, walutyWyboru, walutaNastepnej, zmianaNastepnej } from './funkcje.js';
 import { renderujAnulowane } from './anulowane.js';
 import { renderujHistorie } from './historia.js';
@@ -37,6 +37,9 @@ const MAKS_ZAPLANOWANYCH = 400; // Android pozwala aplikacji na ok. 500 budzikó
 const stan = {
   wpisy: [],
   usuniete: [],
+  ulozono: '', // czas ostatniego ręcznego przesunięcia - przy scalaniu z Dyskiem wygrywa nowsza kolejność
+  kolejnosc: 'termin', // karty wg najbliższej płatności albo „moja” (jak na PC) - z ustawień telefonu
+  ukladanie: false, // tryb „Ułóż”: karty zwinięte do nazwy, strzałki ↑ ↓
   zablokowany: false,
   lokalnie: true, // „Zapisuj w telefonie” - wyłączone: dane tylko w pamięci i na Google Dysku
   synchronizacja: false,
@@ -67,6 +70,7 @@ async function wczytaj() {
   if (!plik) return null;
   stan.wpisy = plik.odczytane.wpisy;
   stan.usuniete = plik.odczytane.usuniete;
+  stan.ulozono = plik.odczytane.ulozono;
   return plik.kopia;
 }
 
@@ -369,7 +373,8 @@ function renderuj() {
   // Anulowane (C15, jak na PC) - poza listą kart, w „Anulowanych” pod nią; sumy, alarmy
   // i powiadomienia pomijają je same (wspólne obliczenia).
   const widoczne = stan.wpisy.filter((w) => !w.anulowano);
-  const posortowane = widoczne.sort((a, b) => {
+  // „Moja” kolejność (i tryb „Ułóż”) - jak w pliku, tak samo jak na PC; inaczej od najbliższej płatności.
+  const posortowane = stan.kolejnosc === 'moja' || stan.ukladanie ? widoczne : widoczne.sort((a, b) => {
     const [ka, da] = kolejnosc(a);
     const [kb, db] = kolejnosc(b);
     return ka - kb || da - db;
@@ -377,13 +382,17 @@ function renderuj() {
   // D17: filtr tylko chowa karty - wyłączona funkcja kasuje też ustawiony filtr.
   stan.filtr = poprawFiltr(stan.filtr);
   const przefiltrowane = posortowane.filter((w) => pasuje(w, stan.filtr));
-  $('karty').replaceChildren(...przefiltrowane.map(utworzKarte));
+  $('karty').replaceChildren(...przefiltrowane.map(stan.ukladanie ? (w, i) => utworzUkladany(w, i, przefiltrowane) : utworzKarte));
+  $('karty').classList.toggle('t-karty--ukladane', stan.ukladanie);
+  for (const opcja of document.querySelectorAll('[data-kolejnosc]')) opcja.setAttribute('aria-pressed', String(opcja.dataset.kolejnosc === stan.kolejnosc));
+  $('kolejnosc').hidden = stan.ukladanie || widoczne.length < 2;
+  $('ukladanie').hidden = !stan.ukladanie;
   renderujFiltr($('filtr'), widoczne, stan.filtr, przefiltrowane.length, (f) => {
     stan.filtr = f;
     zamienPlynnie($('karty'), renderuj); // karty nie znikają skokiem: lista gaśnie i pojawia się już przefiltrowana
   });
   $('pusto').hidden = widoczne.length > 0;
-  $('legenda').hidden = !widoczne.length;
+  $('legenda').hidden = !widoczne.length || stan.ukladanie;
   renderujAnulowane($('anulowane'), stan.wpisy, { naPrzywroc: przywroc, naUsun: usunNaZawsze });
 
   const { roczne, jednorazowe } = zbierzAlarmy(stan.wpisy);
@@ -404,6 +413,77 @@ function renderuj() {
   $('dzisiaj').textContent = dataDluga(new Date());
 }
 
+// --- kolejność i tryb „Ułóż” -------------------------------------------
+
+// Wiersz trybu „Ułóż”: numer jak Lp. na PC, nazwa i strzałki (44 px) - bez edycji pozycji.
+function utworzUkladany(wpis, i, lista) {
+  const li = element('li', 't-ukladany');
+  li.dataset.id = wpis.id;
+  li.append(element('span', 't-ukladany__lp', liczbaKrotka(i + 1) + '.'));
+  const nazwa = element('span', 't-ukladany__nazwa');
+  if (wpis.przedluzac === 'nie') nazwa.append(element('span', 'wykrzyknik', '!'), element('span', 'sr', t('jednorazowa, do wycofania') + ': '));
+  nazwa.append(nazwaWpisu(wpis));
+  li.append(nazwa);
+  const strzalki = [[-1, '↑', t('Przesuń wyżej: {nazwa}', { nazwa: nazwaWpisu(wpis) })], [1, '↓', t('Przesuń niżej: {nazwa}', { nazwa: nazwaWpisu(wpis) })]];
+  for (const [kierunek, znak, opis] of strzalki) {
+    const przycisk = element('button', 't-ukladany__strzalka', znak);
+    przycisk.type = 'button';
+    przycisk.dataset.kierunek = kierunek;
+    przycisk.setAttribute('aria-label', opis);
+    przycisk.disabled = kierunek < 0 ? i === 0 : i === lista.length - 1;
+    przycisk.addEventListener('click', () => przesun(wpis, kierunek));
+    li.append(przycisk);
+  }
+  return li;
+}
+
+// Przesunięcie o jedno miejsce: wiersze nie skaczą - przesunięte jadą na nowe miejsce (0,18 s),
+// a fokus zostaje na tej samej strzałce przesuwanej pozycji (kilka dotknięć z rzędu, czytnik ekranu).
+async function przesun(wpis, kierunek) {
+  if (stan.zablokowany) return;
+  const lista = stan.wpisy.filter((w) => !w.anulowano && pasuje(w, stan.filtr));
+  const przed = new Map([...$('karty').children].map((li) => [li.dataset.id, li.getBoundingClientRect().top]));
+  if (!przesunWpis(stan, lista, wpis, kierunek)) return;
+  await poZmianie();
+  const wiersze = [...$('karty').children];
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    for (const li of wiersze) {
+      const dy = (przed.get(li.dataset.id) ?? li.getBoundingClientRect().top) - li.getBoundingClientRect().top;
+      if (dy) li.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 180, easing: 'ease-out' });
+    }
+  }
+  const li = wiersze.find((w) => w.dataset.id === wpis.id);
+  const przyciski = li ? [...li.querySelectorAll('.t-ukladany__strzalka')] : [];
+  (przyciski.find((p) => p.dataset.kierunek === String(kierunek) && !p.disabled) ?? przyciski.find((p) => !p.disabled))?.focus();
+}
+
+function ustawKolejnosc(nowa) {
+  if (stan.kolejnosc === nowa) return;
+  stan.kolejnosc = nowa;
+  zapiszMojeUstawienia();
+}
+
+// Tryb „Ułóż” zawsze na „mojej” kolejności (przy kolejności wg terminu strzałki nic by nie zmieniały na ekranie).
+function ukladaj(tak) {
+  if (stan.ukladanie === tak) return;
+  if (tak) ustawKolejnosc('moja');
+  zamienPlynnie($('zakladka-lista'), () => {
+    stan.ukladanie = tak;
+    renderuj();
+    $(tak ? 'uloz-gotowe' : 'uloz').focus({ preventScroll: true });
+  });
+}
+
+for (const opcja of document.querySelectorAll('[data-kolejnosc]')) {
+  opcja.addEventListener('click', () => {
+    if (opcja.dataset.kolejnosc === stan.kolejnosc) return;
+    ustawKolejnosc(opcja.dataset.kolejnosc);
+    zamienPlynnie($('karty'), renderuj);
+  });
+}
+$('uloz').addEventListener('click', () => ukladaj(true));
+$('uloz-gotowe').addEventListener('click', () => ukladaj(false));
+
 // --- zakładki ---------------------------------------------------------
 
 let zakladka = 'lista';
@@ -412,6 +492,11 @@ let zakladka = 'lista';
 function pokazZakladke(nazwa) {
   const inna = nazwa !== zakladka;
   zakladka = nazwa;
+  // Inna zakładka kończy „Ułóż” (przesunięcia są już zapisane) - po powrocie zwykłe karty.
+  if (inna && stan.ukladanie) {
+    stan.ukladanie = false;
+    renderuj();
+  }
   const przyciski = document.querySelectorAll('[data-zakladka]');
   for (const przycisk of przyciski) {
     if (przycisk.dataset.zakladka === nazwa) przycisk.setAttribute('aria-current', 'page');
@@ -763,7 +848,7 @@ function odswiezMiejsceZapisu() {
 }
 
 const zapiszMojeUstawienia = () => zapiszUstawienia(PLIK_USTAWIEN, {
-  lokalnie: stan.lokalnie, prowizja: pobierzProwizje(), funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, jezyk: stan.jezyk, wprowadzenie: stan.wprowadzenie, budzet: stan.budzet,
+  lokalnie: stan.lokalnie, prowizja: pobierzProwizje(), funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, jezyk: stan.jezyk, wprowadzenie: stan.wprowadzenie, kolejnosc: stan.kolejnosc, budzet: stan.budzet,
   waluty: pobierzWaluty(),
 }).catch(console.error);
 
@@ -957,6 +1042,7 @@ async function usunZTelefonu() {
   }
   stan.wpisy = [];
   stan.usuniete = [];
+  stan.ulozono = '';
   renderuj();
   zaplanujPowiadomienia();
 }
@@ -1162,7 +1248,7 @@ ciemny.addEventListener('change', ustawMotyw);
 ustawMotyw();
 
 // Przycisk „Wstecz” Androida cofa ostatni ruch: chowa dymek „?”, zwija grupę w arkuszu, zamyka otwarte okno (ostatnie; arkusz edycji
-// jak „Anuluj” - przy pytaniu „wykreślić?” to „Nie”), zwija „ile?”, wraca do listy, zwija „Anulowane”, czyści filtr,
+// jak „Anuluj” - przy pytaniu „wykreślić?” to „Nie”), zwija „ile?”, kończy „Ułóż”, wraca do listy, zwija „Anulowane”, czyści filtr,
 // dopiero potem chowa aplikację.
 const App = window.Capacitor?.isNativePlatform() ? Capacitor.registerPlugin('App') : null;
 App?.addListener('backButton', () => {
@@ -1178,6 +1264,7 @@ App?.addListener('backButton', () => {
   else if (okno?.id === 'arkusz') $('arkusz-anuluj').click();
   else if (okno) okno.close();
   else if (ile) ile.zwin(); // „ile?” po „☐ zapłacone” - jak Esc: rezygnacja bez zapisu
+  else if (stan.ukladanie) ukladaj(false); // „Ułóż” - jak „Gotowe” (przesunięcia już zapisane)
   else if (zakladka !== 'lista') pokazZakladke('lista');
   else if ($('anulowane').open && !$('anulowane').hidden) $('anulowane').open = false;
   else if (!czyPusty(stan.filtr)) {
@@ -1230,6 +1317,7 @@ async function start() {
   ustawProwizje(ustawienia.prowizja);
   stan.jezyk = ustawienia.jezyk || '';
   stan.wprowadzenie = ustawienia.wprowadzenie === true;
+  stan.kolejnosc = ustawienia.kolejnosc;
   stan.budzet = poprawnyBudzet(ustawienia.budzet);
   zastosujJezyk();
   let kopia = null;

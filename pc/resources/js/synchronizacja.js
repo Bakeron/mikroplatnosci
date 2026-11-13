@@ -5,12 +5,11 @@
 import { scal } from './scalanie.js';
 import { odczytajDane, doZapisu, WERSJA_DANYCH } from './dane.js';
 import { t, tn, godzina } from './teksty.js';
-import { czyPolaczony, czySkonfigurowany, czyWpisany, wpisanyProjekt, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
+import { czyBladSieci, czyPolaczony, czySkonfigurowany, czyWpisany, wpisanyProjekt, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
 import { trescKodu, CZAS_POKAZU } from './kodQr.js';
 import { pokazPlynnie } from './dom.js';
 
 const $ = (id) => document.getElementById(id);
-// Bez internetu fetch rzuca TypeError z angielskim opisem.
 // Kilka zmian = jedna wysyłka na Dysk (PC bez zapisu lokalnego i telefon).
 export const OPOZNIENIE_WYSYLKI = 3000;
 
@@ -18,7 +17,12 @@ export const OPOZNIENIE_WYSYLKI = 3000;
 export async function poWymianie(stan, co = 100) {
   while (stan.synchronizacja) await new Promise((r) => setTimeout(r, co));
 }
-const opisBledu = (e) => (e instanceof TypeError ? t('brak połączenia z Google - sprawdź internet') : e.message);
+// Bez internetu fetch rzuca TypeError z angielskim opisem, a CapacitorHttp na telefonie - opis z Androida;
+// dysk.js zamienia błędy sieci na tekst w języku aplikacji, a tu na wszelki wypadek TypeError też.
+const opisBledu = (e) => (czyBladSieci(e) && !e.siec ? t('brak połączenia z Google - sprawdź internet') : e.message);
+// Chwilowy brak sieci (start aplikacji albo powrót z tła, zanim Android odda jej sieć): kolejne próby
+// po tych przerwach, zanim pojawi się komunikat o błędzie.
+export const PONOWIENIA = [3000, 6000, 10000];
 // „1 pozycję”, „3 pozycje”, „5 pozycji”, „22 pozycje” (polska liczba mnoga w bierniku).
 function ilePozycji(n) {
   return tn(n, '{n} pozycję', '{n} pozycje', '{n} pozycji');
@@ -87,49 +91,63 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
     odswiez();
     pokaz(t('pobieram z Dysku…'));
     try {
-      const tekst = await pobierzZDysku();
-      const json = (t) => { try { return JSON.parse(t); } catch { return null; } };
-      const plik = tekst === null ? null : json(tekst);
-      // Plik z nowszej wersji aplikacji (drugie urządzenie już zaktualizowane): bez scalania i bez wysyłki -
-      // ta wersja zgubiłaby pola, których nie zna, i odesłała plik w starym formacie.
-      if (Number(plik?.wersja) > WERSJA_DANYCH) throw new Error(t('dane na Dysku zapisała nowsza wersja aplikacji - zaktualizuj ją na tym urządzeniu'));
-      const zdalne = tekst === null ? null : odczytajDane(plik, true);
-      // Nieczytelny plik na Dysku: dane na urządzeniu zostają; kliknięte „Wyślij” może go zastąpić -
-      // inaczej synchronizacja byłaby zablokowana na stałe.
-      if (tekst !== null && !zdalne) {
-        if (!wyslij || !klikniete || !confirm(t('Plik na Google Dysku jest uszkodzony albo ma nieznany format. Zastąpić go danymi z tego urządzenia (pozycji: {n})?', { n: stan.wpisy.filter((w) => !w.anulowano).length }))) {
-          throw new Error(t('plik na Dysku jest uszkodzony - „Wyślij na Dysk” może go zastąpić'));
+      for (let proba = 0; ; proba++) {
+        try {
+          return await wymiana(wyslij, klikniete);
+        } catch (e) {
+          console.error(e);
+          if (czyBladSieci(e) && proba < PONOWIENIA.length) {
+            await new Promise((r) => setTimeout(r, PONOWIENIA[proba]));
+            pokaz(t('pobieram z Dysku…'));
+            continue;
+          }
+          pokaz(opisBledu(e) || t('błąd połączenia z Google Dyskiem'), true);
+          return false;
         }
       }
-      if (zdalne) {
-        const przed = JSON.stringify([stan.wpisy, stan.usuniete]);
-        const wynik = scal(stan, zdalne);
-        // Dysk usuwa z urządzenia kilka pozycji naraz (podmieniony plik, zegar drugiego urządzenia
-        // mocno do przodu) - tylko po potwierdzeniu.
-        const zostaja = new Set(wynik.wpisy.map((w) => w.id));
-        const ileUsuwa = stan.wpisy.filter((w) => !zostaja.has(w.id)).length;
-        if (ileUsuwa > 2 && !confirm(t('Dane z Google Dysku usuwają z tego urządzenia {ile}. Usunąć je?', { ile: ilePozycji(ileUsuwa) }))) {
-          throw new Error(t('przerwano - dane na tym urządzeniu bez zmian'));
-        }
-        Object.assign(stan, wynik);
-        // Zapis i odświeżenie widoku tylko, gdy Dysk coś zmienił (zwykle nic - pobranie przy każdym starcie telefonu).
-        if (JSON.stringify([stan.wpisy, stan.usuniete]) !== przed) await poScaleniu();
-      }
-      if (wyslij) {
-        pokaz(t('wysyłam na Dysk…'));
-        await wyslijNaDysk(JSON.stringify(doZapisu(stan)));
-      }
-      const teraz = { godzina: godzina(new Date()) };
-      pokaz(wyslij ? t('wysłano na Dysk ✓ {godzina}', teraz) : tekst === null ? t('na Dysku jeszcze nic nie ma · {godzina}', teraz) : t('pobrano z Dysku ✓ {godzina}', teraz));
-      return true;
-    } catch (e) {
-      pokaz(opisBledu(e) || t('błąd połączenia z Google Dyskiem'), true);
-      console.error(e);
-      return false;
     } finally {
       stan.synchronizacja = false;
       odswiez();
     }
+  }
+
+  // Jedna próba: pobranie, scalenie i (wyslij) wysyłka. Błąd - wyjątek (synchronizuj decyduje, czy ponowić).
+  async function wymiana(wyslij, klikniete) {
+    const tekst = await pobierzZDysku();
+    const json = (t) => { try { return JSON.parse(t); } catch { return null; } };
+    const plik = tekst === null ? null : json(tekst);
+    // Plik z nowszej wersji aplikacji (drugie urządzenie już zaktualizowane): bez scalania i bez wysyłki -
+    // ta wersja zgubiłaby pola, których nie zna, i odesłała plik w starym formacie.
+    if (Number(plik?.wersja) > WERSJA_DANYCH) throw new Error(t('dane na Dysku zapisała nowsza wersja aplikacji - zaktualizuj ją na tym urządzeniu'));
+    const zdalne = tekst === null ? null : odczytajDane(plik, true);
+    // Nieczytelny plik na Dysku: dane na urządzeniu zostają; kliknięte „Wyślij” może go zastąpić -
+    // inaczej synchronizacja byłaby zablokowana na stałe.
+    if (tekst !== null && !zdalne) {
+      if (!wyslij || !klikniete || !confirm(t('Plik na Google Dysku jest uszkodzony albo ma nieznany format. Zastąpić go danymi z tego urządzenia (pozycji: {n})?', { n: stan.wpisy.filter((w) => !w.anulowano).length }))) {
+        throw new Error(t('plik na Dysku jest uszkodzony - „Wyślij na Dysk” może go zastąpić'));
+      }
+    }
+    if (zdalne) {
+      const przed = JSON.stringify([stan.wpisy, stan.usuniete, stan.ulozono]);
+      const wynik = scal(stan, zdalne);
+      // Dysk usuwa z urządzenia kilka pozycji naraz (podmieniony plik, zegar drugiego urządzenia
+      // mocno do przodu) - tylko po potwierdzeniu.
+      const zostaja = new Set(wynik.wpisy.map((w) => w.id));
+      const ileUsuwa = stan.wpisy.filter((w) => !zostaja.has(w.id)).length;
+      if (ileUsuwa > 2 && !confirm(t('Dane z Google Dysku usuwają z tego urządzenia {ile}. Usunąć je?', { ile: ilePozycji(ileUsuwa) }))) {
+        throw new Error(t('przerwano - dane na tym urządzeniu bez zmian'));
+      }
+      Object.assign(stan, wynik);
+      // Zapis i odświeżenie widoku tylko, gdy Dysk coś zmienił (zwykle nic - pobranie przy każdym starcie telefonu).
+      if (JSON.stringify([stan.wpisy, stan.usuniete, stan.ulozono]) !== przed) await poScaleniu();
+    }
+    if (wyslij) {
+      pokaz(t('wysyłam na Dysk…'));
+      await wyslijNaDysk(JSON.stringify(doZapisu(stan)));
+    }
+    const teraz = { godzina: godzina(new Date()) };
+    pokaz(wyslij ? t('wysłano na Dysk ✓ {godzina}', teraz) : tekst === null ? t('na Dysku jeszcze nic nie ma · {godzina}', teraz) : t('pobrano z Dysku ✓ {godzina}', teraz));
+    return true;
   }
 
   // Okno identyfikatora projektu Google; zmiana = pola wypełnione obecnym projektem i uwaga o rozłączeniu.

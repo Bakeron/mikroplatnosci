@@ -14,11 +14,11 @@
       <h1>Mikropłatności</h1>
       <button type="button" class="zebatka t-naglowek__ustawienia" id="ustawienia" title="Ustawienia" aria-label="Ustawienia"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="10" y="1.6" width="4" height="5" rx="1"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(45 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(90 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(135 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(180 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(225 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(270 12 12)"/><rect x="10" y="1.6" width="4" height="5" rx="1" transform="rotate(315 12 12)"/></g><circle cx="12" cy="12" r="6.6" fill="none" stroke="currentColor" stroke-width="2.6"/><circle cx="12" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
     </div>
+    <p class="t-naglowek__data" id="dzisiaj"></p>
     <div class="t-naglowek__sumy">
       <span class="t-naglowek__suma" id="suma-miesiac"></span>
       <span class="t-naglowek__suma" id="suma-rok" hidden></span>
     </div>
-    <p class="t-naglowek__data" id="dzisiaj"></p>
     <p class="t-dysk__stan" id="dysk-stan" aria-live="polite"></p>
   </header>
 
@@ -41,6 +41,18 @@
         <span><span class="wykrzyknik" aria-hidden="true">!</span> = jednorazowa, do wycofania <button data-pomoc="{!} przed nazwą - tej pozycji nie przedłużasz (przy edycji Przedłużać: nie). Anuluj ją przed terminem, bo inaczej odnowi się i pobierze opłatę." data-pomoc-czego="wykrzyknik „!”">?</button></span>
         <span>Do płatności <button data-pomoc="Lont: liczba dni do płatności i pasek, który się skraca - od zielonego przez żółty do czerwonego, im bliżej terminu. Obok niego dzień płatności." data-pomoc-czego="lont">?</button></span>
       </p>
+      <div class="t-kolejnosc" id="kolejnosc" hidden>
+        <span class="t-kolejnosc__wybor" role="group" aria-labelledby="kolejnosc-etykieta">
+          <span class="t-kolejnosc__etykieta" id="kolejnosc-etykieta">Kolejność:</span>
+          <button type="button" class="t-kolejnosc__opcja" data-kolejnosc="termin" aria-pressed="true">według terminu</button>
+          <button type="button" class="t-kolejnosc__opcja" data-kolejnosc="moja" aria-pressed="false">moja</button>
+        </span>
+        <button type="button" class="t-kolejnosc__uloz" id="uloz">↑↓ Ułóż</button>
+      </div>
+      <div class="t-ukladanie" id="ukladanie" hidden>
+        <p class="t-ukladanie__opis">Strzałkami przesuń pozycje. Przy synchronizacji z Dyskiem ta sama kolejność będzie na komputerze.</p>
+        <button type="button" class="t-ukladanie__gotowe" id="uloz-gotowe">Gotowe</button>
+      </div>
       <nav class="zakladki t-filtr" id="filtr" aria-label="Filtr listy" hidden></nav>
       <ul class="t-karty" id="karty"></ul>
       <p class="pusto" id="pusto" hidden>Zeszyt jest pusty - dodaj pierwszą pozycję przyciskiem „+ Dodaj”.</p>
@@ -216,6 +228,7 @@
     <p>Skopiuj kod, otwórz <strong>google.com/device</strong>, wklej go tam i zgódź się na dostęp:</p>
     <p class="okno__kod" id="okno-dysk-kod" data-bez-tlumaczenia></p>
     <p class="okno__uwaga">Na Twoim Dysku powstanie jeden plik „mikroplatnosci.json” w „Moim dysku” - nie usuwaj go ani nie przenoś. Aplikacja widzi tylko pliki, które sama utworzyła, nie Twoje dokumenty ani zdjęcia. Po zgodzie wróć tutaj - połączy się sama.</p>
+    <p class="okno__uwaga">Kod możesz wpisać na innym urządzeniu - np. na telefonie osoby, z którą chcesz mieć wspólne dane (dane zostaną na jej Dysku).</p>
     <p class="okno__uwaga" id="okno-dysk-7dni" hidden>Własny projekt Google w trybie testowym: co ok. 7 dni Google kończy połączenie - wtedy włącz synchronizację jeszcze raz i wpisz kod (ok. 1 min).</p>
     <div class="okno__przyciski">
       <button type="button" class="przycisk-tekst" id="okno-dysk-anuluj">Anuluj</button>

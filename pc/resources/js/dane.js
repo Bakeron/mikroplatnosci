@@ -226,7 +226,10 @@ export function odczytajDane(dane, zDysku = false, maks = zDysku ? MAKS_WPISOW_Z
   const jutro = new Date(granica).toISOString();
   for (const w of wpisy) if (Date.parse(w.zmieniono) > granica) w.zmieniono = jutro;
   for (const u of usuniete) if (Date.parse(u.kiedy) > granica) u.kiedy = jutro;
-  return { wpisy, usuniete };
+  // Czas ostatniego ręcznego ułożenia (przesunięcia pozycji) - przy scalaniu wygrywa nowsza kolejność.
+  let ulozono = czasIso(dane.ulozono);
+  if (Date.parse(ulozono) > granica) ulozono = jutro;
+  return { wpisy, usuniete, ulozono };
 }
 
 // Treść pliku danych (PC i telefon): pusty, nieczytelny albo obcy plik = błąd - wtedy aplikacja
@@ -259,6 +262,26 @@ export function zastapZKopii(stan, dane, teraz = new Date().toISOString()) {
   stan.usuniete = stan.usuniete.filter((u) => !wKopii.has(u.id));
   for (const w of dane.wpisy) w.zmieniono = teraz;
   stan.wpisy = dane.wpisy;
+  stan.ulozono = teraz; // kolejność z kopii wygrywa na Dysku
+}
+
+// Ręczne przesunięcie pozycji (PC i telefon): czas ułożenia „teraz”, ale nie wcześniej niż poprzedni
+// (zegar mógł być kiedyś do przodu) - przy scalaniu z Dyskiem wygrywa nowsza kolejność.
+export function oznaczUlozenie(stan) {
+  stan.ulozono = new Date(Math.max(Date.now(), (Date.parse(stan.ulozono) || 0) + 1)).toISOString();
+}
+
+// Przesunięcie pozycji o jedno miejsce w górę (-1) albo w dół (1) wśród widocznych (filtr, anulowane
+// przeskakiwane - jak strzałki na PC). Zwraca false, gdy nie ma dokąd.
+export function przesunWpis(stan, widoczne, wpis, kierunek) {
+  const i = widoczne.indexOf(wpis);
+  const j = i + kierunek;
+  if (i < 0 || j < 0 || j >= widoczne.length) return false;
+  const sasiad = widoczne[j];
+  stan.wpisy.splice(stan.wpisy.indexOf(wpis), 1);
+  stan.wpisy.splice(stan.wpisy.indexOf(sasiad) + (kierunek > 0 ? 1 : 0), 0, wpis);
+  oznaczUlozenie(stan);
+  return true;
 }
 
 // Formularz edycji (telefon): wartości pól (tekst) do wpisu. W trakcie edycji mogły przyjść zmiany
@@ -328,4 +351,4 @@ export function zastosujFormularz(wpisy, edytowany, p) {
 // walutaNastepna i waluta przy wpłatach i cenach - starsza wersja aplikacji zgubiłaby je, więc nie bierze
 // takich danych z Dysku ani z kopii); PC dokłada w dodatkach swoje ustawienia (motyw).
 export const WERSJA_DANYCH = 4;
-export const doZapisu = (stan, dodatki = {}) => ({ wersja: WERSJA_DANYCH, zapisano: new Date().toISOString(), ...dodatki, wpisy: stan.wpisy, usuniete: stan.usuniete });
+export const doZapisu = (stan, dodatki = {}) => ({ wersja: WERSJA_DANYCH, zapisano: new Date().toISOString(), ...dodatki, ...(stan.ulozono ? { ulozono: stan.ulozono } : {}), wpisy: stan.wpisy, usuniete: stan.usuniete });

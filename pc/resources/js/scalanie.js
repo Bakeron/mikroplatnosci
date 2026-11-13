@@ -16,15 +16,19 @@ export function scal(lokalne, zdalne) {
     if (!u || czas(w.zmieniono) > czas(u.kiedy)) wynik.push(w);
   };
 
-  // Kolejność z komputera, pozycje dopisane tylko na drugim urządzeniu - na końcu.
-  const zdalneWgId = new Map(zdalne.wpisy.map((w) => [w.id, w]));
-  for (const w of lokalne.wpisy) {
-    const z = zdalneWgId.get(w.id);
-    dodaj(z && czas(z.zmieniono) > czas(w.zmieniono) ? z : w);
+  // Kolejność ze strony, na której później ręcznie przesunięto pozycje (przy równych - z tego urządzenia);
+  // pozycje dopisane tylko po drugiej stronie - na końcu. Z dwóch wersji pozycji wygrywa nowsza zmiana.
+  const zdalnaKolejnosc = czas(zdalne.ulozono) > czas(lokalne.ulozono);
+  const [pierwsze, drugie] = zdalnaKolejnosc ? [zdalne.wpisy, lokalne.wpisy] : [lokalne.wpisy, zdalne.wpisy];
+  const drugieWgId = new Map(drugie.map((w) => [w.id, w]));
+  for (const w of pierwsze) {
+    const d = drugieWgId.get(w.id);
+    dodaj(d && czas(d.zmieniono) > czas(w.zmieniono) ? d : w);
   }
-  const lokalneId = new Set(lokalne.wpisy.map((w) => w.id));
-  for (const z of zdalne.wpisy) if (!lokalneId.has(z.id)) dodaj(z);
+  const pierwszeId = new Set(pierwsze.map((w) => w.id));
+  for (const d of drugie) if (!pierwszeId.has(d.id)) dodaj(d);
 
   const obecne = new Set(wynik.map((w) => w.id));
-  return { wpisy: wynik, usuniete: [...usuniete.values()].filter((u) => !obecne.has(u.id)) };
+  const ulozono = zdalnaKolejnosc ? zdalne.ulozono : lokalne.ulozono || '';
+  return { wpisy: wynik, usuniete: [...usuniete.values()].filter((u) => !obecne.has(u.id)), ulozono };
 }

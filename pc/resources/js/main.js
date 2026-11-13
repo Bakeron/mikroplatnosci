@@ -4,7 +4,7 @@ import { zbierzAlarmy, formatujDate, parsujDate, dzis, przeniesNastepnaCene, iso
 import { renderujPodsumowanie } from './podsumowanie.js';
 import { utworzWiersz, odswiezWiersze, numeruj, przeciaganieWierszy } from './tabela.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
-import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc, zastapZKopii, dodajPrzyklad, nicDoStracenia, czasZmiany, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
+import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc, zastapZKopii, dodajPrzyklad, nicDoStracenia, czasZmiany, oznaczUlozenie, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
 import { wypelnijListe } from './spisy.js';
 import { przygotujDysk, czyPolaczony } from './dysk.js';
 import { polaczSynchronizacje, OPOZNIENIE_WYSYLKI, poWymianie } from './synchronizacja.js';
@@ -36,6 +36,7 @@ const BLOKADA_CO = 30000; // ważność blokady: magazyn.js
 const stan = {
   wpisy: [],
   usuniete: [], // { id, kiedy } - żeby scalanie z Google Dyskiem nie przywróciło usuniętych pozycji
+  ulozono: '', // czas ostatniego ręcznego przesunięcia - przy scalaniu z Dyskiem wygrywa nowsza kolejność
   plik: '',
   plikBlokady: '',
   plikKursow: '',
@@ -126,6 +127,7 @@ async function wczytaj() {
   if (odczytane.motyw === 'ciemny' || odczytane.motyw === 'jasny') stan.motyw = odczytane.motyw;
   stan.wpisy = odczytane.wpisy;
   stan.usuniete = odczytane.usuniete;
+  stan.ulozono = odczytane.ulozono;
   return plik.kopia;
 }
 
@@ -305,6 +307,7 @@ async function usunZKomputera() {
   }
   stan.wpisy = [];
   stan.usuniete = [];
+  stan.ulozono = '';
   renderujTabele();
   odswiezDodatki();
   pokazStatus(t('dane usunięte z komputera'));
@@ -350,7 +353,13 @@ async function zapiszDoPliku(tytulOkna, nazwa, rozszerzenie, opisTypu, tresc) {
   }
   try {
     await Neutralino.filesystem.writeFile(sciezka, tresc);
-    pokazStatus(t('zapisano: {plik}', { plik: sciezka.split(/[\\/]/).pop() }));
+    // Gdzie trafił plik: folder, w którym leży (Dokumenty po polsku, korzeń dysku z „\”, np. pendrive „E:\”).
+    const czesci = sciezka.split(/[\\/]/);
+    const plik = czesci.pop();
+    const wDokumentach = folder && czesci.join('/').toLowerCase() === folder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+    const ostatni = czesci.at(-1) ?? '';
+    const nazwaFolderu = wDokumentach ? t('Dokumenty') : ostatni.endsWith(':') ? ostatni + '\\' : ostatni;
+    pokazStatus(t('zapisano w folderze „{folder}”: {plik}', { folder: nazwaFolderu, plik }));
   } catch (e) {
     pokazStatus(t('Nie udało się zapisać pliku.'), true);
     console.error(e);
@@ -565,6 +574,7 @@ const wierszWpisu = (wpis) => tbody.querySelector(`tr[data-id="${CSS.escape(wpis
 
 // Po ręcznym przesunięciu obowiązuje kolejność użytkownika (zapamiętana w pliku) - także na paragonie.
 function kolejnoscReczna() {
+  oznaczUlozenie(stan); // wspólna kolejność z telefonem - nowsze ułożenie wygrywa przy scalaniu
   numeruj(tbody);
   akcjeWiersza.onZmiana();
 }
@@ -950,6 +960,11 @@ function przyklejNaglowekTabeli() {
     naglowekTabeli.style.setProperty('--przyklej-od', `${od}px`);
     naglowekTabeli.style.setProperty('--przyklej-do', `${od + Math.max(maks, 1)}px`);
     naglowekTabeli.style.setProperty('--przyklej-maks', `${maks}px`);
+    // Edge/Chromium zostawia czasem zakres z pierwszego ustawienia (nagłówek przyklejał się o „od” za wysoko
+    // i nad nim prześwitywały wiersze) - animacja od nowa bierze aktualne liczby.
+    naglowekTabeli.style.animationName = 'none';
+    void naglowekTabeli.offsetWidth;
+    naglowekTabeli.style.animationName = '';
     return;
   }
   const y = Math.min(Math.max(kartka.scrollTop - od, 0), maks);

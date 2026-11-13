@@ -34,10 +34,10 @@
 .t-naglowek h1 { margin: 0; font: italic 700 24px/1.1 var(--f-tytul); }
 /* zębatka ustawień: 44 px do trafienia palcem, a wiersz tytułu bez zmian - ujemny margines „oddaje” wysokość */
 .t-naglowek__ustawienia { flex-shrink: 0; width: 44px; height: 44px; margin: -10px -11px -10px 0; }
-/* miesięczne po lewej, roczne po prawej (gdy są) */
-.t-naglowek__sumy { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 7px 0 0; }
+/* data zaraz pod tytułem, pod nią miesięczne po lewej, roczne po prawej (gdy są) - odrobinę dalej od daty */
+.t-naglowek__sumy { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 6px 0 6px; }
 .t-naglowek__suma { font: 600 15px var(--f-liczby); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.t-naglowek__data { margin: 2px 0 6px; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
+.t-naglowek__data { margin: 2px 0 0; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
 
 /* Pod datą tylko błąd Google Dysku (autor: bez „wysłano na Dysk ✓ godzina” u góry); zwykły stan
    widać w ustawieniach (zakładka „Synchronizacja”), tam też przełączniki i przyciski. */
@@ -133,7 +133,7 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .t-paragon { max-width: 380px; margin: 14px auto 8px; }
 /* historia wydatków pod paragonem, w wąskiej kolumnie */
 .telefon .historia { margin-top: 26px; }
-.telefon .historia__dol { gap: 22px; margin-top: 24px; }
+.telefon .historia__dol { gap: 22px; margin-top: 44px; } /* podpisy miesięcy wiszą 22 px pod wykresem - poza układem */
 .telefon .historia__wykres { gap: 6px; }
 .telefon .historia__os { min-width: 40px; }
 /* A7: prowizja banku - jeden wiersz pod historią */
@@ -152,6 +152,72 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .t-filtr .zakladki__licznik { margin-left: 0; font-size: 14px; }
 .t-filtr .zakladki__licznik:empty { display: none; }
 .t-filtr .zakladki__wyczysc { min-height: 44px; padding-inline: 6px; font-size: 14px; }
+/* Kolejność kart: wybrana opcja zakreślona zakreślaczem jak słowo w zeszycie (nie tylko kolor - też aria-pressed
+   i pogrubienie); „Ułóż” z prawej. Cele dotyku 44 px. */
+.t-kolejnosc { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; margin: 2px 2px 0; }
+.t-kolejnosc[hidden], .t-ukladanie[hidden] { display: none; }
+.t-kolejnosc__wybor { display: flex; flex-wrap: wrap; align-items: center; gap: 0 2px; }
+.t-kolejnosc__etykieta { margin-right: 4px; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
+.t-kolejnosc__opcja, .t-kolejnosc__uloz {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--olowek);
+  font: italic 14.5px var(--f-tytul);
+}
+.t-kolejnosc__opcja[aria-pressed="true"] {
+  background: linear-gradient(transparent 30%, var(--zakreslacz) 30% 78%, transparent 78%);
+  color: var(--atrament);
+  font-weight: 700;
+}
+.t-kolejnosc__uloz { margin-right: -8px; color: var(--atrament); font: 600 14px var(--f-liczby); letter-spacing: 0.02em; }
+/* Tryb „Ułóż”: pasek z „Gotowe” przyklejony u góry, wiersze jak Lp. w zeszycie na PC - numer za czerwonym marginesem */
+.t-ukladanie {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px -2px 0;
+  padding: 6px 2px 8px;
+  border-bottom: 1px solid var(--linia);
+  background: var(--papier);
+}
+.t-ukladanie__opis { flex: 1; margin: 0; color: var(--olowek); font: italic 13.5px/1.35 var(--f-tytul); }
+.t-ukladanie__gotowe {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--atrament);
+  border-radius: 6px;
+  background: var(--papier-2);
+  color: var(--atrament);
+  font: 600 15px var(--f-liczby);
+}
+.t-ukladany {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 44px 44px;
+  align-items: center;
+  gap: 6px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--linia);
+  background: var(--papier); /* jadący wiersz zasłania ten, nad którym przejeżdża */
+}
+.t-ukladany__lp { align-self: stretch; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; border-right: 1px solid var(--margines); color: var(--olowek); font: 13px var(--f-liczby); font-variant-numeric: tabular-nums; }
+.t-ukladany__nazwa { display: flex; align-items: baseline; gap: 4px; min-width: 0; color: var(--atrament); font: 600 15.5px var(--f-tekst); overflow-wrap: anywhere; }
+.t-ukladany__nazwa .wykrzyknik { font-size: 19px; }
+.t-ukladany__strzalka {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--linia);
+  border-radius: 6px;
+  background: var(--papier-2);
+  color: var(--atrament);
+  font: 600 19px var(--f-liczby);
+}
+.t-ukladany__strzalka:disabled { border-style: dashed; background: transparent; color: var(--olowek); opacity: 0.45; }
 .karta .znaczki { margin: 0; }
 .t-dopisek--faktura .t-dopisek__tekst { color: var(--atrament); }
 
@@ -188,10 +254,11 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 
 .t-arkusz {
   position: fixed;
-  inset: auto 0 0;
+  /* kończy się nad przyciskami Androida jak okno ustawień - przewijana treść nie wchodzi pod pasek (autor 13.11.2026) */
+  inset: auto 0 var(--pasek-dol);
   width: 100%;
   max-width: 100%;
-  max-height: calc(100dvh - var(--pasek-gora) - 12px); /* nad paskiem stanu; dół: odstęp w .t-formularz */
+  max-height: calc(100dvh - var(--pasek-gora) - var(--pasek-dol) - 12px); /* nad paskiem stanu */
   margin: 0;
   padding: 0;
   overflow: auto;
@@ -204,14 +271,14 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 }
 .t-arkusz::backdrop { background: rgb(20 15 5 / 0.5); }
 /* arkusz wysuwa się od dołu i tam chowa, przyciemnienie płynnie (nie skokiem); „ogranicz animacje” - w wyglad.css */
-.t-arkusz { translate: 0 100%; transition: translate 0.22s cubic-bezier(0.2, 0, 0.2, 1), overlay 0.22s allow-discrete, display 0.22s allow-discrete; }
+.t-arkusz { translate: 0 calc(100% + var(--pasek-dol)); transition: translate 0.22s cubic-bezier(0.2, 0, 0.2, 1), overlay 0.22s allow-discrete, display 0.22s allow-discrete; }
 .t-arkusz[open] { translate: 0 0; }
-@starting-style { .t-arkusz[open] { translate: 0 100%; } }
+@starting-style { .t-arkusz[open] { translate: 0 calc(100% + var(--pasek-dol)); } }
 .t-arkusz::backdrop { opacity: 0; transition: opacity 0.22s ease-out, overlay 0.22s allow-discrete, display 0.22s allow-discrete; }
 .t-arkusz[open]::backdrop { opacity: 1; }
 @starting-style { .t-arkusz[open]::backdrop { opacity: 0; } }
 
-.t-formularz { display: grid; gap: 12px; padding: 18px 16px calc(var(--pasek-dol) + 16px); }
+.t-formularz { display: grid; gap: 12px; padding: 18px 16px 16px; }
 .t-formularz__tytul { margin: 0; font: italic 700 20px var(--f-tytul); }
 .t-wiersz { display: flex; gap: 12px; }
 .t-pole { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; border: 0; color: var(--olowek); font: 600 11.5px var(--f-liczby); letter-spacing: 0.08em; text-transform: uppercase; }
@@ -296,6 +363,17 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .okno { max-width: calc(100vw - 32px); }
 /* zwykłe okna na środku, ale między paskami Androida (bez tego dół wysokiego okna wchodził pod przyciski) */
 .telefon .okno:not(.okno--zakladki) { inset-block: var(--pasek-gora) var(--pasek-dol); max-height: calc(100dvh - var(--pasek-gora) - var(--pasek-dol) - 32px); }
+/* Najpierw przyciemnienie, potem okno (po kolei, nie przenikanie): pojawiające się okno jest przez chwilę
+   przezroczyste, a na Poco lista spod spodu prześwitywała przez nie i po bokach. Ciemniej niż na PC, żeby
+   lista nie przebijała. Opóźnione tylko krycie i przesunięcie - display i overlay od razu, inaczej
+   przyciemnienie też by czekało. */
+.telefon .okno::backdrop { background: rgb(20 15 5 / 0.7); transition-duration: 0.12s; }
+.telefon .okno[open] { transition-delay: 0.1s, 0.1s, 0s, 0s; }
+/* Ustawienia: okno nieprzezroczyste od pierwszej klatki, wjeżdża od dołu jak arkusz edycji. Przy samym
+   opóźnieniu czerwona pozycja „po terminie” dalej prześwitywała przez pojawiające się okno (autor, 2.8). */
+.telefon .okno--zakladki { opacity: 1; translate: 0 100dvh; transition: translate 0.22s cubic-bezier(0.2, 0, 0.2, 1), overlay 0.22s allow-discrete, display 0.22s allow-discrete; }
+.telefon .okno--zakladki[open] { translate: 0 0; transition-delay: 0s; }
+@starting-style { .telefon .okno--zakladki[open] { opacity: 1; translate: 0 100dvh; } }
 .telefon .okno p { font-size: 17px; }
 .telefon .okno__przyciski { flex-wrap: wrap; }
 
@@ -312,6 +390,20 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
    od góry większy niż na PC - zmierzony na zrzucie przy gęstości ekranu telefonu. */
 .telefon .pomoc { position: relative; width: 20px; height: 20px; margin-left: 4px; padding: 2.75px 0 0; font-size: 13px; vertical-align: 0; }
 .telefon .pomoc::after { content: ""; position: absolute; inset: -12px; }
+/* „?” jako obrazek (znak „?” z Barlow 700, wielkość jak przy 13 px) dokładnie na środku kółka - na prawdziwym
+   telefonie tekst stał niżej niż w przeglądarce i na emulatorze. Litera zostaje (przezroczysta) - trzyma linię
+   bazową, więc kółko stoi w tekście tam, gdzie stało. */
+.telefon .pomoc { -webkit-text-fill-color: transparent; }
+.telefon .pomoc::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 5.63px;
+  height: 9.26px;
+  margin: auto;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='23 -710 433 712'%3E%3Cpath transform='scale(1,-1)' d='M154 234V266Q154 316 177 347Q200 378 244 411Q279 438 296 459Q313 480 313 510Q313 542 293.5 561.5Q274 581 241 581Q206 581 185 560.5Q164 540 164 506V490Q164 479 152 479L35 484Q30 484 26.5 487.5Q23 491 23 496V506Q23 566 51 612.5Q79 659 129.5 684.5Q180 710 245 710Q341 710 398.5 656.5Q456 603 456 515Q456 471 442 439.5Q428 408 408 388Q388 368 357 344Q324 319 309 301Q294 283 294 257V234Q294 229 290.5 225.5Q287 222 282 222H166Q161 222 157.5 225.5Q154 229 154 234ZM143 77Q143 111 165 133Q187 155 222 155Q257 155 279 133Q301 111 301 77Q301 43 278.5 20.5Q256 -2 222 -2Q188 -2 165.5 20.5Q143 43 143 77Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 .telefon .pomoc--paragon { position: absolute; top: 12px; right: 12px; }
 .telefon .pomoc-okno { position-area: bottom span-all; width: auto; margin: 6px 16px; font-size: 15.5px; }
 .t-legenda { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 14px; margin: 8px 2px 0; color: var(--olowek); font: italic 13.5px/24px var(--f-tytul); }
@@ -351,9 +443,10 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 }
 .telefon .okno--zakladki[open] { display: flex; flex-direction: column; }
 .telefon .okno--zakladki > .okno__tresc { flex: 1; min-height: 0; max-height: none; }
-.telefon .okno--ustawienia .ustawienia__gora { margin-inline: -16px; padding-inline: 16px; }
+/* nad tytułem połowa odstępu z PC (13 zamiast 26 px) - autor 13.11.2026 */
+.telefon .okno--ustawienia .ustawienia__gora { margin-inline: -16px; padding: 13px 16px 0; }
 /* „×” w wierszu tytułu, wcięty jak treść okna (16 px od brzegu); kreski z wyglad.css - zawsze na środku koła */
-.telefon .okno--zakladki > .okno__x { top: 20px; right: 16px; width: 44px; height: 44px; translate: none; box-shadow: none; --x-dlugosc: 16px; }
+.telefon .okno--zakladki > .okno__x { top: 7px; right: 16px; width: 44px; height: 44px; translate: none; box-shadow: none; --x-dlugosc: 16px; }
 /* zakładki ustawień jak na PC, w jednym rzędzie przewijanym w bok (jak filtr nad listą) */
 /* Bez przesunięcia (transform) z PC - wystawało 3 px pod pasek i pasek dawał się przewinąć w pionie (drugie
    dotknięcie „powiększało” zakładkę). Otwarta zakładka płynnie rośnie w górę (zakładki stoją na kresce). */

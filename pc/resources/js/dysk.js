@@ -14,7 +14,7 @@ const NAZWA_PLIKU = 'mikroplatnosci.json';
 const MAKS_ROZMIAR = 5 * 1024 * 1024;
 export const WZOR_ID = /^[\w-]{5,100}\.apps\.googleusercontent\.com$/;
 export const WZOR_SEKRETU = /^[\w-]{10,100}$/;
-const MAKS_BLEDOW_SIECI = 3; // pod rząd, przy czekaniu na zgodę w Google
+const MAKS_BLEDOW_SIECI = 3; // pod rząd, przy czekaniu na zgodę w Google (aplikacja na ekranie)
 
 // wpisane: identyfikator pochodzi z aplikacji (zapisywany w google.json), nie ze zmiennych.
 const dysk = { id: '', sekret: '', wpisane: false, plikDostepu: '', odswiezajacy: '', dostep: '', wazneDo: 0, idPliku: '' };
@@ -82,6 +82,10 @@ async function zlyIdentyfikator() {
 // Każde zapytanie do Google: bez pamięci podręcznej przeglądarki i z limitem czasu -
 // zawieszone połączenie nie blokuje przycisków Dysku aż do ponownego uruchomienia aplikacji.
 const LIMIT_CZASU = 30000;
+// Błąd sieci (brak internetu, sieć odcięta aplikacji w tle, Google nie odpowiada) - zawsze tekst w języku
+// aplikacji; surowy opis z Androida (np. „Unable to resolve host…”) zostaje tylko w e.cause (do logów).
+const bladSieci = (tekst, przyczyna) => Object.assign(new Error(tekst, { cause: przyczyna }), { siec: true });
+export const czyBladSieci = (e) => e?.siec === true || e instanceof TypeError;
 async function siec(adres, opcje) {
   const signal = AbortSignal.timeout(LIMIT_CZASU);
   // Na telefonie CapacitorHttp wysyła POST, PATCH i DELETE natywnie, bez limitu czasu i z pominięciem
@@ -90,8 +94,7 @@ async function siec(adres, opcje) {
   try {
     return await Promise.race([fetch(adres, { cache: 'no-store', signal, ...opcje }), limit]);
   } catch (e) {
-    if (e?.name === 'TimeoutError') throw new Error(t('Google nie odpowiada - spróbuj za chwilę'));
-    throw e;
+    throw bladSieci(e?.name === 'TimeoutError' ? t('Google nie odpowiada - spróbuj za chwilę') : t('brak połączenia z Google - sprawdź internet'), e);
   }
 }
 
@@ -119,16 +122,18 @@ export async function zacznijLogowanie() {
   if (dane.error === 'invalid_client') throw await zlyIdentyfikator();
   if (!ok|| typeof dane.device_code !== 'string' || typeof dane.user_code !== 'string') throw new Error(opisBledu(dane));
   let anulowane = false;
-  // Co najmniej 5 s między pytaniami. Pojedyncze błędy sieci nie przerywają logowania - na telefonie
-  // aplikacja jest wtedy w tle (użytkownik w przeglądarce), a Android potrafi na chwilę odciąć jej sieć.
+  // Co najmniej 5 s między pytaniami. Na telefonie aplikacja jest wtedy w tle (użytkownik loguje się
+  // w przeglądarce), a Android potrafi odciąć jej sieć - błędy sieci w tle się nie liczą, a po powrocie
+  // do aplikacji pytanie idzie od razu. Na ekranie dopiero kilka błędów sieci z rzędu przerywa czekanie.
   const czekaj = async () => {
     let odstep = Math.max(Number(dane.interval) || 5, 5) * 1000;
     let bledySieci = 0;
     const koniec = Date.now() + (Number(dane.expires_in) || 1800) * 1000;
     while (!anulowane && Date.now() < koniec) {
-      await new Promise((r) => setTimeout(r, odstep));
+      await przerwa(odstep);
       if (anulowane) break;
       let w;
+      const bylWTle = wTle();
       try {
         w = await formularz(ADRES_TOKENU, {
           client_id: dysk.id, client_secret: dysk.sekret, device_code: dane.device_code,
@@ -136,7 +141,8 @@ export async function zacznijLogowanie() {
         });
         bledySieci = 0;
       } catch (e) {
-        if (++bledySieci >= MAKS_BLEDOW_SIECI) throw e;
+        if (!czyBladSieci(e)) throw e;
+        if (!bylWTle && !wTle() && ++bledySieci >= MAKS_BLEDOW_SIECI) throw e;
         continue;
       }
       if (w.ok) {
@@ -154,6 +160,23 @@ export async function zacznijLogowanie() {
     throw new Error(anulowane ? '' : t('kod wygasł - włącz synchronizację jeszcze raz'));
   };
   return { kod: dane.user_code.slice(0, 20), czekaj, anuluj: () => { anulowane = true; } };
+}
+
+const wTle = () => globalThis.document?.hidden === true;
+
+// Przerwa między pytaniami o zgodę; powrót aplikacji na ekran ją skraca (zgoda z przeglądarki widoczna od razu).
+function przerwa(ms) {
+  return new Promise((gotowe) => {
+    const d = globalThis.document;
+    const koniec = () => {
+      clearTimeout(licznik);
+      d?.removeEventListener?.('visibilitychange', powrot);
+      gotowe();
+    };
+    const powrot = () => { if (!d.hidden) koniec(); };
+    const licznik = setTimeout(koniec, ms);
+    d?.addEventListener?.('visibilitychange', powrot);
+  });
 }
 
 async function zapomnij() {

@@ -1,7 +1,7 @@
 // Sprawdzanie danych z pliku i z Dysku (dane.js) oraz paragon (podsumowanie.js) - bez DOM.
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz, zastapZKopii, czasZmiany, MAKS_WPISOW_Z_DYSKU } from '../resources/js/dane.js';
+import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz, zastapZKopii, czasZmiany, MAKS_WPISOW_Z_DYSKU, przesunWpis, oznaczUlozenie } from '../resources/js/dane.js';
 import { scal } from '../resources/js/scalanie.js';
 import { policz } from '../resources/js/podsumowanie.js';
 
@@ -16,7 +16,7 @@ test('plik danych: odczyt pomija śmieci i sprawdza pola', () => {
 });
 
 test('plik danych: zapis i ponowny odczyt dają to samo, dodatki PC przed wpisami', () => {
-  const stan = { wpisy: [normalizuj({ id: 'a', nazwa: 'X', koszt: 1 })], usuniete: [{ id: 'b', kiedy: '2026-10-30T10:00:00.000Z' }] };
+  const stan = { wpisy: [normalizuj({ id: 'a', nazwa: 'X', koszt: 1 })], usuniete: [{ id: 'b', kiedy: '2026-10-30T10:00:00.000Z' }], ulozono: '' };
   const plik = doZapisu(stan, { motyw: 'jasny' });
   assert.deepEqual(Object.keys(plik), ['wersja', 'zapisano', 'motyw', 'wpisy', 'usuniete']);
   assert.equal(plik.wersja, 4);
@@ -289,4 +289,31 @@ test('formularz: kategoria i „na firmę” zapisane, bez pól zostają jak by�
   assert.equal(w.firmowa, false);
   zastosujFormularz([w], w, { ...p, kategoria: '<b>zla</b>' });
   assert.equal(w.kategoria, '');
+});
+
+test('ręczne ułożenie: przesunięcie wśród widocznych, czas ułożenia w pliku, zegar do przodu', () => {
+  const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((id) => normalizuj({ id }));
+  const stan = { wpisy: [a, b, c, d], usuniete: [], ulozono: '' };
+  // b schowane (filtr albo anulowane) - strzałka przeskakuje je jak na PC
+  assert.equal(przesunWpis(stan, [a, c, d], c, -1), true);
+  assert.deepEqual(stan.wpisy.map((w) => w.id), ['c', 'a', 'b', 'd']);
+  assert.ok(stan.ulozono);
+  assert.equal(przesunWpis(stan, [c, a, d], c, -1), false); // pierwsza - nie ma dokąd
+  assert.equal(przesunWpis(stan, [c, a, d], a, 1), true);
+  assert.deepEqual(stan.wpisy.map((w) => w.id), ['c', 'b', 'd', 'a']);
+  // Czas ułożenia przechodzi przez zapis i odczyt; z przyszłości obcięty do jutra.
+  assert.equal(odczytajDane(doZapisu(stan)).ulozono, stan.ulozono);
+  assert.equal(odczytajDane({ wpisy: [], ulozono: 'wczoraj' }).ulozono, '');
+  const przyszly = odczytajDane({ wpisy: [], ulozono: '2099-01-01T00:00:00.000Z' }).ulozono;
+  assert.ok(Date.parse(przyszly) <= Date.now() + 86400000 + 1000);
+  // Zegar był kiedyś do przodu - nowe ułożenie i tak później niż poprzednie.
+  const s2 = { ulozono: '2099-01-01T00:00:00.000Z' };
+  oznaczUlozenie(s2);
+  assert.equal(s2.ulozono, '2099-01-01T00:00:00.001Z');
+});
+
+test('kopia zastępuje dane - jej kolejność wygrywa na Dysku', () => {
+  const stan = { wpisy: [], usuniete: [], ulozono: '2026-11-01T00:00:00.000Z' };
+  zastapZKopii(stan, { wpisy: [normalizuj({ id: 'x' })] }, '2026-11-12T10:00:00.000Z');
+  assert.equal(stan.ulozono, '2026-11-12T10:00:00.000Z');
 });

@@ -43,3 +43,25 @@ test('scalenie jest powtarzalne (drugi raz bez zmian)', () => {
   assert.deepEqual(scal(r1, Z), r1);
   assert.deepEqual(scal(r1, r1), r1);
 });
+
+test('kolejność z urządzenia, na którym później ułożono pozycje', () => {
+  const L = { wpisy: [w('a', '01:00', 'PC'), w('b', '01:00'), w('c', '01:00'), w('l', '01:00')], usuniete: [], ulozono: T('08:00') };
+  const Z = { wpisy: [w('c', '01:00'), w('a', '05:00', 'tel'), w('b', '01:00'), w('z', '01:00')], usuniete: [], ulozono: T('09:00') };
+  const r = scal(L, Z);
+  // Kolejność z telefonu (ułożony później), dopisane tylko na PC - na końcu; treść pozycji - nowsza zmiana.
+  assert.deepEqual(r.wpisy.map((x) => x.id), ['c', 'a', 'b', 'z', 'l']);
+  assert.equal(r.wpisy[1].nazwa, 'tel');
+  assert.equal(r.ulozono, T('09:00'));
+  // W drugą stronę (PC ułożony później) - kolejność z PC.
+  const r2 = scal({ ...L, ulozono: T('10:00') }, Z);
+  assert.deepEqual(r2.wpisy.map((x) => x.id), ['a', 'b', 'c', 'l', 'z']);
+  assert.equal(r2.ulozono, T('10:00'));
+});
+
+test('bez czasu ułożenia (starsza wersja aplikacji) - kolejność z tego urządzenia', () => {
+  const r = scal({ wpisy: [w('b', '01:00'), w('a', '01:00')], usuniete: [] }, { wpisy: [w('a', '01:00'), w('b', '01:00')], usuniete: [] });
+  assert.deepEqual(r.wpisy.map((x) => x.id), ['b', 'a']);
+  assert.equal(r.ulozono, '');
+  const r2 = scal({ wpisy: [w('b', '01:00'), w('a', '01:00')], usuniete: [], ulozono: T('01:00') }, { wpisy: [w('a', '01:00'), w('b', '01:00')], usuniete: [] });
+  assert.deepEqual(r2.wpisy.map((x) => x.id), ['b', 'a']);
+});

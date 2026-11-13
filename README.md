@@ -15,6 +15,7 @@ Aplikacja do pilnowania subskrypcji i drobnych płatności: pokazuje, ile napraw
 - **Płatność ręczna** - przy rachunkach, które nie schodzą same z konta (np. prąd): tydzień przed terminem czerwony margines, przypomnienie i pole „☐ zapłacone”.
 - **Synchronizacja z Google Dyskiem** - zmiany z telefonu trafiają na komputer i odwrotnie, scalane wiersz po wierszu. Telefon wysyła i pobiera sam; komputer z zapisem lokalnym - przyciskami „↓ Pobierz z Dysku” / „↑ Wyślij na Dysk”, bez zapisu lokalnego - sam.
 - **O aplikacji** - wersja, prywatność w skrócie, kontakt, licencje bibliotek.
+- **Wspólne dane dla kilku osób** (np. dla domowników, same telefony) - każda osoba włącza synchronizację u siebie, a kod pokazany w aplikacji wpisuje na stronie Google właściciel danych, swoim kontem (można to zrobić na jego telefonie). Wszystkie urządzenia korzystają z jednego pliku na Dysku właściciela i widzą te same pozycje; zmiany są scalane jak między komputerem a telefonem. Druga osoba nie poznaje hasła właściciela, a aplikacja dostaje dostęp tylko do swojego pliku - nie do poczty, zdjęć ani innych plików. Odłączenie: „wyłącz synchronizację” w aplikacji tej osoby.
 - **Gdzie trzymać dane** - na urządzeniu, na swoim Google Dysku albo w obu miejscach; przyciski „Usuń z komputera” / „Usuń z Dysku” kasują dane z jednego miejsca.
 - **Powiadomienia** o pozycjach, których nie przedłużasz, zanim się odnowią.
 

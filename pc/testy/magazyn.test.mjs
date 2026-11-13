@@ -207,18 +207,18 @@ test('blokada: odświeżanie nie nadpisuje świeżej blokady innej kopii (po uś
 test('ustawienia: domyślnie zapis lokalny włączony; zapis i odczyt; śmieci = domyślne', async () => {
   const U = F + '/ustawienia.json';
   // Brak pliku - nowa osoba (dawneWalutyObce false); plik bez listy walut - „Waluty obce” były domyślnie włączone.
-  const domyslne = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, budzet: 0, waluty: null, dawneWalutyObce: false };
+  const domyslne = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, kolejnosc: 'termin', budzet: 0, waluty: null, dawneWalutyObce: false };
   const zPliku = { ...domyslne, dawneWalutyObce: true };
   assert.deepEqual(await wczytajUstawienia(U), domyslne);
   await zapiszUstawienia(U, { lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
   assert.deepEqual(await wczytajUstawienia(U), { ...zPliku, lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
   pliki.set(U, '{zepsute');
   assert.deepEqual(await wczytajUstawienia(U), domyslne);
-  pliki.set(U, JSON.stringify({ lokalnie: 'nie', motyw: '<script>', prowizja: 99, funkcje: 'x', powiadomienia: 5, wTle: 'tak', jezyk: 'xx', wprowadzenie: 1, waluty: 'USD' }));
+  pliki.set(U, JSON.stringify({ lokalnie: 'nie', motyw: '<script>', prowizja: 99, funkcje: 'x', powiadomienia: 5, wTle: 'tak', jezyk: 'xx', wprowadzenie: 1, kolejnosc: 'cos', waluty: 'USD' }));
   assert.deepEqual(await wczytajUstawienia(U), zPliku);
   // F27 / F25: język i notatki „pierwsze kroki” - zapis i odczyt.
-  await zapiszUstawienia(U, { lokalnie: true, jezyk: 'en', wprowadzenie: true });
-  assert.deepEqual(await wczytajUstawienia(U), { ...zPliku, jezyk: 'en', wprowadzenie: true });
+  await zapiszUstawienia(U, { lokalnie: true, jezyk: 'en', wprowadzenie: true, kolejnosc: 'moja' });
+  assert.deepEqual(await wczytajUstawienia(U), { ...zPliku, jezyk: 'en', wprowadzenie: true, kolejnosc: 'moja' });
   // Lista walut: złote zawsze, kolejność stała, nieznane kody pominięte; dawne „Waluty obce: nie”.
   await zapiszUstawienia(U, { lokalnie: true, waluty: ['EUR', 'XYZ', 'USD'] });
   assert.deepEqual((await wczytajUstawienia(U)).waluty, ['PLN', 'USD', 'EUR']);

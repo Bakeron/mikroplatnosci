@@ -4,7 +4,7 @@ import { test, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { odczytajDane, WERSJA_DANYCH } from '../resources/js/dane.js';
 import { przygotujDysk } from '../resources/js/dysk.js';
-import { polaczSynchronizacje, poWymianie } from '../resources/js/synchronizacja.js';
+import { polaczSynchronizacje, poWymianie, PONOWIENIA } from '../resources/js/synchronizacja.js';
 
 // Udawana strona: każdy element ma pola, których używa synchronizacja.
 const elementy = new Map();
@@ -223,4 +223,29 @@ test('zamknięcie okna w trakcie wymiany z Dyskiem: poWymianie czeka na jej koni
   await czekanie;
   assert.equal(gotowe, true);
   assert.equal(await poWymianie({ synchronizacja: false }), undefined); // bez wymiany - od razu
+});
+
+test('chwilowy brak sieci (start, powrót z tła) - kolejne próby, zanim pojawi się błąd; potem błąd w języku aplikacji', async () => {
+  const przerwy = [...PONOWIENIA];
+  PONOWIENIA.fill(0);
+  const zwykly = globalThis.fetch;
+  let bledow = 2;
+  globalThis.fetch = async (adres, o) => {
+    if (bledow > 0) { bledow--; throw new Error('Unable to resolve host "www.googleapis.com"'); }
+    return zwykly(adres, o);
+  };
+  try {
+    naDysku = JSON.stringify({ wersja: WERSJA_DANYCH, wpisy: [], usuniete: [] });
+    assert.equal(await sync.synchronizuj(false), true);
+    assert.ok(!stanDysku().classList.contains('blad'));
+    bledow = 99;
+    assert.equal(await sync.synchronizuj(false), false);
+    assert.equal(bledow, 99 - 1 - PONOWIENIA.length);
+    assert.match(stanDysku().textContent, /^brak połączenia z Google/);
+    assert.ok(stanDysku().classList.contains('blad'));
+    assert.equal(stan.synchronizacja, false);
+  } finally {
+    globalThis.fetch = zwykly;
+    PONOWIENIA.splice(0, PONOWIENIA.length, ...przerwy);
+  }
 });

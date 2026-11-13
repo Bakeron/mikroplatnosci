@@ -39,8 +39,22 @@ function zakladka(klucz, napis, ile, wcisnieta, klasa, onKlik) {
   b.setAttribute('aria-pressed', String(wcisnieta));
   b.append(element('span', 'zakladka__napis', napis));
   if (ile !== null) b.append(element('span', 'zakladka__ile', String(ile)));
-  b.addEventListener('click', onKlik);
+  b.onclick = onKlik; // właściwość, nie addEventListener - przy odświeżeniu w miejscu (niżej) podmienia się obsługę
   return b;
+}
+
+// Te same zakładki co przed kliknięciem - zmiana w miejscu, nie nowe przyciski: tylko wtedy wciśnięcie
+// przechodzi płynnie (nowy element nie ma „poprzedniego wyglądu”, więc przejścia CSS nie startują).
+function odswiezWMiejscu(kontener, nowe) {
+  const stare = [...kontener.querySelectorAll('.zakladka')];
+  const klucze = (lista) => lista.map((b) => b.dataset.klucz).join('|');
+  if (!stare.length || klucze(stare) !== klucze(nowe)) return false;
+  stare.forEach((b, i) => {
+    b.setAttribute('aria-pressed', nowe[i].getAttribute('aria-pressed'));
+    b.onclick = nowe[i].onclick;
+    b.replaceChildren(...nowe[i].childNodes);
+  });
+  return true;
 }
 
 // wpisy: wiersze tabeli (bez anulowanych); widac: ile wierszy pokazuje filtr; naZmiane(nowyFiltr).
@@ -51,6 +65,13 @@ export function renderujFiltr(kontener, wpisy, f, widac, naZmiane) {
     kontener.replaceChildren();
     return;
   }
+  // Wciśnięcie widać od razu po kliknięciu, a nie dopiero po zgaśnięciu tabeli (zamienPlynnie).
+  const wcisnieta = (klucz, nf) => (klucz === 'wszystkie' ? nf.kategoria === null : klucz.startsWith('k-') ? nf.kategoria === klucz.slice(2) : Boolean(nf[klucz.slice(2)]));
+  const naZmianeWprost = naZmiane;
+  naZmiane = (nf) => {
+    for (const b of kontener.querySelectorAll('.zakladka')) b.setAttribute('aria-pressed', String(wcisnieta(b.dataset.klucz, nf)));
+    naZmianeWprost(nf);
+  };
   const ile = new Map();
   for (const w of wpisy) ile.set(kategoriaWpisu(w), (ile.get(kategoriaWpisu(w)) ?? 0) + 1);
   const kategorie = element('div', 'zakladki__kategorie');
@@ -66,7 +87,8 @@ export function renderujFiltr(kontener, wpisy, f, widac, naZmiane) {
   const tylko = element('div', 'zakladki__tylko');
   tylko.append(element('span', 'zakladki__etykieta', t('tylko:')));
   for (const [klucz, nazwa, dostepne] of TYLKO) {
-    if (dostepne()) tylko.append(zakladka('t-' + klucz, t(nazwa), null, f[klucz], 'zakladka--tylko', () => naZmiane({ ...f, [klucz]: !f[klucz] })));
+    // albo-albo (autor 12.11.2026): włączenie jednego „tylko” wyłącza pozostałe
+    if (dostepne()) tylko.append(zakladka('t-' + klucz, t(nazwa), null, f[klucz], 'zakladka--tylko', () => naZmiane({ ...f, reczne: false, wycofanie: false, firma: false, [klucz]: !f[klucz] })));
   }
   const licznik = element('span', 'zakladki__licznik');
   licznik.setAttribute('aria-live', 'polite');
@@ -78,6 +100,8 @@ export function renderujFiltr(kontener, wpisy, f, widac, naZmiane) {
     wyczysc.addEventListener('click', () => naZmiane(pustyFiltr()));
     licznik.append(' ', wyczysc);
   }
-  kontener.replaceChildren(kategorie, tylko, licznik);
-  if (fokus) (kontener.querySelector(`[data-klucz="${CSS.escape(fokus)}"]`) ?? kontener.querySelector('.zakladka'))?.focus();
+  if (odswiezWMiejscu(kontener, [...kategorie.children, ...tylko.children].filter((e) => e.matches('.zakladka')))) {
+    kontener.querySelector('.zakladki__licznik').replaceWith(licznik);
+  } else kontener.replaceChildren(kategorie, tylko, licznik);
+  if (fokus && !kontener.contains(document.activeElement)) (kontener.querySelector(`[data-klucz="${CSS.escape(fokus)}"]`) ?? kontener.querySelector('.zakladka'))?.focus();
 }

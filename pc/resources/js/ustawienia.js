@@ -6,7 +6,7 @@
 import { poprawneFunkcje, poprawneWaluty } from './funkcje.js';
 import { poprawnyJezyk } from './teksty.js';
 
-const DOMYSLNE = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, budzet: 0, waluty: null, dawneWalutyObce: false };
+const DOMYSLNE = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, kolejnosc: 'termin', budzet: 0, waluty: null, dawneWalutyObce: false };
 
 // Rodzaje powiadomień; null = jeszcze nie ustawione (plik sprzed zakładki „Ustawienia”) - main.js decyduje,
 // czy to pierwsze uruchomienie (wszystko wyłączone), czy aplikacja już używana („Wycofaj” i „Zapłać” zostają).
@@ -33,6 +33,7 @@ export async function wczytajUstawienia(plik) {
       wTle: u?.wTle === true,
       jezyk: poprawnyJezyk(u?.jezyk), // F27: pusty = język systemu
       wprowadzenie: u?.wprowadzenie === true, // F25: notatki „pierwsze kroki” jeszcze nie zmazane
+      kolejnosc: u?.kolejnosc === 'moja' ? 'moja' : 'termin', // telefon: karty wg terminu albo w kolejności użytkownika
       budzet: poprawnyBudzet(u?.budzet),
       // Lista walut; null = plik sprzed listy - main.js / aplikacja.js ustalają ją z dawnego „Waluty obce”
       // (domyślnie było włączone) i walut z pozycji (walutyNaStart).
@@ -55,6 +56,7 @@ export async function zapiszUstawienia(plik, ustawienia) {
     wTle: ustawienia.wTle === true || undefined,
     jezyk: poprawnyJezyk(ustawienia.jezyk) || undefined,
     wprowadzenie: ustawienia.wprowadzenie === true || undefined,
+    kolejnosc: ustawienia.kolejnosc === 'moja' ? 'moja' : undefined,
     budzet: poprawnyBudzet(ustawienia.budzet) || undefined,
     waluty: ustawienia.waluty ? poprawneWaluty(ustawienia.waluty) : undefined,
   }));

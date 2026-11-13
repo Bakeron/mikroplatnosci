@@ -108,10 +108,71 @@ test('czekanie na zgodę: co najmniej 5 s; 2 błędy sieci pod rząd znosi, 3. p
     assert.ok(odstepy.length === 5 && odstepy.every((ms) => ms === 5000), String(odstepy));
     await D.rozlacz();
     kolejka.push('siec', 'siec', 'siec', 'zgoda');
-    await assert.rejects((await D.zacznijLogowanie()).czekaj(), /Failed to fetch/);
+    // Trzy błędy sieci z rzędu na ekranie - koniec czekania, komunikat w języku aplikacji (nie „Failed to fetch”).
+    await assert.rejects((await D.zacznijLogowanie()).czekaj(), (e) => /brak połączenia z Google/.test(e.message) && e.siec === true);
     assert.equal(D.czyPolaczony(), false);
   } finally {
     globalThis.fetch = zwykly;
+  }
+});
+
+test('telefon: błąd sieci z Androida (CapacitorHttp) - tekst w języku aplikacji, opis Androida tylko w cause', async () => {
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
+  await D.przygotujDysk('test');
+  const zwykly = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('Unable to resolve host "oauth2.googleapis.com": No address associated with hostname'); };
+  try {
+    await assert.rejects(D.zacznijLogowanie(), (e) => /^brak połączenia z Google/.test(e.message) && D.czyBladSieci(e) && /Unable to resolve/.test(e.cause.message));
+  } finally {
+    globalThis.fetch = zwykly;
+  }
+});
+
+test('czekanie na kod: błędy sieci w tle (użytkownik w przeglądarce) się nie liczą; powrót do aplikacji - pytanie od razu', async () => {
+  wbuduj({ MIKROPLATNOSCI_GOOGLE_ID: ID, MIKROPLATNOSCI_GOOGLE_SECRET: SEKRET });
+  await D.przygotujDysk('test');
+  const zwykly = globalThis.fetch;
+  const sluchacze = new Set();
+  globalThis.document = {
+    hidden: true,
+    addEventListener: (typ, f) => sluchacze.add(f),
+    removeEventListener: (typ, f) => sluchacze.delete(f),
+  };
+  odpowiedzi = { 'device/code': [200, { device_code: 'd', user_code: 'K', interval: 5, expires_in: 600 }] };
+  const kolejka = ['siec', 'siec', 'siec', 'siec', 'siec', 'zgoda'];
+  let pytan = 0;
+  globalThis.fetch = async (adres, o) => {
+    if (!String(adres).includes('/token')) return zwykly(adres, o);
+    pytan++;
+    const krok = kolejka.shift();
+    if (krok === 'siec') throw new Error('Unable to resolve host "oauth2.googleapis.com"');
+    if (krok === 'czekaj') return { ok: false, status: 428, json: async () => ({ error: 'authorization_pending' }) };
+    return { ok: true, status: 200, json: async () => ({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }) };
+  };
+  try {
+    await (await D.zacznijLogowanie()).czekaj();
+    assert.equal(D.czyPolaczony(), true);
+    assert.equal(pytan, 6);
+    // Powrót na ekran w trakcie przerwy: pytanie od razu, bez czekania 5 s.
+    await D.rozlacz();
+    kolejka.push('czekaj', 'zgoda');
+    const zwyklyTimeout2 = globalThis.setTimeout;
+    globalThis.setTimeout = (f, ms, ...r) => (ms < 1000 ? zwyklyTimeout2(f, ms, ...r) : 0); // przerwa nigdy sama nie mija
+    const czekanie = (await D.zacznijLogowanie()).czekaj();
+    try {
+      for (let i = 0; i < 2; i++) {
+        await new Promise((r) => zwyklyTimeout(r, 5));
+        document.hidden = false;
+        for (const f of [...sluchacze]) f();
+      }
+      await czekanie;
+    } finally {
+      globalThis.setTimeout = zwyklyTimeout2;
+    }
+    assert.equal(D.czyPolaczony(), true);
+  } finally {
+    globalThis.fetch = zwykly;
+    delete globalThis.document;
   }
 });
 
