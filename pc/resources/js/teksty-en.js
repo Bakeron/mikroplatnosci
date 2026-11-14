@@ -84,6 +84,7 @@ export default {
   "Pilnuje subskrypcji i drobnych płatności. Dane są na tym urządzeniu, a jeśli włączysz synchronizację - także na Twoim Google Dysku, w jednym pliku „mikroplatnosci.json” (aplikacja widzi tylko pliki, które sama utworzyła). Autor aplikacji nie dostaje żadnych Twoich danych; bez reklam i bez śledzenia.": "Keeps an eye on subscriptions and small payments. Your data is on this device and, if you turn on sync, also on your Google Drive, in a single file “mikroplatnosci.json” (the app sees only the files it created itself). The author of the app receives none of your data; no ads and no tracking.",
   "Kontakt: {adres}": "Contact: {adres}",
   "Polityka prywatności": "Privacy policy",
+  "Kod aplikacji jest otwarty (licencja MIT):": "The app's code is open (MIT licence):",
   "Licencje użytych bibliotek": "Licences of the libraries used",
   "{nazwa} - licencja {licencja}. {prawa}.": "{nazwa} - {licencja} licence. {prawa}.",
   "Licencja MIT: {tekst}": "MIT licence: {tekst}",

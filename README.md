@@ -87,4 +87,4 @@ Zasady pracy (wspólne dla projektów autora): minimalne zmiany, prawdziwych dan
 
 ## Licencja
 
-Wszelkie prawa zastrzeżone (plik `LICENSE`). Kod jest udostępniony do wglądu - nie wolno go kopiować, zmieniać ani rozpowszechniać bez zgody autora. Użyte biblioteki i czcionki mają własne licencje (MIT, Apache 2.0, SIL OFL) - lista w oknie „O aplikacji”, pełna licencja Neutralinojs w `pc/instalacja/LICENSE-Neutralinojs.txt`.
+MIT (plik `LICENSE`) - kod można dowolnie używać, zmieniać i rozpowszechniać, zachowując informację o autorze. Użyte biblioteki i czcionki mają własne licencje (MIT, Apache 2.0, SIL OFL) - lista w oknie „O aplikacji”, pełna licencja Neutralinojs w `pc/instalacja/LICENSE-Neutralinojs.txt`.
