@@ -1,0 +1,10 @@
+/* Computer version of the demo: on macOS / Linux there is no Segoe UI, Bahnschrift or Cascadia Mono - the fonts
+   the app falls back to (Gelasio, Barlow Semi Condensed, Cascadia Mono, SIL OFL) come from the phone version. */
+@font-face { font-family: "Gelasio"; src: url("/demo/czcionki/gelasio.woff2") format("woff2"); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Gelasio"; src: url("/demo/czcionki/gelasio-kursywa.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/demo/czcionki/barlow-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/demo/czcionki/barlow-400-kursywa.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/demo/czcionki/barlow-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/demo/czcionki/barlow-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/demo/czcionki/barlow-700.woff2") format("woff2"); font-weight: 700 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Cascadia Mono"; src: url("/demo/czcionki/cascadia-mono.woff2") format("woff2"); font-weight: 200 700; font-style: normal; font-display: swap; }

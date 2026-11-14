@@ -1,0 +1,80 @@
+/* Demo mode only (atrapa.js): the strip at the top, notes next to features that need the outside world,
+   Windows notifications in the corner. Same notebook look as the app - a highlighter line and pencil notes. */
+
+.demo-pasek {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 5px 16px 6px;
+  border-bottom: 1px dashed var(--linia);
+  background: var(--papier);
+  color: var(--olowek);
+  font: 14px/1.35 var(--f-tekst);
+  text-align: center;
+}
+.demo-pasek > span {
+  background: linear-gradient(transparent 55%, var(--zakreslacz) 55% 92%, transparent 92%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.telefon .demo-pasek { padding: 4px 12px 5px; font-size: 13px; }
+.demo-pasek__link {
+  color: var(--atrament);
+  font-weight: 600;
+  text-decoration: underline 1px;
+  text-underline-offset: 3px;
+}
+.demo-pasek__link:hover { text-decoration-color: var(--margines); text-decoration-thickness: 2px; }
+.demo-pasek__link:focus-visible { outline: 2px solid var(--atrament); outline-offset: 2px; }
+
+.demo-uwaga {
+  color: var(--pomarancz);
+  font-style: italic;
+}
+.demo-uwaga--blok {
+  display: block;
+  margin: 2px 0 10px;
+  font-size: 0.92em;
+  line-height: 1.4;
+}
+.demo-wyciag { margin-top: 6px; }
+.demo-wyciag .przycisk-tekst { font-style: normal; }
+.demo-uwaga--mignij { animation: demo-mignij 0.9s ease-out; }
+@keyframes demo-mignij {
+  0%, 40% { background: var(--zakreslacz); }
+  100% { background: transparent; }
+}
+
+.demo-powiadomienia {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(290px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.demo-powiadomienie {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px 10px;
+  border-left: 4px solid var(--margines);
+  background: var(--paragon);
+  color: var(--paragon-tekst);
+  box-shadow: 0 6px 18px var(--cien-paragonu);
+  font: 13px/1.35 var(--f-tekst);
+  animation: demo-wjazd 0.3s ease-out;
+}
+.demo-powiadomienie__skad { font-size: 12px; color: #5a5a5a; }
+@keyframes demo-wjazd {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-uwaga--mignij, .demo-powiadomienie { animation: none; }
+}
