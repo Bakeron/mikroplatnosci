@@ -377,12 +377,9 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .okno p { font-size: 17px; }
 .telefon .okno__przyciski { flex-wrap: wrap; }
 
-/* F25: pierwsze kroki nad listą - notatki z wyglad.css, „×” do trafienia palcem */
-.t-wprowadzenie { margin: 12px 0 8px; padding: 10px 12px 8px; font-size: 15.5px; }
-.t-wprowadzenie .wprowadzenie__tytul { padding-right: 46px; }
-/* „×” jak w ustawieniach na telefonie: koło w środku notatki (nie na rogu), 44 px do trafienia palcem */
-.t-wprowadzenie > .okno__x { top: 4px; right: 4px; width: 44px; height: 44px; translate: none; box-shadow: none; --x-dlugosc: 16px; }
-.t-wprowadzenie > .okno__x:hover { border-color: var(--linia); color: var(--olowek); } /* dotyk zostawia :hover po puszczeniu */
+/* F25: dymki „pierwsze kroki” - przyciski do trafienia palcem */
+.kroki-dymek__przyciski .przycisk-tekst { min-height: 44px; padding: 0 6px; }
+.kroki-dymek__tresc { font-size: 16px; }
 
 /* F26: „?” większe niż na PC, dotyk 44 px (niewidoczne pole wokół kółka nie zmienia układu). Dymek na całą
    szerokość ekranu, pod „?” albo nad nim - kotwica „bottom span-left” z PC wyszłaby za lewą krawędź. */

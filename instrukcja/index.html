@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="robots" content="noindex">
+  <title>Mikropłatności - instrukcja</title>
+  <link rel="stylesheet" href="/demo/czcionki.css">
+  <link rel="stylesheet" href="styl.css">
+</head>
+<body>
+<header class="glowa">
+  <p class="glowa__nad">Instrukcja</p>
+  <h1>Mikropłatności</h1>
+  <p class="glowa__opis">Zeszyt subskrypcji i drobnych płatności: ile naprawdę kosztują miesięcznie (w złotych, po kursie NBP), kiedy wypada następne odnowienie i czego nie przedłużać. Wersja na Windows i na Androida, na tych samych danych.</p>
+  <p class="glowa__demo"><a href="/">Wypróbuj w przeglądarce</a> - wersja demonstracyjna z wymyślonymi danymi, wszystko z tej instrukcji można tam kliknąć.</p>
+  <p class="glowa__uwaga">Zrzuty pochodzą z wersji demonstracyjnej i odświeżają się same po zmianach w aplikacji. Czerwone kółka z numerami odpowiadają punktom pod zrzutem.</p>
+</header>
+
+<nav class="spis" aria-label="Spis treści">
+  <h2>Spis treści</h2>
+  <ol>
+    <li><a href="#pierwsze-kroki">Pierwsze kroki</a></li>
+    <li><a href="#ekran">Ekran główny</a></li>
+    <li><a href="#wiersz">Wiersz zeszytu</a></li>
+    <li><a href="#dopisz">Dopisywanie pozycji</a></li>
+    <li><a href="#wiecej">Ustawienia pozycji „⋯”</a></li>
+    <li><a href="#reczna">Płatność ręczna</a></li>
+    <li><a href="#wykreslanie">Wykreślanie i „Anulowane”</a></li>
+    <li><a href="#terminy">Najbliższe terminy</a></li>
+    <li><a href="#paragon">Paragon</a></li>
+    <li><a href="#historia">Historia wydatków</a></li>
+    <li><a href="#ustawienia">Ustawienia aplikacji</a></li>
+    <li><a href="#wyciag">Import z wyciągu bankowego</a></li>
+    <li><a href="#telefon">Telefon</a></li>
+    <li><a href="#dane">Gdzie są dane i Google Dysk</a></li>
+  </ol>
+</nav>
+
+<main>
+<section id="pierwsze-kroki">
+  <h2>1. Pierwsze kroki</h2>
+  <p>Przy pierwszym uruchomieniu aplikacja pokazuje kilka dymków: wskazuje miejsce na ekranie i mówi, do czego służy. <b>Dalej</b> (albo strzałka w prawo) przechodzi do następnego, <b>Pomiń</b> (albo Esc) kończy. Na telefonie przycisk „Wstecz” działa jak „Pomiń”. W pustym zeszycie pojawia się też przykładowa pozycja - wykreśl ją, gdy dopiszesz własne.</p>
+  <p>Dymki można włączyć jeszcze raz: <b>zębatka → Pokaż pierwsze kroki</b> (na dole okna ustawień).</p>
+  <div class="para">
+    <figure><img src="zrzuty/pc-pierwsze-kroki.webp" alt="Komputer: dymek „Dopisz pozycję” wskazuje wiersz „+ dopisz nową pozycję…”" loading="lazy"><figcaption>Komputer</figcaption></figure>
+    <figure class="waski"><img src="zrzuty/tel-pierwsze-kroki.webp" alt="Telefon: dymek „Dodaj pozycję” wskazuje przycisk „+ Dodaj” na dole ekranu" loading="lazy"><figcaption>Telefon</figcaption></figure>
+  </div>
+</section>
+
+<section id="ekran">
+  <h2>2. Ekran główny (komputer)</h2>
+  <figure><img src="zrzuty/pc-glowny.webp" alt="Nagłówek aplikacji z kursami walut, prowizją banku, przełącznikiem noc / dzień, zębatką i zakładkami kategorii" loading="lazy"></figure>
+  <ol class="punkty">
+    <li><b>Kursy NBP</b> - kurs średni dolara, euro i innych walut z Twoich pozycji, z datą tabeli. Pobierane same; bez internetu zostaje ostatni zapamiętany kurs.</li>
+    <li><b>Prowizja banku</b> - ile Twój bank dolicza do kursu przy płatności kartą w obcej walucie (zwykle 2-4%). Zmienia wszystkie „≈ zł” i sumy.</li>
+    <li><b>Odśwież</b> - pobiera kursy od nowa.</li>
+    <li><b>Noc / dzień</b> - ciemne albo jasne tło.</li>
+    <li><b>Zębatka</b> - ustawienia aplikacji (rozdział 11). Obok stan zapisu: „zapisano ✓” z godziną - każda zmiana zapisuje się sama.</li>
+    <li><b>Zakładki kategorii</b> - pokazują tylko pozycje z jednej kategorii (z liczbą pozycji). Po prawej „tylko:” - <i>płacę sam</i>, <i>do wycofania</i>, <i>na firmę</i>. „Wszystkie” pokazuje znowu cały zeszyt.</li>
+  </ol>
+</section>
+
+<section id="wiersz">
+  <h2>3. Wiersz zeszytu</h2>
+  <p>Każda subskrypcja albo rachunek to jeden wiersz. Wszystko wpisujesz wprost w wierszu - kliknij pole i zmień.</p>
+  <figure><img src="zrzuty/pc-wiersz.webp" alt="Wiersz Netflix z ponumerowanymi kolumnami" loading="lazy"></figure>
+  <ol class="punkty">
+    <li><b>Lp.</b> - przeciągnij numer, żeby przesunąć wiersz wyżej albo niżej.</li>
+    <li><b>×</b> - wykreśla pozycję (rozdział 7).</li>
+    <li><b>Nazwa i opis</b> - pod spodem kategoria i znak „na firmę”. Czerwony <b>!</b> przed nazwą znaczy: tej pozycji nie przedłużasz - anuluj ją przed odnowieniem.</li>
+    <li><b>Koszt</b> - zapłacona cena i waluta. Pod nią może być <b>cena następna</b> (koniec promocji, zapowiedziana podwyżka) z różnicą „▲ +6,00”. W dniu płatności cena następna sama staje się zapłaconą. Kwoty w obcej walucie mają obok „≈ zł”.</li>
+    <li><b>Zakup</b> - data zakupu i okres: <i>mies.</i>, <i>rok</i> albo <i>inny</i> (tydzień, kwartał, 2 lata…).</li>
+    <li><b>Do płatności</b> - lont: liczba dni do terminu i pasek, który się skraca - od zielonego przez żółty do czerwonego. Pod nim dzień płatności.</li>
+    <li><b>Link</b> - strona usługi (np. do anulowania). Strzałka obok otwiera ją w przeglądarce. Link, który nie wygląda na zwykłą stronę (np. wklejony z błędem), nie otworzy się.</li>
+    <li><b>⋯</b> - pozostałe ustawienia pozycji (rozdział 5).</li>
+  </ol>
+</section>
+
+<section id="dopisz">
+  <h2>4. Dopisywanie pozycji</h2>
+  <p>Kliknij <b>„+ dopisz nową pozycję…”</b> pod tabelą. Pojawi się pusty, podświetlony wiersz:</p>
+  <figure><img src="zrzuty/pc-dopisz.webp" alt="Nowy, pusty wiersz z polami do wpisania" loading="lazy"></figure>
+  <ol class="punkty">
+    <li><b>Nazwa i krótki opis</b> - np. „Netflix”, „plan Standard”.</li>
+    <li><b>Koszt i waluta</b> - kwota z jednej płatności. „+ następna cena”, gdy wiesz, że od kolejnej płatności będzie inna.</li>
+    <li><b>Data zakupu i okres</b> - od nich liczy się termin następnej płatności. Kalendarzyk obok daty otwiera wybór dnia.</li>
+    <li><b>⋯</b> - czy płatność pobiera się sama, czy płacisz sam, i czy ją przedłużać.</li>
+  </ol>
+  <p>Każde pole jest nieobowiązkowe - pozycję bez daty też można zapisać, wtedy nie ma lontu. Kwotę, której nie da się odczytać (np. „20,5,1”), aplikacja zaznacza na czerwono, a po wyjściu z pola pokazuje ostatnią zapisaną.</p>
+</section>
+
+<section id="wiecej">
+  <h2>5. Ustawienia pozycji „⋯”</h2>
+  <p>„⋯” na końcu wiersza otwiera karteczkę z ustawieniami tej pozycji. Rzadziej zmieniane grupy są zwinięte - kliknij nazwę, żeby rozwinąć.</p>
+  <figure class="waski"><img src="zrzuty/pc-wiecej.webp" alt="Karteczka ustawień pozycji Spotify z rozwiniętymi grupami" loading="lazy"></figure>
+  <ol class="punkty">
+    <li><b>Płatność</b> - <i>pobiera się sama</i> (karta, subskrypcja) albo <i>płacę sam</i> (przelew, rachunek - rozdział 6).</li>
+    <li><b>Przedłużać</b> - „nie” dla okresów próbnych i usług do anulowania: pozycja dostaje <b>!</b>, trafia do listy „Do wycofania” i do powiadomień, a na paragonie jest poza sumą.</li>
+    <li><b>Na firmę</b> - przy terminie przypomnienie „pobierz fakturę”, na paragonie osobna suma firmowa.</li>
+    <li><b>Kategoria</b> - rozrywka, praca, AI, dom i rachunki, nauka, zdrowie i sport, inne. Od niej zależą zakładki nad tabelą i sumy na paragonie.</li>
+    <li><b>Okres</b> - tydzień, 4 tygodnie, miesiąc, kwartał, pół roku, rok, 2 lata albo dowolne „co N tygodni / miesięcy”.</li>
+    <li><b>Dzielę koszt</b> - na ile osób (Ty też) i kto oddaje. W sumach liczy się tylko Twoja część, a przy terminie przypomnienie „odbierz po … zł” z imionami i polem „oddane”.</li>
+    <li><b>Pauza</b> - „wstrzymana do” (dzień wznowienia): bez alarmów i poza sumami do tego dnia. Historia zapłaconych okresów zostaje.</li>
+  </ol>
+</section>
+
+<section id="reczna">
+  <h2>6. Płatność ręczna</h2>
+  <p>Przy pozycjach „płacę sam” (np. prąd, internet, czynsz) aplikacja pilnuje, żebyś zapłacił na czas. Tydzień przed terminem wiersz dostaje czerwony margines.</p>
+  <figure><img src="zrzuty/pc-reczna.webp" alt="Dwa wiersze z płatnością ręczną: jeden po terminie, drugi za 2 dni" loading="lazy"></figure>
+  <ol class="punkty">
+    <li><b>Lont</b> - dni do terminu, a po nim „po terminie”.</li>
+    <li><b>Zapłać do</b> i pole <b>☐ zapłacone</b>. Gdy termin wypada w sobotę, niedzielę albo święto, „zapłać do” cofa się na ostatni dzień roboczy. Po zaznaczeniu „zapłacone” termin przechodzi na następny okres, a wpłata trafia do historii. Przy „kwota za każdym razem inna” aplikacja pyta, ile zapłaciłeś.</li>
+  </ol>
+</section>
+
+<section id="wykreslanie">
+  <h2>7. Wykreślanie i „Anulowane”</h2>
+  <p>„×” przy wierszu pyta, czy wykreślić pozycję. Wykreślona trafia do <b>„Anulowanych”</b> pod tabelą - stamtąd można ją przywrócić albo usunąć na zawsze.</p>
+  <div class="para">
+    <figure><img src="zrzuty/pc-wykresl.webp" alt="Okno z pytaniem: Wykreślić Netflix?" loading="lazy"></figure>
+    <figure><img src="zrzuty/pc-anulowane.webp" alt="Rozwinięta lista Anulowane z kwotą oszczędności na rok" loading="lazy"></figure>
+  </div>
+  <p>Przy „Anulowanych” widać, ile oszczędzasz w skali roku dzięki temu, że z nich zrezygnowałeś.</p>
+</section>
+
+<section id="terminy">
+  <h2>8. Najbliższe terminy</h2>
+  <figure><img src="zrzuty/pc-terminy.webp" alt="Miarka najbliższych 3 miesięcy i listy płatności rocznych oraz pozycji do wycofania" loading="lazy"></figure>
+  <ol class="punkty">
+    <li><b>Najbliższe 3 miesiące</b> - miarka z płatnościami rozłożonymi na osi czasu. Romby to pozycje do wycofania.</li>
+    <li><b>Roczne - zbliża się płatność</b> - roczne opłaty w ciągu 3 miesięcy, żeby duża kwota nie zaskoczyła.</li>
+    <li><b>Do wycofania przed odnowieniem</b> - pozycje „Przedłużać: nie” z dniem, do którego trzeba je anulować. Gdy termin minął, aplikacja prosi o sprawdzenie, czy anulowanie się udało.</li>
+  </ol>
+</section>
+
+<section id="paragon">
+  <h2>9. Paragon</h2>
+  <p>Paragon liczy wszystko w złotych - waluty po kursie NBP z prowizją banku. Pozycje do wycofania (<b>!</b>) i wstrzymane (<b>‖</b>) są na liście, ale poza sumą.</p>
+  <figure class="waski"><img src="zrzuty/pc-paragon.webp" alt="Paragon z sumami miesięcznymi, rocznymi, budżetem, sumą firmową i kategoriami" loading="lazy"></figure>
+  <ol class="punkty">
+    <li><b>Razem / miesiąc</b> (miesięczne + roczne ÷ 12), <b>razem / rok</b> i <b>prognoza</b> - ile wyjdzie po wejściu cen następnych.</li>
+    <li><b>Budżet</b> - własny limit na miesiąc (ustawienia → Zeszyt). Gdy suma albo prognoza go przekracza - „ponad budżet o …”.</li>
+    <li><b>Na firmę</b> - osobno koszty firmowe i prywatne.</li>
+    <li><b>Oszczędzasz / rok</b> - suma z „Anulowanych”. Niżej kategorie na miesiąc i użyte kursy NBP.</li>
+  </ol>
+</section>
+
+<section id="historia">
+  <h2>10. Historia wydatków</h2>
+  <p>Pod paragonem: ile wydałeś w każdym miesiącu roku (strzałki zmieniają rok), średnia na miesiąc, „Na co najwięcej” i <b>zmiany cen</b> - np. podwyżka Netflixa z datą i procentem. Historia zostaje także po pauzie albo zmianie na „nie przedłużaj” - zmienia się tylko przyszłość.</p>
+  <figure><img src="zrzuty/pc-historia.webp" alt="Wykres wydatków w kolejnych miesiącach, lista Na co najwięcej i Zmiany cen" loading="lazy"></figure>
+</section>
+
+<section id="ustawienia">
+  <h2>11. Ustawienia aplikacji</h2>
+  <p>Zębatka u góry otwiera okno z czterema zakładkami. Na dole okna: język (polski / angielski), „o aplikacji” z licencjami i „Pokaż pierwsze kroki”.</p>
+  <h3>Zeszyt</h3>
+  <p>Co widać w zeszycie. Każdą funkcję można wyłączyć - znika z ekranu, a to, co wpisane, zostaje w pliku i wraca po włączeniu. Tu też waluty do wyboru przy kwocie, budżet miesięczny i „Krzywe elementy” (pieczątki, paragon i numery w kółkach lekko przekrzywione, domyślnie wyłączone).</p>
+  <figure><img src="zrzuty/pc-ust-zeszyt.webp" alt="Zakładka Zeszyt: przełączniki funkcji i wybór walut" loading="lazy"></figure>
+  <h3>Powiadomienia</h3>
+  <p><b>Wycofaj</b> (przed odnowieniem pozycji „nie przedłużaj”), <b>Zapłać</b> (przed terminem płatności ręcznej), <b>Przygotuj pieniądze</b> (tydzień przed większą płatnością, próg w złotych) i <b>Podwyżka</b>. Na komputerze także „przy zamkniętej aplikacji” - raz dziennie przez Harmonogram zadań Windows. Na telefonie powiadomienia przychodzą także przy zamkniętej aplikacji.</p>
+  <figure><img src="zrzuty/pc-ust-powiadomienia.webp" alt="Zakładka Powiadomienia z przełącznikami rodzajów powiadomień" loading="lazy"></figure>
+  <h3>Synchronizacja</h3>
+  <p>Gdzie są dane: <b>Zapisuj lokalnie</b> (plik na komputerze z 5 kopiami zapasowymi) i <b>Synchronizuj z Google Dyskiem</b> - rozdział 14. „Usuń z komputera” kasuje dane z tego urządzenia.</p>
+  <figure><img src="zrzuty/pc-ust-synchronizacja.webp" alt="Zakładka Synchronizacja z przełącznikami zapisu lokalnego i Google Dysku" loading="lazy"></figure>
+  <h3>Kopia i import</h3>
+  <p><b>Zapisz kopię jako…</b> (cały zeszyt w jednym pliku, np. na pendrive), <b>Wczytaj kopię…</b> (obecne dane najpierw trafiają do kopii zapasowej), <b>Eksport do Excela (CSV)</b> i <b>Import z wyciągu bankowego</b> (rozdział 12).</p>
+  <figure><img src="zrzuty/pc-ust-kopia.webp" alt="Zakładka Kopia i import z czterema przyciskami" loading="lazy"></figure>
+</section>
+
+<section id="wyciag">
+  <h2>12. Import z wyciągu bankowego</h2>
+  <p>Ustawienia → Kopia i import → <b>Import z wyciągu bankowego…</b> i wybierz plik CSV z historii operacji w bankowości internetowej (mBank, PKO, ING, Pekao, Revolut i inne). Aplikacja znajduje płatności, które powtarzają się co miesiąc u tego samego odbiorcy. Zaznacz, które dopisać - data ostatniej płatności staje się datą zakupu. Plik jest liczony tylko na tym urządzeniu, nigdzie nie wychodzi.</p>
+  <figure><img src="zrzuty/pc-wyciag.webp" alt="Okno Z wyciągu bankowego z listą znalezionych powtarzających się płatności" loading="lazy"></figure>
+  <p>Uwagi pod pozycjami podpowiadają: „chyba już jest w zeszycie”, „dawno nie było płatności - może już anulowana”, „kwota za każdym razem inna”.</p>
+</section>
+
+<section id="telefon">
+  <h2>13. Telefon</h2>
+  <p>Na telefonie zamiast szerokiej tabeli są karty i zakładki na dole ekranu. Obliczenia są te same co na komputerze.</p>
+  <div class="para">
+    <figure class="waski"><img src="zrzuty/tel-lista.webp" alt="Telefon: lista kart z sumami u góry i zakładkami na dole" loading="lazy"><figcaption>Lista</figcaption></figure>
+    <figure class="waski"><img src="zrzuty/tel-edycja.webp" alt="Telefon: arkusz edycji pozycji Netflix" loading="lazy"><figcaption>Edycja pozycji</figcaption></figure>
+  </div>
+  <ol class="punkty">
+    <li><b>Koszt na miesiąc i na rok</b> - jak „razem” na paragonie.</li>
+    <li><b>Zębatka</b> - ustawienia, te same zakładki co na komputerze.</li>
+    <li><b>Kolejność</b> - według terminu albo własna. <b>↑↓ Ułóż</b> przesuwa pozycje strzałkami; przy synchronizacji ta sama kolejność jest na komputerze.</li>
+    <li><b>Filtr</b> - kategorie i „tylko: płacę sam / do wycofania / na firmę”.</li>
+    <li><b>Karta pozycji</b> - nazwa, koszt, lont i termin, przy płatności ręcznej „zapłać do” i „zapłacone”. Dotknięcie otwiera <b>edycję</b> od dołu ekranu: wszystkie pola z wiersza i z „⋯” w jednym miejscu, na dole „Zapisz” albo „Anuluj”.</li>
+    <li><b>Zakładki</b> - Lista, Terminy, Paragon i „+ Dodaj”.</li>
+  </ol>
+  <p>Przycisk „Wstecz” Androida cofa ostatni ruch: zamyka dymek, okno albo edycję, kończy „Ułóż”, wraca do listy - dopiero potem chowa aplikację.</p>
+  <div class="para para--trzy">
+    <figure class="waski"><img src="zrzuty/tel-terminy.webp" alt="Telefon: zakładka Terminy z miarką i listami" loading="lazy"><figcaption>Terminy</figcaption></figure>
+    <figure class="waski"><img src="zrzuty/tel-paragon.webp" alt="Telefon: zakładka Paragon" loading="lazy"><figcaption>Paragon</figcaption></figure>
+    <figure class="waski"><img src="zrzuty/tel-uloz.webp" alt="Telefon: tryb Ułóż ze strzałkami przy pozycjach" loading="lazy"><figcaption>Ułóż</figcaption></figure>
+  </div>
+</section>
+
+<section id="dane">
+  <h2>14. Gdzie są dane i Google Dysk</h2>
+  <ul class="lista">
+    <li><b>Na urządzeniu</b> - plik danych na komputerze albo w telefonie, zapisywany przez plik tymczasowy (zanik prądu nie zostawia uciętego pliku), z 5 kopiami zapasowymi. Gdy pliku nie da się odczytać, aplikacja niczego nie nadpisuje i podpowiada, jak wczytać kopię.</li>
+    <li><b>Google Dysk</b> - włącz „Synchronizuj z Google Dyskiem”, otwórz google.com/device i wpisz kod pokazany w aplikacji. Na Twoim Dysku powstaje jeden plik „mikroplatnosci.json” - aplikacja widzi tylko pliki, które sama utworzyła, nie Twoje dokumenty ani zdjęcia. Zmiany z telefonu i komputera są łączone pozycja po pozycji.</li>
+    <li><b>Wspólne dane dla kilku osób</b> (np. domownicy) - każda osoba włącza synchronizację u siebie, a kod wpisuje właściciel danych swoim kontem Google. Wszyscy widzą te same pozycje, a druga osoba nie poznaje hasła właściciela.</li>
+    <li><b>Bez śledzenia</b> - autor aplikacji nie dostaje żadnych Twoich danych, bez reklam. Do sieci aplikacja łączy się tylko po kursy NBP i - gdy włączysz - z Twoim Google Dyskiem.</li>
+  </ul>
+  <p class="uwaga">W wersji demonstracyjnej synchronizacja z Google Dyskiem nie działa - w prawdziwej aplikacji tak.</p>
+</section>
+</main>
+
+<footer class="stopka">
+  <p>Mikropłatności · <a href="https://github.com/Bakeron/mikroplatnosci">kod na GitHubie</a> (licencja MIT) · <a href="/">wersja demonstracyjna</a></p>
+</footer>
+</body>
+</html>

@@ -2,6 +2,7 @@
 // output directory "demo/dist"). No dependencies - plain Node.
 //   /          computer version (pc/resources) with the Neutralino stand-in (demo/atrapa.js)
 //   /telefon/  phone version (mobile/src + shared files from pc/resources/js) without Capacitor
+//   /instrukcja/  user guide with screenshots (instrukcja/, screenshots: node instrukcja/zrodla/zrzuty.mjs)
 // Nothing secret goes in: no Google project keys, invented data only (demo/dane.js).
 
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -82,6 +83,9 @@ html = zamien(html, '<script src="js/capacitor.js"></script>', '', 'mobile/src/i
 html = zamien(html, '<script src="js/neutralino-telefon.js"></script>', SKRYPTY, 'mobile/src/index.html');
 html = zamien(html, '<html lang="pl" data-motyw="ciemny">', '<html lang="pl" data-motyw="jasny" data-demo="telefon">', 'mobile/src/index.html');
 writeFileSync(join(telefon, 'index.html'), html);
+
+// User guide with screenshots (instrukcja/), without the screenshot script.
+kopiujFolder(join(korzen, 'instrukcja'), join(dist, 'instrukcja'), (nazwa) => nazwa === 'zrodla');
 
 // Cloudflare Pages headers: the demo opens in a window on the home page (and on its own in a new tab), not indexed.
 writeFileSync(join(dist, '_headers'), `/*

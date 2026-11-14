@@ -2,6 +2,8 @@
 
 Aplikacja do pilnowania subskrypcji i drobnych płatności: pokazuje, ile naprawdę kosztują miesięcznie (w złotówkach, po kursie NBP), kiedy wypada następne odnowienie i których usług nie przedłużać. Wersja na Windows i na Androida, na tych samych danych. Bez konta i bez własnego serwera.
 
+**[Wypróbuj w przeglądarce](https://szymonbakonis-mikro.pages.dev)** (wersja demonstracyjna z wymyślonymi danymi, komputer i telefon) · **[Instrukcja ze zrzutami](https://szymonbakonis-mikro.pages.dev/instrukcja/)**
+
 ![Okno aplikacji - motyw „noc”](Podgląd/01-noc-pelny-widok.png)
 
 > **In English:** a personal subscription tracker for Windows (Neutralinojs, ~2.5 MB) and Android (Capacitor) sharing one data format and one set of calculation modules. Data stays on the device; optional sync goes through a single file in the user's Google Drive (`drive.file` - the app sees only files it created; OAuth device flow). Built with Claude Code as a pair programmer: the author set the requirements and made the decisions, Claude wrote the code, tests and audits. Code and docs are in Polish.

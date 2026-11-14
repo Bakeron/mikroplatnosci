@@ -1,0 +1,107 @@
+/* User guide - the same notebook look as the app: lined paper, red margin, navy ink, numbers in red circles
+   like the markers on the screenshots. Light and dark (system setting). */
+:root {
+  --papier: #f4efe3;
+  --linia: #d8ceb6;
+  --margines: #d0574a;
+  --atrament: #1f2b4d;
+  --olowek: #5d5747;
+  --znacznik: #c0392b;
+  --cien: rgb(60 40 10 / 0.18);
+  --f-tytul: Georgia, Gelasio, "Times New Roman", serif;
+  --f-tekst: "Segoe UI", "Barlow Semi Condensed", system-ui, sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papier: #191b20;
+    --linia: #2f333c;
+    --margines: #93423a;
+    --atrament: #ebe5d5;
+    --olowek: #a9a28c;
+    --cien: rgb(0 0 0 / 0.5);
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  padding: 0 16px 48px;
+  background: var(--papier);
+  color: var(--atrament);
+  font: 17px/1.6 var(--f-tekst);
+}
+/* red margin line on the left, like the app's notebook */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 auto 0 max(8px, calc(50% - 470px));
+  width: 2px;
+  background: var(--margines);
+  opacity: 0.6;
+  pointer-events: none;
+}
+.glowa, .spis, main, .stopka { max-width: 880px; margin-inline: auto; padding-left: 28px; }
+@media (max-width: 600px) {
+  body::before { left: 8px; }
+  .glowa, .spis, main, .stopka { padding-left: 14px; }
+}
+
+h1, h2, h3 { font-family: var(--f-tytul); font-style: italic; line-height: 1.2; }
+h1 { margin: 0; font-size: clamp(36px, 7vw, 54px); }
+h2 { margin: 56px 0 12px; padding-bottom: 6px; border-bottom: 3px double var(--atrament); font-size: 28px; }
+h3 { margin: 28px 0 6px; font-size: 21px; }
+a { color: var(--atrament); text-decoration-color: var(--margines); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+a:focus-visible { outline: 2px solid var(--atrament); outline-offset: 2px; }
+b { font-weight: 600; }
+
+.glowa { padding-top: 32px; }
+.glowa__nad { margin: 0; color: var(--olowek); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+.glowa__opis { max-width: 680px; }
+.glowa__demo { font-size: 18px; }
+.glowa__demo a { font-weight: 600; }
+.glowa__uwaga, .uwaga { color: var(--olowek); font-size: 15px; font-style: italic; }
+
+.spis { margin-top: 24px; }
+.spis h2 { margin-top: 24px; font-size: 22px; border-bottom-width: 1px; border-bottom-style: solid; border-color: var(--linia); }
+.spis ol { columns: 2 240px; margin: 0; padding-left: 22px; }
+.spis li { break-inside: avoid; }
+
+figure { margin: 16px 0; }
+figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--linia);
+  box-shadow: 0 6px 18px var(--cien);
+}
+figure.waski img { max-width: min(100%, 400px); }
+figcaption { margin-top: 6px; color: var(--olowek); font-size: 14px; font-style: italic; }
+.para { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.para > figure { flex: 1 1 260px; margin: 8px 0; }
+.para > figure.waski { flex: 0 1 280px; }
+
+/* numbered list - the numbers look like the red markers on the screenshots */
+.punkty { margin: 12px 0; padding: 0; list-style: none; counter-reset: punkt; }
+.punkty li { position: relative; margin: 10px 0; padding-left: 40px; counter-increment: punkt; }
+.punkty li::before {
+  content: counter(punkt);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--znacznik);
+  color: #fff;
+  font: 700 15px/26px Arial, sans-serif;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--papier);
+}
+.lista { padding-left: 22px; }
+.lista li { margin: 8px 0; }
+
+.stopka { margin-top: 56px; padding-top: 12px; border-top: 1px solid var(--linia); color: var(--olowek); font-size: 15px; }

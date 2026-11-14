@@ -36,8 +36,13 @@
   // The start of the demo produces several at the same moment - one by one, at most 2 visible, so the table stays readable.
   let stos = null;
   let kolejka = Promise.resolve();
+  // "Pierwsze kroki" bubbles first - notifications wait until they are closed.
+  const czekajNaKoniecKrokow = () => new Promise((r) => {
+    const sprawdz = () => (document.querySelector('.kroki-dymek') ? setTimeout(sprawdz, 500) : r());
+    sprawdz();
+  });
   const powiadomienie = (tytul, tresc) => {
-    kolejka = kolejka.then(() => new Promise((r) => setTimeout(r, 1500))).then(() => pokazPowiadomienie(tytul, tresc));
+    kolejka = kolejka.then(() => new Promise((r) => setTimeout(r, 1500))).then(czekajNaKoniecKrokow).then(() => pokazPowiadomienie(tytul, tresc));
   };
   function pokazPowiadomienie(tytul, tresc) {
     if (!stos) {
@@ -145,10 +150,14 @@
         : (ang() ? 'Demo version - invented data; changes disappear when you refresh the page.'
           : 'Wersja demonstracyjna - dane są wymyślone, a zmiany znikają po odświeżeniu strony.');
       inna.textContent = TELEFON ? (ang() ? 'computer version' : 'wersja na komputer') : (ang() ? 'phone version' : 'wersja na telefon');
+      instrukcja.textContent = ang() ? 'user guide (Polish)' : 'instrukcja';
     };
     inna.href = TELEFON ? '/?pc' : '/telefon/';
+    const instrukcja = document.createElement('a');
+    instrukcja.className = 'demo-pasek__link';
+    instrukcja.href = '/instrukcja/';
     odswiez();
-    el.append(tekst, ' ', inna);
+    el.append(tekst, ' ', inna, ' ', instrukcja);
     document.body.prepend(el);
     return odswiez;
   }

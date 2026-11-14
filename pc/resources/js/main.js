@@ -24,7 +24,8 @@ import { pustyFiltr, pasuje, poprawFiltr, renderujFiltr } from './filtr.js';
 import { doCsv } from './eksport.js';
 import { dekoduj, odczytajWyciag, znajdzPowtarzajace } from './wyciag.js';
 import { pokazWyciag } from './wyciagOkno.js';
-import { pokazPlynnie, trescObokKrzyzyka, wysunZGory, zamienPlynnie } from './dom.js';
+import { pokazPlynnie, trescObokKrzyzyka, zamienPlynnie } from './dom.js';
+import { pokazPierwszeKroki } from './pierwszeKroki.js';
 import { t, tn, ustawJezyk, jezyk, przetlumaczStrone, dataDluga, godzina, liczba, liczbaKrotka } from './teksty.js';
 
 const NAZWA_PLIKU = 'mikroplatnosci.json';
@@ -61,7 +62,7 @@ const stan = {
   powiadomienia: { ...DOMYSLNE_RODZAJE }, // rodzaje powiadomień z „Ustawień”
   wTle: false, // B10: powiadomienia przy zamkniętej aplikacji (zadanie w Harmonogramie zadań)
   jezyk: '', // F27: wybrany w „Ustawieniach”; pusty - język systemu
-  wprowadzenie: false, // F25: notatki „pierwsze kroki” nad tabelą (do zmazania)
+  wprowadzenie: false, // F25: dymki „pierwsze kroki” do obejrzenia (po „Pomiń” / „Gotowe” - false)
   budzet: 0, // D19: budżet miesięczny w zł (0 = bez limitu)
   filtr: pustyFiltr(), // D17: filtr nad tabelą (niezapamiętywany)
 };
@@ -674,19 +675,25 @@ function pytajOUsuniecie(wpis) {
   $('okno-usun').showModal();
 }
 
-// F25: pierwsze uruchomienie - notatki „pierwsze kroki” nad tabelą i przykładowy wiersz do wykreślenia.
+// F25: pierwsze uruchomienie - dymki „pierwsze kroki” (pierwszeKroki.js) i przykładowy wiersz do wykreślenia.
 const dodajPrzykladowy = () => dodajPrzyklad(stan.wpisy, t('wykreśl mnie „×”, gdy dopiszesz własne'));
+// Pierwszy widoczny wiersz - dymki pokazują na nim okres, lont i „⋯”.
+const pierwszyWiersz = () => [...tbody.rows].find((tr) => !tr.hidden) ?? null;
 
 function pokazWprowadzenie() {
-  $('wprowadzenie').hidden = !stan.wprowadzenie;
+  if (!stan.wprowadzenie) return;
+  pokazPierwszeKroki([
+    { cel: () => $('dodaj'), tytul: t('Dopisz pozycję'), tresc: t('Nazwa, koszt i data zakupu - tu dopisujesz każdą subskrypcję i rachunek.') },
+    { cel: () => pierwszyWiersz()?.cells[4] ?? null, tytul: t('Ustaw okres'), tresc: t('Przy dacie zakupu wybierz „mies.”, „rok” albo „inny” - od tego liczy się termin płatności.') },
+    { cel: () => pierwszyWiersz()?.cells[5] ?? null, tytul: t('Lont do płatności'), tresc: t('Liczba dni do terminu i pasek, który się skraca - od zielonego do czerwonego, im bliżej płatności.') },
+    { cel: () => pierwszyWiersz()?.cells[7] ?? null, tytul: t('Więcej przy pozycji'), tresc: t('„⋯” - czy płatność pobiera się sama, czy płacisz sam, czy ją przedłużać, podział kosztu i pauza.') },
+    { cel: () => $('podsumowanie').querySelector('.paragon__pozycja--suma') ?? $('podsumowanie'), tytul: t('Paragon'), tresc: t('Ile płacisz miesięcznie i rocznie - wszystko w złotych. Znaki „?” wyjaśniają kolory, a zębatka u góry otwiera ustawienia.') },
+  ], () => {
+    stan.wprowadzenie = false;
+    zapiszMojeUstawienia();
+    $('dodaj').focus({ preventScroll: true });
+  });
 }
-
-$('wprowadzenie-zmaz').addEventListener('click', () => {
-  stan.wprowadzenie = false;
-  pokazPlynnie($('wprowadzenie'), false, { czas: 240, przesun: -12 }); // jak wysunZGory, tylko w drugą stronę
-  zapiszMojeUstawienia();
-  $('dodaj').focus();
-});
 
 // Powiadomienia Windows o pozycjach do wycofania - tylko gdy aplikacja jest otwarta (przy starcie,
 // po zmianie i co 30 minut). Każde raz; zaległe progi zastępuje ostatni.
@@ -838,9 +845,8 @@ const otworzUstawienia = () => pokazUstawienia(
       zapiszMojeUstawienia();
       odswiezDodatki();
     },
-    // F25: notatki „pierwsze kroki” jeszcze raz (przykładowy wiersz tylko w pustym zeszycie).
+    // F25: dymki „pierwsze kroki” jeszcze raz (przykładowy wiersz tylko w pustym zeszycie).
     naWprowadzenie() {
-      const bylySchowane = $('wprowadzenie').hidden;
       stan.wprowadzenie = true;
       zapiszMojeUstawienia();
       if (!widoczne().length && !stan.zablokowany && !$('dodaj').disabled) {
@@ -849,7 +855,6 @@ const otworzUstawienia = () => pokazUstawienia(
         akcjeWiersza.onZmiana();
       }
       pokazWprowadzenie();
-      if (bylySchowane) wysunZGory($('wprowadzenie')); // po zgaśnięciu okna ustawień - płynnie z góry
     },
     naPowiadomienia(p) {
       stan.powiadomienia = p;
@@ -972,7 +977,7 @@ function przyklejNaglowekTabeli() {
 }
 if (przewijanieWCss) {
   const obserwator = new ResizeObserver(przyklejNaglowekTabeli);
-  for (const el of [kartka, ramkaTabeli, $('wprowadzenie'), $('filtr')]) obserwator.observe(el);
+  for (const el of [kartka, ramkaTabeli, $('filtr')]) obserwator.observe(el);
 } else kartka.addEventListener('scroll', przyklejNaglowekTabeli, { passive: true });
 
 let timerMiarki = null;
@@ -1159,10 +1164,10 @@ async function start() {
     ustawWaluty(walutyNaStart(ustawienia.dawneWalutyObce, stan.wpisy));
     zapiszMojeUstawienia();
   }
-  pokazWprowadzenie();
   const zmienioneCeny = przeniesCeny(); // przed pokazaniem - tabela od razu z aktualną ceną
   renderujTabele();
   odswiezDodatki();
+  pokazWprowadzenie(); // dymki pokazują na wiersze i paragon - po ich narysowaniu
   // Kopia zapasowa po pokazaniu danych, ale zawsze przed pierwszym zapisem (zapisy czekają w kolejce za nią).
   if (stan.wczytano && kopia) stan.zapis = kopia().catch(console.error);
   if (zmienioneCeny || stan.niezapisane) zaplanujZapis(); // po kopii zapasowej - zapis czeka za nią w kolejce

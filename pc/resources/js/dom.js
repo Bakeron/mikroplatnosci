@@ -25,19 +25,6 @@ export function trescObokKrzyzyka(okno, x) {
   okno.replaceChildren(x, tresc);
 }
 
-// Element (np. notatki „pierwsze kroki”) pojawia się płynnie, wysuwając się z góry: rośnie od zera, więc
-// treść pod nim zjeżdża w dół, a nie skacze. Przycięty tylko od dołu - „×” wbity w róg zostaje widoczny.
-// Przy „ogranicz ruch” w systemie - od razu.
-export function wysunZGory(el) {
-  if (el.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const s = getComputedStyle(el);
-  const klip = 'inset(-24px -24px 0 -24px)';
-  el.animate([
-    { height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px', borderTopWidth: '0px', borderBottomWidth: '0px', opacity: 0, translate: '0 -12px', clipPath: klip },
-    { height: s.height, paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, marginTop: s.marginTop, marginBottom: s.marginBottom, borderTopWidth: s.borderTopWidth, borderBottomWidth: s.borderBottomWidth, opacity: 1, translate: '0 0', clipPath: klip },
-  ], { duration: 280, easing: 'cubic-bezier(0.2, 0, 0.2, 1)' });
-}
-
 const bezRuchu = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const WYMIARY = ['height', 'paddingTop', 'paddingBottom', 'marginTop', 'marginBottom', 'borderTopWidth', 'borderBottomWidth'];
 const KLIP = 'inset(-24px -24px 0 -24px)'; // przycięte tylko od dołu - „×” wbity w róg i obwódki fokusu zostają

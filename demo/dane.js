@@ -68,7 +68,7 @@
     pliki: () => ({
       'Mikroplatnosci/mikroplatnosci.json': JSON.stringify({ wersja: 3, zapisano: new Date().toISOString(), sort: { klucz: 'termin', kierunek: 1 }, motyw: 'jasny', wpisy: WPISY, usuniete: [] }),
       'Mikroplatnosci/ustawienia.json': JSON.stringify({
-        lokalnie: true, motyw: 'jasny', prowizja: 2, budzet: 1200, jezyk: 'pl',
+        lokalnie: true, motyw: 'jasny', prowizja: 2, budzet: 1200, jezyk: 'pl', wprowadzenie: true, // dymki „pierwsze kroki” od razu
         funkcje: Object.fromEntries(WSZYSTKIE.map((k) => [k, true])),
         powiadomienia: { wycofaj: true, zaplac: true, drogie: true, podwyzka: true, progDrogich: 100 },
       }),

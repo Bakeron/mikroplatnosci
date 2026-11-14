@@ -1201,7 +1201,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
    (telefon nie ma najechania kursorem - tam bez nich). Karteczki, dymki „?”, okna i rozwijane listy - niżej, wszędzie. */
 @media (hover: hover) and (pointer: fine) {
   .nastepna-dodaj, .wiecej, .karteczka__nazwa, .historia__strzalka, .slupek, .okno__x, .pomoc,
-  .wprowadzenie__zmaz, .anulowane__tytul, .ustawienia__nazwa, .plik__akcja, .motyw span, .okres-wybor__opcja {
+  .anulowane__tytul, .ustawienia__nazwa, .plik__akcja, .motyw span, .okres-wybor__opcja {
     transition: color 0.12s, background-color 0.12s, border-color 0.12s, opacity 0.12s, text-decoration-color 0.12s;
   }
   /* najechanie na „×” wykreślania - przekreślenie wiersza pojawia się płynnie (link ma własne kropkowane podkreślenie) */
@@ -1292,41 +1292,54 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .pomoc--paragon:hover, .pomoc--paragon:focus-visible { color: #1d1d1d; }
 .paragon-cien { position: relative; }
 
-/* --- F25: pierwsze kroki - notatki ołówkiem na pierwszej stronie zeszytu, numery w kółkach z ręki,
-   „×” w prawym górnym rogu chowa notatki. --- */
-.wprowadzenie {
-  position: relative;
-  max-width: 780px;
-  margin: 0 0 18px 8px;
-  padding: 12px 18px 10px;
-  border: 1.5px dashed var(--olowek);
-  border-radius: 4px 10px 6px 12px;
-  color: var(--olowek);
-  font: italic 15px/1.5 var(--f-tytul);
+/* --- F25: pierwsze kroki - dymki przy pierwszym uruchomieniu (pierwszeKroki.js): karteczka z zeszytu
+   z „ogonkiem” wskazującym miejsce i obwódka ołówkiem wokół niego, jakby ktoś zakreślił je w zeszycie.
+   Bez przyciemnienia - aplikacja pod spodem dalej działa. --- */
+.kroki-obwodka {
+  position: fixed;
+  z-index: 900;
+  border: 2px solid var(--margines);
+  border-radius: 14px 22px 12px 26px / 22px 12px 26px 14px;
+  pointer-events: none;
+  transform: rotate(calc(-0.6deg * var(--krzywo)));
+  transition: opacity 0.16s ease-out;
 }
-.wprowadzenie__tytul { margin: 0 0 6px; padding-right: 40px; font: italic 600 16px var(--f-tytul); }
-.wprowadzenie__kroki { margin: 0; padding: 0; list-style: none; counter-reset: krok; }
-.wprowadzenie__kroki li { position: relative; margin: 6px 0; padding-left: 34px; counter-increment: krok; }
-.wprowadzenie__kroki li::before {
-  content: counter(krok);
+.kroki-dymek {
+  position: fixed;
+  z-index: 901;
+  width: min(330px, calc(100vw - 24px));
+  padding: 12px 16px 10px;
+  border: 1px solid var(--linia);
+  border-top: 3px solid var(--margines);
+  background: var(--papier);
+  color: var(--atrament);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 0.3);
+  transform: rotate(calc(0.8deg * var(--krzywo)));
+  transition: opacity 0.16s ease-out;
+  animation: kroki-wejscie 0.2s ease-out;
+}
+.kroki-obwodka--zgas, .kroki-dymek--zgas { opacity: 0; }
+@keyframes kroki-wejscie { from { opacity: 0; } }
+/* „ogonek” - mały trójkąt z papieru w stronę zakreślonego miejsca */
+.kroki-dymek::before {
+  content: "";
   position: absolute;
-  left: 2px;
-  top: 0;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1.5px solid currentColor;
-  border-radius: 55% 45% 50% 50% / 50% 55% 45% 50%;
-  font: 700 13px/1 var(--f-liczby);
-  font-style: normal;
-  transform: rotate(calc(-8deg * var(--krzywo)));
+  left: calc(var(--ogonek, 50%) - 8px);
+  top: -11px;
+  border: 8px solid transparent;
+  border-top: 0;
+  border-bottom: 8px solid var(--margines);
 }
-.wprowadzenie__kroki b { color: var(--atrament); font-style: normal; font-weight: 600; }
-.wprowadzenie__przyklad { margin: 8px 0 4px; }
-/* „×” taki sam jak w oknach (.okno__x), w prawym górnym rogu notatki - w środku, bo nad notatką
-   koło przycinał brzeg przewijanej kartki */
-.wprowadzenie > .okno__x { top: 6px; right: 6px; translate: none; }
+.kroki-dymek--nad { border-top-width: 1px; border-bottom: 3px solid var(--margines); }
+.kroki-dymek--nad::before { top: auto; bottom: -11px; border: 8px solid transparent; border-bottom: 0; border-top: 8px solid var(--margines); }
+.kroki-dymek__licznik { margin: 0; color: var(--olowek); font: 600 10.5px var(--f-liczby); letter-spacing: 0.08em; text-transform: uppercase; }
+.kroki-dymek__tytul { margin: 4px 0 6px; font: italic 600 18px/1.25 var(--f-tytul); }
+.kroki-dymek__tresc { margin: 0; color: var(--olowek); font: 15px/1.45 var(--f-tekst); }
+.kroki-dymek__przyciski { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }
+.kroki-dymek__dalej { color: var(--atrament); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) {
+  .kroki-obwodka, .kroki-dymek { transition: none; animation: none; }
+}
 
 /* --- C15: Anulowane - przekreślone czerwonym atramentem pod tabelą, zwinięte. --- */
 .anulowane { margin: 10px 0 0 8px; color: var(--olowek); }

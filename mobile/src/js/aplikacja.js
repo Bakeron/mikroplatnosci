@@ -18,7 +18,8 @@ import { polaczSynchronizacje, OPOZNIENIE_WYSYLKI, poWymianie } from './synchron
 import { odczytajKod } from './kodQr.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
 import { rozplanuj, tytul, tresc, wczytajPamiec, zapiszPamiec, DOMYSLNE_RODZAJE } from './powiadomienia.js';
-import { element, pokazPlynnie, wysunZGory, zamienPlynnie } from './dom.js';
+import { element, pokazPlynnie, zamienPlynnie } from './dom.js';
+import { pokazPierwszeKroki, czyPierwszeKroki, zamknijPierwszeKroki } from './pierwszeKroki.js';
 import { podepnijPomocStrony, przetlumaczPomoc } from './pomoc.js';
 import { t, tn, tekst, ustawJezyk, jezyk, region, przetlumaczStrone, dataDluga, liczbaKrotka } from './teksty.js';
 import { czyPusty, pustyFiltr, pasuje, poprawFiltr, renderujFiltr } from './filtr.js';
@@ -48,7 +49,7 @@ const stan = {
   doWyslania: false, // zmiany jeszcze nie wysłane na Dysk (także po nieudanej wysyłce)
   powiadomienia: { ...DOMYSLNE_RODZAJE }, // rodzaje powiadomień z „Ustawień”
   jezyk: '', // F27: wybrany w „Ustawieniach”; pusty - język telefonu
-  wprowadzenie: false, // F25: notatki „pierwsze kroki” nad listą (do schowania)
+  wprowadzenie: false, // F25: dymki „pierwsze kroki” do obejrzenia (po „Pomiń” / „Gotowe” - false)
   budzet: 0, // D19: budżet miesięczny w zł (0 = bez limitu)
   filtr: pustyFiltr(), // D17: filtr nad listą (niezapamiętywany)
 };
@@ -920,15 +921,23 @@ function zmienJezyk(j) {
   otworzUstawienia(); // okno ustawień od razu w nowym języku
 }
 
-// F25: pierwsze kroki nad listą i przykładowa pozycja do wykreślenia.
+// F25: dymki „pierwsze kroki” (pierwszeKroki.js) i przykładowa pozycja do wykreślenia.
 const dodajPrzykladowy = () => dodajPrzyklad(stan.wpisy, t('wykreśl mnie, gdy dodasz własne'));
-const pokazWprowadzenie = () => { $('wprowadzenie').hidden = !stan.wprowadzenie; };
+const pierwszaKarta = () => $('karty').querySelector(':scope > li:not([hidden])');
 
-$('wprowadzenie-zmaz').addEventListener('click', () => {
-  stan.wprowadzenie = false;
-  pokazPlynnie($('wprowadzenie'), false, { czas: 240, przesun: -12 }); // jak wysunZGory, tylko w drugą stronę
-  zapiszMojeUstawienia();
-});
+function pokazWprowadzenie() {
+  if (!stan.wprowadzenie) return;
+  pokazPierwszeKroki([
+    { cel: () => $('dodaj'), tytul: t('Dodaj pozycję'), tresc: t('Nazwa, koszt i data zakupu - tu dodajesz każdą subskrypcję i rachunek.') },
+    { cel: () => pierwszaKarta()?.querySelector('.karta') ?? null, tytul: t('Dotknij pozycji'), tresc: t('Otworzy się edycja: okres (miesiąc, rok, inny), czy płatność pobiera się sama i czy ją przedłużać.') },
+    { cel: () => pierwszaKarta()?.querySelector('.karta__lont') ?? null, tytul: t('Lont do płatności'), tresc: t('Liczba dni do terminu i pasek, który się skraca - od zielonego do czerwonego, im bliżej płatności.') },
+    { cel: () => document.querySelector('.t-zakladki'), tytul: t('Terminy i paragon'), tresc: t('Na dole: najbliższe terminy na miarce i paragon - ile płacisz miesięcznie i rocznie, w złotych.') },
+    { cel: () => $('ustawienia'), tytul: t('Ustawienia'), tresc: t('Co widać na liście, powiadomienia, Google Dysk, kopia i import. Tu też włączysz pierwsze kroki jeszcze raz.') },
+  ], () => {
+    stan.wprowadzenie = false;
+    zapiszMojeUstawienia();
+  });
+}
 
 const otworzUstawienia = () => pokazUstawienia(
   { telefon: true, funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, jezyk: jezyk(), budzet: stan.budzet, waluty: pobierzWaluty(), uzyteWaluty: uzyteWaluty(stan.wpisy) },
@@ -941,18 +950,15 @@ const otworzUstawienia = () => pokazUstawienia(
       zapiszMojeUstawienia();
       renderuj();
     },
-    // Notatki jeszcze raz (przykładowa pozycja tylko przy pustej liście).
+    // Dymki jeszcze raz (przykładowa pozycja tylko przy pustej liście) - na liście, gdzie pokazują karty.
     naWprowadzenie() {
-      const bylySchowane = $('wprowadzenie').hidden;
       stan.wprowadzenie = true;
       zapiszMojeUstawienia();
-      pokazWprowadzenie();
       pokazZakladke('lista');
-      if (bylySchowane) wysunZGory($('wprowadzenie')); // po zgaśnięciu okna ustawień - płynnie z góry
       if (!stan.wpisy.some((w) => !w.anulowano) && !stan.zablokowany && !$('dodaj').disabled) {
         dodajPrzykladowy();
-        poZmianie().catch(console.error);
-      }
+        poZmianie().then(pokazWprowadzenie).catch(console.error);
+      } else pokazWprowadzenie();
     },
     naPowiadomienia(p) {
       stan.powiadomienia = p;
@@ -1247,7 +1253,7 @@ const ustawMotyw = () => { document.documentElement.dataset.motyw = ciemny.match
 ciemny.addEventListener('change', ustawMotyw);
 ustawMotyw();
 
-// Przycisk „Wstecz” Androida cofa ostatni ruch: chowa dymek „?”, zwija grupę w arkuszu, zamyka otwarte okno (ostatnie; arkusz edycji
+// Przycisk „Wstecz” Androida cofa ostatni ruch: kończy dymki „pierwsze kroki”, chowa dymek „?”, zwija grupę w arkuszu, zamyka otwarte okno (ostatnie; arkusz edycji
 // jak „Anuluj” - przy pytaniu „wykreślić?” to „Nie”), zwija „ile?”, kończy „Ułóż”, wraca do listy, zwija „Anulowane”, czyści filtr,
 // dopiero potem chowa aplikację.
 const App = window.Capacitor?.isNativePlatform() ? Capacitor.registerPlugin('App') : null;
@@ -1259,7 +1265,8 @@ App?.addListener('backButton', () => {
   const okno = otwarte.filter((d) => d.id !== 'okno-ustawienia').at(-1) ?? otwarte.at(-1);
   const grupa = okno?.id === 'arkusz' && okno.querySelector('details.t-grupa[open]');
   const ile = !okno && document.querySelector('.t-ile:not([hidden])');
-  if (dymek.matches(':popover-open')) dymek.hidePopover();
+  if (czyPierwszeKroki() && !otwarte.length) zamknijPierwszeKroki(); // dymki „pierwsze kroki” - jak „Pomiń”
+  else if (dymek.matches(':popover-open')) dymek.hidePopover();
   else if (grupa) grupa.open = false; // rozwinięta „Dzielę koszt” / „Pauza” - zwinięta, arkusz zostaje
   else if (okno?.id === 'arkusz') $('arkusz-anuluj').click();
   else if (okno) okno.close();
@@ -1342,7 +1349,7 @@ async function start() {
   else if (!stan.zablokowany) {
     const uzywana = kopia !== null || !stan.lokalnie || czyPolaczony();
     stan.powiadomienia = { ...DOMYSLNE_RODZAJE, wycofaj: uzywana, zaplac: uzywana };
-    // F25: nowa osoba - notatki „pierwsze kroki” i przykładowa pozycja (zapisana jak każda inna).
+    // F25: nowa osoba - dymki „pierwsze kroki” i przykładowa pozycja (zapisana jak każda inna).
     if (!uzywana && !stan.wpisy.length) {
       stan.wprowadzenie = true;
       dodajPrzykladowy();
@@ -1355,9 +1362,9 @@ async function start() {
     ustawWaluty(walutyNaStart(ustawienia.dawneWalutyObce, stan.wpisy));
     zapiszMojeUstawienia();
   }
-  pokazWprowadzenie();
   await wczytajZapamietane(PLIK_KURSOW);
   renderuj();
+  pokazWprowadzenie(); // dymki pokazują na karty - po ich narysowaniu
   dysk.odswiez();
   if (uzywaWalut()) odswiezZNbp(PLIK_KURSOW).then(poKursach).catch(console.error);
   przygotujPowiadomienia().catch(console.error);
