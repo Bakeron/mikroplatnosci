@@ -1,5 +1,7 @@
 # Mikropłatności
 
+[![Testy](https://github.com/Bakeron/mikroplatnosci/actions/workflows/testy.yml/badge.svg)](https://github.com/Bakeron/mikroplatnosci/actions/workflows/testy.yml)
+
 Aplikacja do pilnowania subskrypcji i drobnych płatności: pokazuje, ile naprawdę kosztują miesięcznie (w złotówkach, po kursie NBP), kiedy wypada następne odnowienie i których usług nie przedłużać. Wersja na Windows i na Androida, na tych samych danych. Bez konta i bez własnego serwera.
 
 **[Wypróbuj w przeglądarce](https://szymonbakonis-mikro.pages.dev)** (wersja demonstracyjna z wymyślonymi danymi, komputer i telefon) · **[Instrukcja ze zrzutami](https://szymonbakonis-mikro.pages.dev/instrukcja/)**

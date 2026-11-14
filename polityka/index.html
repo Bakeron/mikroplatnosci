@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Mikropłatności - polityka prywatności</title>
+  <link rel="stylesheet" href="/demo/czcionki.css">
+  <link rel="stylesheet" href="/instrukcja/styl.css">
+</head>
+<body>
+<header class="glowa">
+  <p class="glowa__nad">Polityka prywatności</p>
+  <h1>Mikropłatności</h1>
+  <p class="glowa__uwaga">Ostatnia zmiana: 07.11.2026<br>Kontakt w sprawach prywatności: szymon.bakonis@gmail.com</p>
+  <p class="glowa__opis">Mikropłatności to aplikacja na Windows i Androida do pilnowania subskrypcji i drobnych płatności. Ta polityka opisuje, jakie dane aplikacja przetwarza, gdzie je trzyma i jak je usunąć.</p>
+</header>
+
+<main>
+<section id="w-skrocie">
+  <h2>Najważniejsze w skrócie</h2>
+  <ul class="lista">
+    <li>Autor aplikacji <b>nie ma żadnego serwera</b> i <b>nie dostaje Twoich danych</b> - ani listy subskrypcji, ani informacji o tym, jak korzystasz z aplikacji.</li>
+    <li>Dane są <b>na Twoim urządzeniu</b>. Jeśli sam włączysz synchronizację, ich kopia trafia na <b>Twój</b> Google Dysk, do jednego pliku <code>mikroplatnosci.json</code> w „Moim dysku”.</li>
+    <li>Aplikacja <b>nie ma reklam, analityki ani śledzenia</b> i nie zbiera danych o awariach. Jedyny wyjątek: na Androidzie wbudowany skaner kodów QR od Google (ML Kit) sam wysyła do Google dane diagnostyczne o swoim działaniu - bez Twojej listy (szczegóły niżej).</li>
+  </ul>
+</section>
+
+<section id="jakie-dane">
+  <h2>Jakie dane</h2>
+  <p>Tylko to, co sam wpiszesz albo zaznaczysz: nazwy usług, opisy, kwoty i waluty, daty zakupu, okres (tydzień / miesiąc / rok, co ile), czy przedłużać, linki do usług, ceny od następnej płatności, sposób płatności (pobierana sama albo płacona ręcznie), czy dany termin oznaczono jako zapłacony, historia zapłaconych kwot i zmian cen, pauza (od kiedy do kiedy), kategoria, czy wydatek jest na firmę, a przy koszcie dzielonym - liczba osób i <b>imiona osób, które oddają swoją część</b> (wpisujesz je sam; aplikacja nikomu ich nie wysyła). Do tego ustawienia aplikacji (np. motyw, język, czy zapisywać dane na urządzeniu, prowizja banku za przewalutowanie, budżet miesięczny, które powiadomienia pokazywać).</p>
+  <p>Aplikacja <b>nie prosi</b> o imię, adres e-mail, numer telefonu, lokalizację, kontakty, zdjęcia ani dane kart płatniczych. Nie przechowuje haseł do usług.</p>
+</section>
+
+<section id="gdzie">
+  <h2>Gdzie są dane</h2>
+  <p><b>Na urządzeniu</b> (przełącznik „Zapisuj lokalnie” / „w telefonie”, domyślnie włączony):</p>
+  <ul class="lista">
+    <li>Windows: plik w folderze <code>%APPDATA%\Mikroplatnosci</code> oraz do 5 kopii zapasowych w podfolderze <code>kopie</code>,</li>
+    <li>Android: plik i do 5 kopii zapasowych w prywatnym folderze aplikacji, do którego inne aplikacje nie mają dostępu.</li>
+  </ul>
+  <p><b>Na Google Dysku</b> (tylko gdy włączysz „Synchronizuj z Google Dyskiem” / „Google Dysk”):</p>
+  <ul class="lista">
+    <li>logujesz się <b>swoim</b> kontem Google; aplikacja prosi wyłącznie o dostęp do <b>plików, które sama utworzyła</b> (zakres <code>drive.file</code>) - nie widzi Twoich plików, dokumentów ani zdjęć na Dysku,</li>
+    <li>w tym folderze leży jeden plik z Twoją listą; widzi go tylko ta aplikacja na Twoich urządzeniach,</li>
+    <li>przesyłanie odbywa się szyfrowanym połączeniem (HTTPS) bezpośrednio między Twoim urządzeniem a Google; dane nie przechodzą przez żaden serwer autora,</li>
+    <li>dostęp do Dysku (tzw. token) jest zapisany na urządzeniu, w osobnym pliku obok danych.</li>
+  </ul>
+  <p>Dane na Google Dysku podlegają także <a href="https://policies.google.com/privacy">Polityce prywatności Google</a>. Korzystanie z danych z interfejsów Google jest zgodne z <a href="https://developers.google.com/terms/api-services-user-data-policy">zasadami dotyczącymi danych użytkownika w usługach Google API</a>, w tym z wymaganiami ograniczonego użycia (Limited Use).</p>
+</section>
+
+<section id="internet">
+  <h2>Połączenia z internetem</h2>
+  <p>Aplikacja łączy się tylko z:</p>
+  <ul class="lista">
+    <li><b>Narodowym Bankiem Polskim</b> (<code>api.nbp.pl</code>) - pobiera średnie kursy walut; niczego nie wysyła,</li>
+    <li><b>Google</b> - tylko przy włączonej synchronizacji (logowanie, pobieranie i wysyłanie pliku z listą).</li>
+  </ul>
+  <p>Przypomnienia o terminach są planowane na urządzeniu - nie przez serwer. Na Windows po włączeniu w „Ustawieniach” opcji „Także przy zamkniętej aplikacji” aplikacja dodaje zadanie w Harmonogramie zadań Windows (uruchamia ją raz dziennie bez okna, na Twoim koncie, bez uprawnień administratora); wyłączenie tej opcji albo odinstalowanie aplikacji usuwa zadanie.</p>
+  <p><b>Kod QR projektu Google (tylko gdy wpisujesz własny projekt Google):</b> na komputerze przycisk „Pokaż kod QR dla telefonu” rysuje na ekranie kod z identyfikatorem i tajnym kluczem projektu - kod nie jest nigdzie wysyłany i znika po 2 minutach. Na Androidzie przycisk „Zeskanuj kod QR z komputera” otwiera skaner kodów z usług Google Play (Google ML Kit). Aplikacja nie dostaje dostępu do aparatu ani obrazu z niego - tylko odczytany tekst kodu, który zapisuje na telefonie tak samo jak identyfikator wpisany ręcznie. Przy pierwszym użyciu usługi Google Play mogą pobrać moduł skanera. <b>ML Kit startuje razem z aplikacją (także gdy nie skanujesz) i wysyła do Google dane diagnostyczne:</b> informacje o urządzeniu (model, wersja systemu), nazwę i wersję aplikacji, dane o wydajności i błędach, konfigurację i rodzaje zdarzeń skanera oraz identyfikatory techniczne. Według Google nie obejmuje to obrazu z aparatu ani treści kodu, a Twoja lista płatności nigdy tam nie trafia. Tego nie da się wyłączyć w aplikacji; skaner działa według <a href="https://developers.google.com/ml-kit/terms">zasad Google dotyczących ML Kit</a>. Na Windows tego nie ma.</p>
+  <p><b>Import z wyciągu bankowego:</b> plik CSV z historii operacji, który sam wskażesz, jest czytany tylko na urządzeniu i nigdzie nie wychodzi. Aplikacja go nie zapisuje - zostają tylko pozycje, które sam wybierzesz do dodania.</p>
+  <p><b>Kopia i eksport do CSV:</b> plik powstaje tylko wtedy, gdy o to poprosisz. Na Windows zapisujesz go w miejscu, które sam wybierzesz, na Androidzie trafia do publicznego folderu <code>Dokumenty/Mikroplatnosci</code> - inne aplikacje z dostępem do plików mogą go tam odczytać, a przycisk „Usuń dane z telefonu” go nie kasuje - o jego dalszym losie decydujesz Ty.</p>
+</section>
+
+<section id="usuwanie">
+  <h2>Jak usunąć dane</h2>
+  <ul class="lista">
+    <li><b>Z urządzenia:</b> przycisk „Usuń z komputera” / „Usuń dane z telefonu” (usuwa listę, plik danych i kopie zapasowe) albo odznaczenie „Zapisuj lokalnie”. Odinstalowanie aplikacji na Androidzie usuwa wszystkie jej dane z telefonu.</li>
+    <li><b>Z Google Dysku:</b> przycisk „Usuń z Dysku” / „Usuń dane z Google Dysku” - plik danych jest kasowany z Dysku, a synchronizacja wyłączana. Możesz też sam usunąć plik <code>mikroplatnosci.json</code> z „Mojego dysku”.</li>
+    <li><b>Dostęp do konta Google</b> odbierzesz w każdej chwili na stronie <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>; wyłączenie synchronizacji w aplikacji też go unieważnia.</li>
+  </ul>
+</section>
+
+<section id="dzieci">
+  <h2>Dzieci</h2>
+  <p>Aplikacja nie jest przeznaczona dla dzieci poniżej 13 lat i nie zbiera świadomie ich danych.</p>
+</section>
+
+<section id="zmiany">
+  <h2>Zmiany</h2>
+  <p>O zmianach tej polityki informuje data na górze i opis wersji aplikacji.</p>
+</section>
+</main>
+
+<footer class="stopka">
+  <p>Mikropłatności · <a href="https://github.com/Bakeron/mikroplatnosci">kod na GitHubie</a> (licencja MIT) · <a href="/instrukcja/">instrukcja</a> · <a href="/">wersja demonstracyjna</a></p>
+</footer>
+</body>
+</html>

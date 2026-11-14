@@ -5,8 +5,8 @@ import { element, krzyzykOkna } from './dom.js';
 import { t, tekst } from './teksty.js';
 
 export const KONTAKT = 'szymon.bakonis@gmail.com';
-// Adres pełnej polityki prywatności (polityka-prywatnosci.md) - uzupełnić po publikacji na stronie www.
-export const ADRES_POLITYKI = '';
+// Pełna polityka prywatności - strona polityka/index.html, publikowana razem z demem (demo/zbuduj.mjs).
+export const ADRES_POLITYKI = 'https://szymonbakonis-mikro.pages.dev/polityka/';
 const ADRES_KODU = 'https://github.com/Bakeron/mikroplatnosci';
 
 const MIT = 'Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.';

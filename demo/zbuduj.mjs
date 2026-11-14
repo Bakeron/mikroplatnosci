@@ -3,6 +3,7 @@
 //   /          computer version (pc/resources) with the Neutralino stand-in (demo/atrapa.js)
 //   /telefon/  phone version (mobile/src + shared files from pc/resources/js) without Capacitor
 //   /instrukcja/  user guide with screenshots (instrukcja/, screenshots: node instrukcja/zrodla/zrzuty.mjs)
+//   /polityka/    privacy policy (polityka/, the same text as polityka-prywatnosci.md; the app links to it)
 // Nothing secret goes in: no Google project keys, invented data only (demo/dane.js).
 
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -86,6 +87,9 @@ writeFileSync(join(telefon, 'index.html'), html);
 
 // User guide with screenshots (instrukcja/), without the screenshot script.
 kopiujFolder(join(korzen, 'instrukcja'), join(dist, 'instrukcja'), (nazwa) => nazwa === 'zrodla');
+
+// Privacy policy (linked from the app's "About" window - ADRES_POLITYKI in pc/resources/js/oAplikacji.js).
+kopiujFolder(join(korzen, 'polityka'), join(dist, 'polityka'));
 
 // Cloudflare Pages headers: the demo opens in a window on the home page (and on its own in a new tab), not indexed.
 writeFileSync(join(dist, '_headers'), `/*

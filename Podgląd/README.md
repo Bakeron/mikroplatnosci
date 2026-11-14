@@ -1,6 +1,6 @@
 # Podgląd - obrazki poglądowe aplikacji Mikropłatności (PC)
 
-Pięć obrazków zbiorczych pokazuje wszystkie możliwości i stany aplikacji na komputerze. **Obrazki odświeża się tylko na prośbę autora** - nie przy aktualizacji aplikacji (`pc\instalacja\instaluj.ps1`) ani po zmianach. Wtedy renderuje się od nowa wszystkie (jedno polecenie, ok. 3 min). Ostatnie odświeżenie: 08.11.2026 (wersja 2026.11.08.1340).
+Pięć obrazków zbiorczych pokazuje wszystkie możliwości i stany aplikacji na komputerze. **Obrazki odświeża się tylko na prośbę autora** - nie przy aktualizacji aplikacji (`pc\instalacja\instaluj.ps1`) ani po zmianach. Wtedy renderuje się od nowa wszystkie (jedno polecenie, ok. 3 min). Ostatnie odświeżenie: 14.11.2026 (wersja 2026.11.13.2122).
 
 | Plik | Co pokazuje | Zależy od |
 |---|---|---|
