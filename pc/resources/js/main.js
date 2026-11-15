@@ -318,11 +318,14 @@ $('lokalnie-wlacz').addEventListener('change', async (e) => {
   const pole = e.target;
   pole.disabled = true;
   try {
-    if (pole.checked) await wlaczZapisLokalny();
-    else if (!(await wylaczZapisLokalny())) pole.checked = true;
+    if (pole.checked) {
+      await wlaczZapisLokalny();
+      // Udana kolejna próba - czerwony pasek z poprzedniej nieudanej znika.
+      if (!$('blad').hidden && $('blad').textContent === t('Nie udało się zapisać danych na komputerze.')) pokazPlynnie($('blad'), false);
+    } else if (!(await wylaczZapisLokalny())) pole.checked = true;
   } catch (blad) {
     pole.checked = false;
-    pokazBlad(blad.message);
+    pokazBlad(t('Nie udało się zapisać danych na komputerze.')); // not the raw system message (English, technical)
     console.error(blad);
   } finally {
     odswiezMiejsceZapisu();
@@ -422,7 +425,7 @@ async function wczytajKopie(plik) {
     return;
   }
   const obecne = ilePozycji(widoczne().length); // jak „pozycji: N” u góry - bez anulowanych
-  const nowe = ilePozycji(dane.wpisy.length);
+  const nowe = ilePozycji(dane.wpisy.filter((w) => !anulowana(w)).length); // counted the same way
   if (stan.bladOdczytu) {
     await przywrocPoBledzie(plik.name, dane, nowe);
     return;
@@ -597,7 +600,10 @@ przeciaganieWierszy(tbody, (kolejnosc) => {
 for (const typ of ['dragover', 'drop']) {
   document.addEventListener(typ, (e) => {
     const doPola = e.target.closest?.('input, textarea') && !e.dataTransfer?.types.includes('Files');
-    if (!doPola) e.preventDefault();
+    if (doPola) return;
+    e.preventDefault();
+    // Poza tabelą nic nie da się upuścić - przeciągany wiersz wraca na swoje miejsce (tabela.js, dragend).
+    if (typ === 'dragover' && e.dataTransfer && !e.target.closest?.('#wiersze')) e.dataTransfer.dropEffect = 'none';
   });
 }
 
@@ -664,7 +670,14 @@ function przywrocWpis(wpis) {
   wpis.zmieniono = czasZmiany(wpis);
   renderujTabele();
   akcjeWiersza.onZmiana();
-  wierszWpisu(wpis)?.querySelector('input')?.focus(); // fokus i widok na przywróconym wierszu
+  // Fokus i widok na przywróconym wierszu; schowany przez filtr - fokus zostaje przy „Anulowanych” (nie ginie).
+  const wiersz = wierszWpisu(wpis);
+  if (wiersz && !wiersz.hidden) wiersz.querySelector('input')?.focus();
+  else {
+    clearTimeout(timerDodatkow); // drawn now - a later redraw would drop the focus
+    odswiezDodatki();
+    (($('anulowane').hidden ? null : $('anulowane').querySelector('summary')) ?? $('dodaj')).focus();
+  }
 }
 
 // „usuń na zawsze” w „Anulowanych” - to samo okno z pieczątką, co przy wykreślaniu.
@@ -768,8 +781,9 @@ function pokazProwizje() {
 $('prowizja-pole').addEventListener('change', (e) => {
   const tekst = String(e.target.value).trim().replace(',', '.');
   const wartosc = Number(tekst);
-  // Puste = 0 (sam kurs NBP); ponad 10% - 10%; nie liczba - zostaje poprzednia.
-  if (tekst === '') ustawProwizje(0);
+  // Puste = 0 (sam kurs NBP); ponad 10% - 10%; nie liczba - zostaje poprzednia (pole liczbowe oddaje
+  // wtedy pusty tekst, ale z badInput).
+  if (e.target.validity?.badInput) { /* keep the previous value */ } else if (tekst === '') ustawProwizje(0);
   else if (Number.isFinite(wartosc)) ustawProwizje(poprawnaProwizja(Math.min(Math.max(wartosc, 0), 10)));
   e.target.value = String(pobierzProwizje());
   pokazProwizje();
@@ -911,10 +925,21 @@ $('okno-potwierdz').addEventListener('click', () => {
 
 // naZawsze: usunięcie z pliku (zapamiętane dla scalania z Dyskiem); inaczej - do „Anulowanych” z dzisiejszą datą (C15).
 function usunWpis(wpis, naZawsze) {
+  // „usuń na zawsze” w „Anulowanych”: fokus zostaje w tej sekcji (na tym samym miejscu listy), a nie na „+ dopisz”.
+  const przyciskiUsun = () => [...$('anulowane').querySelectorAll('.anulowane__przycisk--usun')];
+  const miejsceWAnulowanych = naZawsze && anulowana(wpis) ? przyciskiUsun().indexOf(document.activeElement) : -1;
   if (naZawsze) usun(stan, wpis);
   else {
     wpis.anulowano = isoDnia(dzis());
     wpis.zmieniono = czasZmiany(wpis);
+  }
+  if (miejsceWAnulowanych >= 0) {
+    zaplanujZapis();
+    clearTimeout(timerDodatkow); // the list is drawn now - a later redraw would drop the focus
+    odswiezDodatki();
+    const przyciski = przyciskiUsun();
+    (przyciski[Math.min(miejsceWAnulowanych, przyciski.length - 1)] ?? $('dodaj')).focus();
+    return;
   }
   const tr = wierszWpisu(wpis);
   // Fokus był na wykreślanym wierszu (albo wrócił z okna na jego „×”) - przechodzi na „×” sąsiada, nie na początek strony.
@@ -1087,13 +1112,23 @@ async function odswiezKursy(wymus = false) {
   renderujKursy();
 }
 
-// Kolory, alarmy i kursy liczone od dzisiejszej daty - odświeżane, gdy okno długo wisi otwarte.
-setInterval(() => {
+// Kolory, alarmy i kursy liczone od dzisiejszej daty - odświeżane, gdy okno długo wisi otwarte. Po nieudanym
+// pobraniu kursów (bez internetu) kolejna próba przy następnym odświeżeniu, a nie dopiero jutro.
+let dzienOdswiezenia = isoDnia(dzis());
+function odswiezDzien() {
+  dzienOdswiezenia = isoDnia(dzis());
   if (przeniesCeny()) zaplanujZapis();
   odswiezWiersze(tbody);
   odswiezDodatki();
-  odswiezKursy();
-}, 30 * 60 * 1000);
+  odswiezKursy(stan.kursyStatus === 'offline');
+}
+setInterval(odswiezDzien, 30 * 60 * 1000);
+// Po północy albo po wybudzeniu komputera - od razu przy powrocie do okna, nie po 30 min.
+const nowyDzien = () => {
+  if (!document.hidden && isoDnia(dzis()) !== dzienOdswiezenia) odswiezDzien();
+};
+document.addEventListener('visibilitychange', nowyDzien);
+window.addEventListener('focus', nowyDzien);
 
 async function start() {
   try {
@@ -1108,6 +1143,7 @@ async function start() {
     }
   } catch (e) {
     stan.zablokowany = true;
+    $('dodaj').disabled = true; // nothing would save a new row
     pokazBlad(t('Nie udało się przygotować folderu na dane. Zmiany nie będą zapisywane.'));
     console.error(e);
   }
@@ -1133,6 +1169,7 @@ async function start() {
       // Nie nadpisujemy pliku, którego nie umiemy odczytać.
       stan.zablokowany = true;
       stan.bladOdczytu = true;
+      $('dodaj').disabled = true; // a new row would be lost - enabled again after restoring a copy (odswiezMiejsceZapisu)
       pokazBlad(t('Nie udało się odczytać pliku danych ({plik}). Zmiany NIE będą zapisywane, żeby go nie nadpisać. Dane przywrócisz w Ustawieniach: Kopia i import → Wczytaj kopię… (kopie są w folderze {folder}).', { plik: stan.plik, folder: stan.folderKopii.replaceAll('/', '\\') }));
       console.error(e);
     }
@@ -1149,7 +1186,8 @@ async function start() {
   else if (!stan.zablokowany) {
     // Połączony Dysk też znaczy „już używa” - np. uszkodzony ustawienia.json u osoby z danymi tylko na Dysku
     // (przykładowy wiersz trafiłby wtedy przez scalanie na jej Dysk).
-    const uzywana = kopia !== null || !stan.lokalnie || czyPolaczony();
+    // Nieczytelny ustawienia.json (uszkodzony albo zajęty) - nie nadpisujemy go domyślnymi przy starcie.
+    const uzywana = ustawienia.uszkodzone || kopia !== null || !stan.lokalnie || czyPolaczony();
     stan.powiadomienia = { ...DOMYSLNE_RODZAJE, wycofaj: uzywana, zaplac: uzywana };
     // F25: nowa osoba - notatki „pierwsze kroki” i przykładowy wiersz (zapisany jak każdy inny).
     if (!uzywana && stan.wczytano && !stan.wpisy.length) {
@@ -1157,12 +1195,12 @@ async function start() {
       dodajPrzykladowy();
       stan.niezapisane = true;
     }
-    zapiszMojeUstawienia();
+    if (!ustawienia.uszkodzone) zapiszMojeUstawienia();
   }
   // Pierwsze uruchomienie z listą walut: dochodzą waluty, których używają pozycje (walutyNaStart).
   if (ustawienia.waluty === null && !stan.zablokowany) {
     ustawWaluty(walutyNaStart(ustawienia.dawneWalutyObce, stan.wpisy));
-    zapiszMojeUstawienia();
+    if (!ustawienia.uszkodzone) zapiszMojeUstawienia();
   }
   const zmienioneCeny = przeniesCeny(); // przed pokazaniem - tabela od razu z aktualną ceną
   renderujTabele();

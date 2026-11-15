@@ -209,11 +209,12 @@ test('ustawienia: domyślnie zapis lokalny włączony; zapis i odczyt; śmieci =
   // Brak pliku - nowa osoba (dawneWalutyObce false); plik bez listy walut - „Waluty obce” były domyślnie włączone.
   const domyslne = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, kolejnosc: 'termin', budzet: 0, waluty: null, dawneWalutyObce: false };
   const zPliku = { ...domyslne, dawneWalutyObce: true };
-  assert.deepEqual(await wczytajUstawienia(U), domyslne);
+  assert.deepEqual(await wczytajUstawienia(U), { ...domyslne, uszkodzone: false });
   await zapiszUstawienia(U, { lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
   assert.deepEqual(await wczytajUstawienia(U), { ...zPliku, lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
+  // Plik jest, ale nieczytelny - domyślne z uszkodzone: true (start go nie nadpisuje, main.js).
   pliki.set(U, '{zepsute');
-  assert.deepEqual(await wczytajUstawienia(U), domyslne);
+  assert.deepEqual(await wczytajUstawienia(U), { ...domyslne, uszkodzone: true });
   pliki.set(U, JSON.stringify({ lokalnie: 'nie', motyw: '<script>', prowizja: 99, funkcje: 'x', powiadomienia: 5, wTle: 'tak', jezyk: 'xx', wprowadzenie: 1, kolejnosc: 'cos', waluty: 'USD' }));
   assert.deepEqual(await wczytajUstawienia(U), zPliku);
   // F27 / F25: język i notatki „pierwsze kroki” - zapis i odczyt.

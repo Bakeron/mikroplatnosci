@@ -95,7 +95,9 @@ export function policz(wpisy) {
 // Pozycja paragonu: nazwa ....... wartość
 function pozycja(nazwa, wartosc, klasa) {
   const el = element('div', 'paragon__pozycja' + (klasa ? ' ' + klasa : ''));
-  el.append(element('span', 'paragon__nazwa', nazwa), element('span', 'paragon__kropki'), element('span', 'paragon__kwota', wartosc));
+  const napis = element('span', 'paragon__nazwa', nazwa);
+  napis.title = nazwa; // cut with an ellipsis on a narrow receipt
+  el.append(napis, element('span', 'paragon__kropki'), element('span', 'paragon__kwota', wartosc));
   return el;
 }
 
@@ -106,7 +108,7 @@ function sekcja(tytul, lista, napisSumy, suma, pustyTekst) {
   for (const p of lista) {
     const wartosc = p.bezKwoty ? '-' : p.pln === null ? t('brak kursu') : formatujKwote(p.pln);
     const dopisek = p.dopisek ? [element('div', 'paragon__waluta', p.dopisek)] : [];
-    if (p.wycofanie) linie.push(pozycja('! ' + p.nazwa, wartosc, 'paragon__pozycja--wycofanie'), ...dopisek);
+    if (p.wycofanie) linie.push(pozycja('! ' + p.nazwa, wartosc, 'paragon__pozycja--wycofanie'), ...dopisek, element('span', 'sr', t('do wycofania - poza sumą'))); // strike-through only on screen
     else if (p.wstrzymana) linie.push(pozycja('‖ ' + p.nazwa, wartosc, 'paragon__pozycja--wstrzymana'), ...dopisek, element('div', 'paragon__waluta', t('wstrzymana do {data} - poza sumą', { data: p.wstrzymana })));
     else linie.push(pozycja(p.nazwa, wartosc), ...dopisek);
   }

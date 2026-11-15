@@ -1256,8 +1256,9 @@ ustawMotyw();
 // Przycisk „Wstecz” Androida cofa ostatni ruch: kończy dymki „pierwsze kroki”, chowa dymek „?”, zwija grupę w arkuszu, zamyka otwarte okno (ostatnie; arkusz edycji
 // jak „Anuluj” - przy pytaniu „wykreślić?” to „Nie”), zwija „ile?”, kończy „Ułóż”, wraca do listy, zwija „Anulowane”, czyści filtr,
 // dopiero potem chowa aplikację.
+// Zwraca false, gdy nie było czego cofnąć (wtedy aplikacja idzie w tło; w demie - strona wstecz).
 const App = window.Capacitor?.isNativePlatform() ? Capacitor.registerPlugin('App') : null;
-App?.addListener('backButton', () => {
+function wstecz() {
   const dymek = $('pomoc-okno');
   // Ostatnie otwarte okno: ustawienia są zawsze pod spodem (okna Google, „O aplikacji”, wyciąg otwierają się
   // nad nimi), choć w HTML stoją na końcu - kolejność w HTML nie mówi, które jest na wierzchu.
@@ -1277,8 +1278,14 @@ App?.addListener('backButton', () => {
   else if (!czyPusty(stan.filtr)) {
     stan.filtr = pustyFiltr();
     zamienPlynnie($('karty'), renderuj);
-  } else App.minimizeApp();
+  } else return false;
+  return true;
+}
+App?.addListener('backButton', () => {
+  if (!wstecz()) App.minimizeApp();
 });
+// Demo w przeglądarce (bez Capacitora): „Wstecz” przeglądarki robi to samo (demo/atrapa.js).
+if (!App) window.wsteczDemo = wstecz;
 // Przejście do innej aplikacji: niewysłane zmiany od razu na Dysk (Android może potem zamrozić albo
 // zamknąć aplikację w tle, a drugie urządzenie nie zobaczyłoby zmiany do następnej edycji).
 // Trwająca wymiana z Dyskiem - wysyłka zaraz po niej (wyslijZaleglosci ustawia licznik od nowa).
@@ -1347,7 +1354,8 @@ async function start() {
   // na Dysku), zachowuje „Wycofaj” i „Zapłać”; nowa osoba - wszystkie powiadomienia wyłączone.
   if (ustawienia.powiadomienia) stan.powiadomienia = ustawienia.powiadomienia;
   else if (!stan.zablokowany) {
-    const uzywana = kopia !== null || !stan.lokalnie || czyPolaczony();
+    // Nieczytelny ustawienia.json (uszkodzony albo zajęty) - nie nadpisujemy go domyślnymi przy starcie.
+    const uzywana = ustawienia.uszkodzone || kopia !== null || !stan.lokalnie || czyPolaczony();
     stan.powiadomienia = { ...DOMYSLNE_RODZAJE, wycofaj: uzywana, zaplac: uzywana };
     // F25: nowa osoba - dymki „pierwsze kroki” i przykładowa pozycja (zapisana jak każda inna).
     if (!uzywana && !stan.wpisy.length) {
@@ -1355,12 +1363,12 @@ async function start() {
       dodajPrzykladowy();
       await zapisz();
     }
-    zapiszMojeUstawienia();
+    if (!ustawienia.uszkodzone) zapiszMojeUstawienia();
   }
   // Pierwsze uruchomienie z listą walut: dochodzą waluty, których używają pozycje (jak na PC).
   if (ustawienia.waluty === null && !stan.zablokowany) {
     ustawWaluty(walutyNaStart(ustawienia.dawneWalutyObce, stan.wpisy));
-    zapiszMojeUstawienia();
+    if (!ustawienia.uszkodzone) zapiszMojeUstawienia();
   }
   await wczytajZapamietane(PLIK_KURSOW);
   renderuj();

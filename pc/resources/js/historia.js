@@ -249,7 +249,7 @@ export function renderujHistorie(kontener, wpisy) {
   if (!zmiany.length) listaCen.append(pusty(t('Jeszcze bez zmian - zmiana kosztu pozycji zapisze się tutaj.')));
   for (const z of zmiany.slice(0, 8)) {
     if ('min' in z) {
-      listaCen.append(liniaSpisu(z.nazwa, t('{n} wpłat, od {od} do {do}', { n: z.wplat, od: formatujKoszt(z.min), do: formatujKoszt(z.max) }), t('ostatnio {kwota}', { kwota: formatujKwote(z.ostatnio, z.kod) })));
+      listaCen.append(liniaSpisu(z.nazwa, tn(z.wplat, '{n} wpłata, od {od} do {do}', '{n} wpłaty, od {od} do {do}', '{n} wpłat, od {od} do {do}', { od: formatujKoszt(z.min), do: formatujKoszt(z.max) }), t('ostatnio {kwota}', { kwota: formatujKwote(z.ostatnio, z.kod) })));
       continue;
     }
     // Z 0 zł (darmowy okres próbny) procentu nie da się policzyć - „nowa cena”, jak podwyżka.

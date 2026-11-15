@@ -859,7 +859,7 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   border-right: 2px solid var(--kolor);
   text-align: right;
 }
-.znacznik__etykieta strong { display: block; font-size: 13px; }
+.znacznik__etykieta strong { display: block; max-width: 16em; overflow: hidden; font-size: 13px; text-overflow: ellipsis; } /* full name in the marker title */
 .znacznik--jednorazowa .znacznik__etykieta strong { color: var(--czerwony); }
 .znacznik__dni { color: var(--olowek); font: 12px var(--f-liczby); }
 
@@ -893,10 +893,10 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   padding: 7px 4px;
   border-bottom: 1px solid var(--linia);
 }
-.alarm strong { font-weight: 600; white-space: nowrap; }
+.alarm strong { min-width: 6em; overflow: hidden; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; } /* long name: ellipsis, full name in title */
 .alarm__kropki { flex: 1; min-width: 20px; border-bottom: 2px dotted var(--linia); transform: translateY(-4px); }
-.alarm__opis { font: 14px var(--f-liczby); }
-.alarm__koszt { min-width: 84px; font: 500 14px var(--f-liczby); font-variant-numeric: tabular-nums; text-align: right; }
+.alarm__opis { font: 14px var(--f-liczby); white-space: nowrap; } /* the name gives way first */
+.alarm__koszt { flex-shrink: 0; min-width: 84px; white-space: nowrap; font: 500 14px var(--f-liczby); font-variant-numeric: tabular-nums; text-align: right; }
 .alarm--pusty { color: var(--olowek); font: italic 15px var(--f-tytul); }
 .alarm--zolty .alarm__opis { color: var(--bursztyn); }
 .alarm--pomaranczowy .alarm__opis { color: var(--pomarancz); font-weight: 600; }

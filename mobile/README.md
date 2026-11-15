@@ -46,7 +46,7 @@ Dwie rzeczy, które `apk.mjs` obchodzi sam (31.10.2026):
 
 ## Google Dysk
 
-Telefon używa tego samego identyfikatora co PC (typ „Telewizory i urządzenia z ograniczonym wprowadzaniem danych”) i loguje się kodem przez `google.com/device` - instrukcja projektu: `../google-cloud.md`. Identyfikator wpisuje się w aplikacji (okno po zaznaczeniu „Google Dysk”, z instrukcją pod „Nie wiem, skąd to wziąć”) - zapamiętany w prywatnym folderze aplikacji. Gdy przy budowaniu są zmienne `MIKROPLATNOSCI_GOOGLE_ID` / `_SECRET`, trafiają do APK i okno się nie pokazuje.
+Telefon używa tego samego identyfikatora co PC (typ „Telewizory i urządzenia z ograniczonym wprowadzaniem danych”) i loguje się kodem przez `google.com/device` - instrukcja projektu: `../md/google-cloud.md`. Identyfikator wpisuje się w aplikacji (okno po zaznaczeniu „Google Dysk”, z instrukcją pod „Nie wiem, skąd to wziąć”) - zapamiętany w prywatnym folderze aplikacji. Gdy przy budowaniu są zmienne `MIKROPLATNOSCI_GOOGLE_ID` / `_SECRET`, trafiają do APK i okno się nie pokazuje.
 
 Na telefonie: zmiany zapisują się w telefonie od razu, a przy włączonym Dysku wysyłają się same po 3 s. Przy uruchomieniu i powrocie do aplikacji pobierają się zmiany wysłane z PC (PC z zapisem lokalnym wysyła je przyciskiem „↑ Wyślij na Dysk”).
 

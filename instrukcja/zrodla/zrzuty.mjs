@@ -144,8 +144,9 @@ const POMOCNIKI = `(() => {
         const r = el.getBoundingClientRect();
         const pojemnik = el.closest('dialog[open], [popover]:popover-open') || document.body;
         const c = pojemnik === document.body ? { left: 0, top: 0 } : pojemnik.getBoundingClientRect();
-        const x = { tl: r.left - 10, l: r.left - 30, r: r.right + 4, t: r.left + r.width / 2 - 13, tr: r.right - 16 }[gdzie] ?? r.left - 10;
-        const y = { tl: r.top - 10, l: r.top + r.height / 2 - 13, r: r.top + r.height / 2 - 13, t: r.top - 28, tr: r.top - 10 }[gdzie] ?? r.top - 10;
+        // Kept inside the window - a marker at the screen edge (phone cards) would be cut in half.
+        const x = Math.min(Math.max({ tl: r.left - 10, l: r.left - 30, r: r.right + 4, t: r.left + r.width / 2 - 13, tr: r.right - 16 }[gdzie] ?? r.left - 10, 4), innerWidth - 30);
+        const y = Math.min(Math.max({ tl: r.top - 10, l: r.top + r.height / 2 - 13, r: r.top + r.height / 2 - 13, t: r.top - 28, tr: r.top - 10 }[gdzie] ?? r.top - 10, 4), innerHeight - 30);
         const z = document.createElement('div');
         z.className = 'instr-znacznik';
         z.textContent = nr;

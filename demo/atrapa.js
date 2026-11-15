@@ -128,6 +128,16 @@
   };
   // Phone version: Capacitor without the native platform - the app then skips scanner, notifications and the Back button plugin.
   if (TELEFON) window.Capacitor = { isNativePlatform: () => false, registerPlugin: () => ({}) };
+  // Phone version in its own tab: the browser Back button works like Android Back (closes the open window,
+  // returns to the list...) and leaves the page only when there is nothing to undo. Not inside the demo window
+  // on the home page - there Back belongs to that page (it closes the window with the demo).
+  if (TELEFON && window.top === window) {
+    if (!history.state?.demo) history.pushState({ demo: 1 }, ''); // after a reload the entry is already there
+    addEventListener('popstate', () => {
+      if (window.wsteczDemo?.()) history.pushState({ demo: 1 }, '');
+      else history.back();
+    });
+  }
 
   // --- what the visitor sees -----------------------------------------------
   function uwaga(tekst, klasa = '') {
@@ -189,7 +199,7 @@
     }
     const bank = document.getElementById('plik-bank');
     if (bank && !bank.nextElementSibling?.classList.contains('demo-wyciag')) {
-      const p = document.createElement('p');
+      const p = document.createElement('span'); // span like the other demo notes - dialog paragraphs have their own larger font
       p.className = 'demo-uwaga demo-uwaga--blok demo-wyciag';
       const b = document.createElement('button');
       b.type = 'button';

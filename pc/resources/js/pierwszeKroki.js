@@ -18,6 +18,14 @@ let biezace = null;
 // gdy go nie widać w całości. Nie scrollIntoView: to przewijało też całą stronę (telefon ma body z
 // overflow: hidden - strony nie da się potem przewinąć z powrotem).
 function przewinDo(cel) {
+  // Najpierw w bok: wąskie okno PC - tabela przewija się w ramce, a „⋯” czy lont mogą być za krawędzią.
+  for (let b = cel.parentElement; b && b !== document.body; b = b.parentElement) {
+    if (!/(auto|scroll)/.test(getComputedStyle(b).overflowX) || b.scrollWidth <= b.clientWidth) continue;
+    const r = cel.getBoundingClientRect();
+    const rb = b.getBoundingClientRect();
+    if (r.left < rb.left || r.right > rb.right) b.scrollBy({ left: r.left - rb.left - Math.max((rb.width - r.width) / 2, 0), behavior: 'auto' });
+    break;
+  }
   let p = cel.parentElement;
   // Kontener, który naprawdę przewija się w pionie (ramka tabeli ma overflow tylko w bok).
   while (p && p !== document.body && !(/(auto|scroll)/.test(getComputedStyle(p).overflowY) && p.scrollHeight > p.clientHeight)) p = p.parentElement;

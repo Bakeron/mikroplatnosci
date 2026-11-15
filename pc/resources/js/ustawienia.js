@@ -20,7 +20,8 @@ export function poprawnePowiadomienia(p) {
 // D19: budżet miesięczny w zł (0 = bez limitu).
 export const poprawnyBudzet = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 10000000 ? Math.round(v * 100) / 100 : 0);
 
-// Brak albo uszkodzony plik = ustawienia domyślne (zapis lokalny włączony).
+// Brak albo uszkodzony plik = ustawienia domyślne (zapis lokalny włączony). Plik jest, ale nie da się go
+// odczytać (uszkodzony, zajęty przez inny program) - uszkodzone: true, start nie nadpisuje go domyślnymi.
 export async function wczytajUstawienia(plik) {
   try {
     const u = JSON.parse(await Neutralino.filesystem.readFile(plik));
@@ -41,7 +42,12 @@ export async function wczytajUstawienia(plik) {
       dawneWalutyObce: u?.funkcje?.waluty !== false,
     };
   } catch {
-    return { ...DOMYSLNE, funkcje: poprawneFunkcje() };
+    let uszkodzone = false;
+    try {
+      await Neutralino.filesystem.getStats(plik);
+      uszkodzone = true;
+    } catch { /* no file - first start */ }
+    return { ...DOMYSLNE, funkcje: poprawneFunkcje(), uszkodzone };
   }
 }
 

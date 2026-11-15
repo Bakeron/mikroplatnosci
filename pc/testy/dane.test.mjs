@@ -109,6 +109,11 @@ test('plik danych: pusty albo obcy plik to błąd (nic nie zostanie nadpisane)',
   assert.equal(d.motyw, 'jasny');
 });
 
+test('plik danych zapisany w Notatniku (znak BOM na początku) czyta się normalnie', () => {
+  const d = odczytajTresc('﻿' + JSON.stringify({ wpisy: [{ id: 'a' }], usuniete: [] }));
+  assert.equal(d.wpisy[0].id, 'a');
+});
+
 test('usuwanie: czas usunięcia nie wcześniejszy niż ostatnia zmiana (zegar do przodu)', () => {
   const przyszlosc = new Date(Date.now() + 3600000).toISOString();
   const wpis = normalizuj({ id: 'a', zmieniono: przyszlosc });

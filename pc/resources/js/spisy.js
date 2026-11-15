@@ -33,6 +33,7 @@ export function wypelnijListe(lista, alarmy, pustyTekst, jednorazowe) {
     li.className = 'alarm' + (a.poziom ? ' alarm--' + a.poziom : '');
     const nazwa = document.createElement('strong');
     nazwa.textContent = nazwaWpisu(a.wpis);
+    nazwa.title = nazwa.textContent; // long name is cut with an ellipsis
     const kropki = document.createElement('span');
     kropki.className = 'alarm__kropki';
     const opis = document.createElement('span');

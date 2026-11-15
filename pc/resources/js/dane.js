@@ -238,7 +238,7 @@ export function odczytajDane(dane, zDysku = false, maks = zDysku ? MAKS_WPISOW_Z
 export function odczytajTresc(tresc, maks = Infinity) {
   // Aplikacja nigdy nie zapisuje pustego pliku - pusty to uszkodzenie (np. zanik prądu w trakcie zapisu).
   if (!tresc.trim()) throw new Error('pusty plik danych');
-  const dane = JSON.parse(tresc);
+  const dane = JSON.parse(tresc.replace(/^﻿/, '')); // BOM from Notepad (hand-edited file)
   const odczytane = odczytajDane(dane, false, maks);
   if (!odczytane) throw new Error('nieprawidłowy format pliku');
   return { ...odczytane, motyw: dane.motyw };
