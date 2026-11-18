@@ -55,3 +55,5 @@ Filename: "{app}\Mikroplatnosci.exe"; WorkingDir: "{app}"; Description: "Uruchom
 ; Powiadomienia przy zamkniętej aplikacji (Ustawienia, harmonogram.js) - zadanie znika razem z programem.
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""Mikroplatnosci - powiadomienia"""; Flags: runhidden; RunOnceId: "UsunZadanie"
+; Start z Windows w zasobniku (Ustawienia, harmonogram.js) - też znika.
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""Mikroplatnosci - start z Windows"""; Flags: runhidden; RunOnceId: "UsunStart"

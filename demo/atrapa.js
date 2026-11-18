@@ -72,6 +72,8 @@
     init: () => setTimeout(() => gotowe.forEach((f) => f()), 0),
     events: { on: (nazwa, f) => { if (nazwa === 'ready') gotowe.push(f); } },
     app: { exit: () => {} },
+    // PC: zasobnik przy zegarze - w przeglądarce go nie ma (okna nie da się schować).
+    window: { show: async () => {}, hide: async () => {}, focus: async () => {}, unminimize: async () => {} },
     os: {
       getPath: async (nazwa) => {
         if (nazwa === 'data') return '';
@@ -85,6 +87,7 @@
       showSaveDialog: async (_tytul, opcje) => POBRANE + norm(opcje?.defaultPath ?? 'plik').split('/').pop(),
       showNotification: async (tytul, tresc) => powiadomienie(tytul, tresc),
       execCommand: async () => ({ exitCode: 1, stdOut: '', stdErr: NIE_DZIALA() }),
+      setTray: async () => {},
       // Phone: backup and CSV "to Documents" - in the demo to the browser's Downloads.
       zapiszDokument: async (nazwa, tresc) => pobierz(nazwa, tresc),
     },
@@ -100,6 +103,7 @@
         pliki.set(k, String(tresc));
       },
       writeBinaryFile: async () => { throw new Error('demo'); },
+      createWatcher: async () => 1,
       move: async (z, doCelu) => {
         const k = norm(z);
         if (!pliki.has(k)) throw brak(k);
@@ -172,12 +176,15 @@
     return odswiez;
   }
 
+  const PRZELACZNIKI_WINDOWS = ['ustawienia-tlo', 'ustawienia-zasobnik', 'ustawienia-autostart'];
   // Notes next to the switches in Settings (the window is built anew each time it opens).
   function uwagiWUstawieniach() {
-    const tlo = document.getElementById('ustawienia-tlo');
-    if (tlo && !tlo.dataset.demo) {
-      tlo.dataset.demo = '1';
-      tlo.closest('label')?.querySelector('.ustawienia__opis')?.append(' ', uwaga(NIE_DZIALA()));
+    // Harmonogram zadań, zasobnik przy zegarze i start z Windows - tylko w prawdziwej aplikacji.
+    for (const id of PRZELACZNIKI_WINDOWS) {
+      const pole = document.getElementById(id);
+      if (!pole || pole.dataset.demo) continue;
+      pole.dataset.demo = '1';
+      pole.closest('label')?.querySelector('.ustawienia__opis')?.append(' ', uwaga(NIE_DZIALA()));
     }
     const wycofaj = document.getElementById('ustawienia-p-wycofaj');
     const sekcja = wycofaj?.closest('section');
@@ -213,7 +220,7 @@
 
   // The Google Drive switch never starts signing in - it only shows the note.
   window.addEventListener('change', (e) => {
-    if (e.target?.id !== 'dysk-wlacz' && e.target?.id !== 'ustawienia-tlo') return;
+    if (e.target?.id !== 'dysk-wlacz' && !PRZELACZNIKI_WINDOWS.includes(e.target?.id)) return;
     e.stopImmediatePropagation();
     e.target.checked = false;
     const opis = e.target.closest('label')?.querySelector('.demo-uwaga');

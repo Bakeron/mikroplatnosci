@@ -1,7 +1,7 @@
 // Sprawdzanie danych z pliku i z Dysku (dane.js) oraz paragon (podsumowanie.js) - bez DOM.
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz, zastapZKopii, czasZmiany, MAKS_WPISOW_Z_DYSKU, przesunWpis, oznaczUlozenie } from '../resources/js/dane.js';
+import { normalizuj, odczytajUsuniete, nowyWpis, odczytajDane, doZapisu, odczytajTresc, usun, nazwaWpisu, zastosujFormularz, zastapZKopii, czasZmiany, MAKS_WPISOW_Z_DYSKU, przesunWpis, oznaczUlozenie, pobierzKategorie } from '../resources/js/dane.js';
 import { scal } from '../resources/js/scalanie.js';
 import { policz } from '../resources/js/podsumowanie.js';
 
@@ -18,10 +18,12 @@ test('plik danych: odczyt pomija śmieci i sprawdza pola', () => {
 test('plik danych: zapis i ponowny odczyt dają to samo, dodatki PC przed wpisami', () => {
   const stan = { wpisy: [normalizuj({ id: 'a', nazwa: 'X', koszt: 1 })], usuniete: [{ id: 'b', kiedy: '2026-10-30T10:00:00.000Z' }], ulozono: '' };
   const plik = doZapisu(stan, { motyw: 'jasny' });
-  assert.deepEqual(Object.keys(plik), ['wersja', 'zapisano', 'motyw', 'wpisy', 'usuniete']);
-  assert.equal(plik.wersja, 4);
-  assert.deepEqual(odczytajDane(JSON.parse(JSON.stringify(plik))), stan);
-  assert.deepEqual(Object.keys(doZapisu(stan)), ['wersja', 'zapisano', 'wpisy', 'usuniete']);
+  assert.deepEqual(Object.keys(plik), ['wersja', 'zapisano', 'motyw', 'kategorie', 'wpisy', 'usuniete']);
+  assert.equal(plik.wersja, 5);
+  const { kategorie, ...odczytane } = odczytajDane(JSON.parse(JSON.stringify(plik)));
+  assert.deepEqual(odczytane, stan);
+  assert.deepEqual(kategorie, pobierzKategorie()); // lista kategorii (domyślna: gotowe)
+  assert.deepEqual(Object.keys(doZapisu(stan)), ['wersja', 'zapisano', 'kategorie', 'wpisy', 'usuniete']);
 });
 
 test('śmieci z pliku zamieniane na bezpieczne wartości', () => {
@@ -294,6 +296,11 @@ test('formularz: kategoria i „na firmę” zapisane, bez pól zostają jak by�
   assert.equal(w.firmowa, false);
   zastosujFormularz([w], w, { ...p, kategoria: '<b>zla</b>' });
   assert.equal(w.kategoria, '');
+  // Własna - klucz „w-…” (nazwa w liście kategorii); nazwa gotowej z ręcznie poprawionego pliku - jej klucz.
+  zastosujFormularz([w], w, { ...p, kategoria: 'w-1a2b3c4d' });
+  assert.equal(w.kategoria, 'w-1a2b3c4d');
+  zastosujFormularz([w], w, { ...p, kategoria: 'Dom i rachunki' });
+  assert.equal(w.kategoria, 'dom');
 });
 
 test('ręczne ułożenie: przesunięcie wśród widocznych, czas ułożenia w pliku, zegar do przodu', () => {

@@ -5,7 +5,7 @@ import { termin, doPlatnosci, dniTekst, kiedyTekst, formatujDate, parsujDate, zb
 import { waluta, naPln, formatujKwote, wczytajZapamietane, odswiezZNbp, czyAktualne, ustawProwizje, pobierzProwizje, poprawnaProwizja } from './waluty.js';
 import { renderujPodsumowanie, policz } from './podsumowanie.js';
 import { wypelnijListe } from './spisy.js';
-import { nowyWpis, doZapisu, usun, formatujKoszt, parsujKoszt, zastosujFormularz, nazwaWpisu, bezZaleglegoOdbioru, dodajPrzyklad, nicDoStracenia, OKRESY, KATEGORIE, nazwaKategorii, normalizuj, noweId, odczytajTresc, zastapZKopii, czasZmiany, przesunWpis, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
+import { nowyWpis, doZapisu, usun, formatujKoszt, parsujKoszt, zastosujFormularz, nazwaWpisu, bezZaleglegoOdbioru, dodajPrzyklad, nicDoStracenia, OKRESY, kategorieWyboru, nazwaKategorii, ustawKategorie, uzyteKategorie, oznaczKategorie, normalizuj, noweId, odczytajTresc, zastapZKopii, czasZmiany, przesunWpis, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
 import { funkcja, ustawFunkcje, pobierzFunkcje, reczna, zmiennaKwota, osobWpisu, cenaNastepna, kategoriaWpisu, firmowa, ustawWaluty, pobierzWaluty, uzyteWaluty, walutyNaStart, walutyWyboru, walutaNastepnej, zmianaNastepnej } from './funkcje.js';
 import { renderujAnulowane } from './anulowane.js';
 import { renderujHistorie } from './historia.js';
@@ -72,6 +72,7 @@ async function wczytaj() {
   stan.wpisy = plik.odczytane.wpisy;
   stan.usuniete = plik.odczytane.usuniete;
   stan.ulozono = plik.odczytane.ulozono;
+  ustawKategorie(plik.odczytane.kategorie);
   return plik.kopia;
 }
 
@@ -271,7 +272,7 @@ function utworzKarte(wpis) {
     const znaczki = element('span', 'znaczki');
     if (kategoria) {
       const fiszka = element('span', 'fiszka', nazwaKategorii(kategoria));
-      fiszka.dataset.kategoria = kategoria;
+      oznaczKategorie(fiszka, kategoria);
       znaczki.append(fiszka);
     }
     if (firmowa(wpis)) znaczki.append(element('span', 'pieczatka-firma', t('na firmę')));
@@ -391,7 +392,7 @@ function renderuj() {
   renderujFiltr($('filtr'), widoczne, stan.filtr, przefiltrowane.length, (f) => {
     stan.filtr = f;
     zamienPlynnie($('karty'), renderuj); // karty nie znikają skokiem: lista gaśnie i pojawia się już przefiltrowana
-  });
+  }, { zawszeWybor: true });
   $('pusto').hidden = widoczne.length > 0;
   $('legenda').hidden = !widoczne.length || stan.ukladanie;
   renderujAnulowane($('anulowane'), stan.wpisy, { naPrzywroc: przywroc, naUsun: usunNaZawsze });
@@ -577,7 +578,7 @@ function otworzArkusz(wpis) {
   $('pauza-usun').hidden = !w.wstrzymanaDo;
   pokazPauze();
   // Kategoria i „na firmę” (D17, D18); przy wyłączonej funkcji pola schowane, a wartość zostaje bez zmian.
-  pola.kategoria.replaceChildren(new Option(t('bez kategorii'), ''), ...KATEGORIE.map(([k, n]) => new Option(t(n), k)));
+  pola.kategoria.replaceChildren(new Option(t('bez kategorii'), ''), ...kategorieWyboru(w.kategoria).map((k) => new Option(nazwaKategorii(k), k)));
   pola.kategoria.value = w.kategoria;
   $('pole-kategoria').hidden = !funkcja('kategorie');
   pola.firmowa.checked = !!w.firmowa;
@@ -897,6 +898,12 @@ function zastosujWaluty(lista) {
   pobierzKursyGdyTrzeba();
 }
 
+// Kategorie do wyboru (zakładka „Zeszyt”, jak na PC): lista jest w pliku danych (dane.js) - zapis i wysyłka
+// na Dysk jak po każdej zmianie pozycji.
+function zastosujKategorie() {
+  poZmianie().catch(console.error);
+}
+
 // F27: język strony - teksty z index.html (teksty.js); to, co rysuje kod, odświeża zmienJezyk.
 const pokazWersje = () => { $('wersja').textContent = t('wersja {numer}', { numer: window.WERSJA_APLIKACJI || t('robocza') }); };
 
@@ -940,10 +947,11 @@ function pokazWprowadzenie() {
 }
 
 const otworzUstawienia = () => pokazUstawienia(
-  { telefon: true, funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, jezyk: jezyk(), budzet: stan.budzet, waluty: pobierzWaluty(), uzyteWaluty: uzyteWaluty(stan.wpisy) },
+  { telefon: true, funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, jezyk: jezyk(), budzet: stan.budzet, waluty: pobierzWaluty(), uzyteWaluty: uzyteWaluty(stan.wpisy), uzyteKategorie: uzyteKategorie(stan.wpisy) },
   {
     naFunkcje: zastosujFunkcje,
     naWaluty: zastosujWaluty,
+    naKategorie: stan.zablokowany ? undefined : zastosujKategorie, // zapis zablokowany - zmiany listy by przepadły
     naJezyk: zmienJezyk,
     naBudzet(kwota) {
       stan.budzet = poprawnyBudzet(kwota);
@@ -1049,6 +1057,7 @@ async function usunZTelefonu() {
   stan.wpisy = [];
   stan.usuniete = [];
   stan.ulozono = '';
+  ustawKategorie(null);
   renderuj();
   zaplanujPowiadomienia();
 }

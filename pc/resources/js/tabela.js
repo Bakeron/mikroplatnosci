@@ -2,7 +2,7 @@
 
 import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, ustawPrzedluzanie, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
 import { waluta, przeliczNaPln, formatujKwote } from './waluty.js';
-import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, KATEGORIE, OKRESY, nazwaKategorii, ustawPauze, wznowDzis, usunPauze, bezZaleglegoOdbioru, czasZmiany } from './dane.js';
+import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, kategorieWyboru, oznaczKategorie, OKRESY, nazwaKategorii, ustawPauze, wznowDzis, usunPauze, bezZaleglegoOdbioru, czasZmiany } from './dane.js';
 import { element, pokazPlynnie, trescObokKrzyzyka, zamienPoKolei } from './dom.js';
 import { funkcja, reczna as recznaWpisu, zmiennaKwota, osobWpisu, kategoriaWpisu, firmowa, walutyWyboru, walutaNastepnej, zmianaNastepnej } from './funkcje.js';
 import { przyciskPomocy } from './pomoc.js';
@@ -304,17 +304,23 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   const kategoriaWybor = element('div', 'okres-wybor karteczka__gotowe');
   kategoriaWybor.setAttribute('role', 'group');
   kategoriaWybor.setAttribute('aria-label', t('Kategoria'));
-  const kategoriaOpcje = [['', t('bez kategorii')], ...KATEGORIE.map(([k, n]) => [k, t(n)])].map(([klucz, napis]) => {
-    const opcja = element('button', 'okres-wybor__opcja', napis);
-    opcja.type = 'button';
-    opcja.addEventListener('click', () => {
-      wpis.kategoria = klucz;
-      odswiez();
-      onZmiana();
+  // Lista z ustawień (gotowe i własne) - przebudowywana przy odświeżeniu, gdy się zmieniła.
+  let kategoriaOpcje = [];
+  function opcjeKategorii() {
+    const klucze = ['', ...kategorieWyboru(wpis.kategoria)];
+    if (JSON.stringify(klucze) === JSON.stringify(kategoriaOpcje.map(([k]) => k))) return;
+    kategoriaOpcje = klucze.map((klucz) => {
+      const opcja = element('button', 'okres-wybor__opcja', klucz ? nazwaKategorii(klucz) : t('bez kategorii'));
+      opcja.type = 'button';
+      opcja.addEventListener('click', () => {
+        wpis.kategoria = klucz;
+        odswiez();
+        onZmiana();
+      });
+      return [klucz, opcja];
     });
-    kategoriaWybor.append(opcja);
-    return [klucz, opcja];
-  });
+    kategoriaWybor.replaceChildren(...kategoriaOpcje.map(([, opcja]) => opcja));
+  }
   kategoriaGrupa.tresc.append(kategoriaWybor);
 
   // Okres: gotowe (tydzień … 2 lata) albo własny „co [N] [tygodni / miesięcy / lat]”.
@@ -520,12 +526,13 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     // D17, D18: znaczki pod opisem, wybór w karteczce i „pobierz fakturę” po płatności.
     const kategoria = kategoriaWpisu(wpis);
     kategoriaZnak.textContent = nazwaKategorii(kategoria);
-    kategoriaZnak.dataset.kategoria = kategoria;
+    oznaczKategorie(kategoriaZnak, kategoria);
     kategoriaZnak.hidden = !kategoria;
     firmaZnak.hidden = !firmowa(wpis);
     znaczki.hidden = kategoriaZnak.hidden && firmaZnak.hidden;
     kategoriaGrupa.det.hidden = !funkcja('kategorie');
     kategoriaGrupa.wartosc.textContent = nazwaKategorii(wpis.kategoria) || '-';
+    if (funkcja('kategorie')) opcjeKategorii();
     for (const [klucz, opcja] of kategoriaOpcje) opcja.setAttribute('aria-pressed', String((wpis.kategoria || '') === klucz));
     firmaEtykieta.hidden = !funkcja('firma');
     firmaPole.checked = !!wpis.firmowa;

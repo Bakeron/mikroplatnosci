@@ -1401,6 +1401,35 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 [data-kategoria="nauka"] { --kat: var(--kat-nauka); }
 [data-kategoria="zdrowie"] { --kat: var(--kat-zdrowie); }
 [data-kategoria="inne"] { --kat: var(--kat-inne); }
+/* własne kategorie (ustawienia): kolejne kolory z palety - inne odcienie niż gotowe, w nocy jaśniejsze */
+:root {
+  --kat-w0: #3f5fa6;
+  --kat-w1: #8a4f9e;
+  --kat-w2: #1f7a52;
+  --kat-w3: #b0498a;
+  --kat-w4: #6b7a1f;
+  --kat-w5: #7a5230;
+  --kat-w6: #2f7f99;
+  --kat-w7: #4a5a66;
+}
+:root[data-motyw="ciemny"] {
+  --kat-w0: #93aaf0;
+  --kat-w1: #cf9ce0;
+  --kat-w2: #6cc79c;
+  --kat-w3: #ec8cc4;
+  --kat-w4: #c2d16e;
+  --kat-w5: #d4a77d;
+  --kat-w6: #77c4dc;
+  --kat-w7: #a9bac6;
+}
+[data-kolor="0"] { --kat: var(--kat-w0); }
+[data-kolor="1"] { --kat: var(--kat-w1); }
+[data-kolor="2"] { --kat: var(--kat-w2); }
+[data-kolor="3"] { --kat: var(--kat-w3); }
+[data-kolor="4"] { --kat: var(--kat-w4); }
+[data-kolor="5"] { --kat: var(--kat-w5); }
+[data-kolor="6"] { --kat: var(--kat-w6); }
+[data-kolor="7"] { --kat: var(--kat-w7); }
 
 .zakladki {
   display: flex;
@@ -1412,7 +1441,9 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
   z-index: 3;
 }
 .zakladki__kategorie, .zakladki__tylko { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px; }
-.zakladki__etykieta { align-self: center; margin-right: 2px; color: var(--olowek); font: italic 13px var(--f-tytul); }
+/* „tylko:” na wysokości napisów w zakładkach (linia pisma, plus ich przesunięcie w dół o 3 px), nie środka zakładek */
+.zakladki__tylko { align-items: last baseline; }
+.zakladki__etykieta { position: relative; top: 3px; margin-right: 2px; color: var(--olowek); font: italic 13px var(--f-tytul); }
 .zakladka {
   --kat: var(--atrament);
   display: inline-flex;
@@ -1441,7 +1472,8 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 }
 .zakladka__ile { font-weight: 400; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 /* „tylko …” - spinacz zamiast koloru: ✓ przed napisem, gdy włączone */
-.zakladka--tylko { --kat: var(--margines); text-transform: none; letter-spacing: 0.02em; font-size: 12.5px; }
+/* napis 2 px wyżej - małe litery z ogonkami (p, ę) stały niżej niż środek, pod krawędzią zostawało mniej miejsca */
+.zakladka--tylko { --kat: var(--margines); padding-top: 2px; padding-bottom: 5px; text-transform: none; letter-spacing: 0.02em; font-size: 12.5px; }
 .zakladka--tylko .zakladka__napis::before {
   content: "\2713";
   display: inline-block;
@@ -1455,6 +1487,32 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 @media (prefers-reduced-motion: reduce) { .zakladka--tylko .zakladka__napis::before { transition: none; } }
 .zakladki__licznik { align-self: center; margin-left: auto; color: var(--olowek); font: italic 13.5px var(--f-tytul); }
 .zakladki__wyczysc { padding: 0 2px; font-size: 13.5px; }
+/* Kategorie, które nie mieszczą się w rzędzie (filtr.js) - jedna wciśnięta zakładka z listą rozwijaną. */
+.zakladki__wybor { display: none; }
+:is(.zakladki--wybor, .zakladki--zawsze-wybor) .zakladki__kategorie > .zakladka { display: none; }
+:is(.zakladki--wybor, .zakladki--zawsze-wybor) .zakladki__wybor {
+  --kat: var(--atrament);
+  display: block;
+  appearance: none;
+  padding: 4px 30px 3px 10px;
+  border: 1px solid var(--linia);
+  border-bottom: 0;
+  border-top: 4px solid var(--kat);
+  border-radius: 5px 5px 0 0;
+  /* strzałka z dwóch trójkątów w kolorze tekstu - działa w obu motywach */
+  background:
+    linear-gradient(45deg, transparent 50%, currentColor 50%) no-repeat right 15px center / 5px 5px,
+    linear-gradient(135deg, currentColor 50%, transparent 50%) no-repeat right 10px center / 5px 5px,
+    var(--papier);
+  color: var(--atrament);
+  box-shadow: 0 -2px 6px rgb(0 0 0 / 0.12);
+  font: 600 11.5px/1.5 var(--f-liczby);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.zakladki__wybor:focus-visible { outline: 2px solid var(--atrament); outline-offset: 2px; }
+.zakladki__wybor option { background: var(--papier); color: var(--atrament); text-transform: none; letter-spacing: 0; }
 @media (prefers-reduced-motion: reduce) { .zakladka { transition: none; } }
 
 /* fiszka kategorii i pieczątka „na firmę” pod opisem pozycji */
@@ -1498,6 +1556,31 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .ustawienia__waluta input { width: 16px; height: 16px; margin: 0; accent-color: var(--atrament); cursor: inherit; }
 .ustawienia__waluta:has(input[aria-disabled="true"]) { cursor: default; }
 .ustawienia__uzyta { color: var(--olowek); font: italic 12px var(--f-tytul); letter-spacing: 0; }
+.ustawienia__dopisz { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.ustawienia__dopisz .ustawienia__nowa-kategoria { width: 16em; max-width: 100%; text-align: left; }
+.ustawienia__wiersz--kategorie .ustawienia__stan:empty { display: none; }
+/* kategorie w ustawieniach z paskiem koloru jak fiszka; nazwa własnej w polu do poprawienia (podkreślenie po najechaniu) */
+.ustawienia__kategoria :is(.ustawienia__kod, .ustawienia__nazwa-kategorii) { padding-left: 6px; border-left: 4px solid var(--kat, var(--olowek)); }
+.ustawienia__waluta input.ustawienia__nazwa-kategorii { /* nie kratka 16 px jak waluty */
+  width: auto;
+  height: auto;
+  field-sizing: content; /* szerokość jak nazwa */
+  max-width: 24ch;
+  flex-shrink: 0;
+  min-width: 3ch;
+  padding-block: 0;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: var(--atrament);
+  font: 600 13px var(--f-liczby);
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: text;
+}
+.ustawienia__nazwa-kategorii:hover { border-bottom-color: var(--olowek); }
+.ustawienia__nazwa-kategorii:focus { border-bottom-color: var(--atrament); outline: none; }
 
 /* --- E23, E24: zakładka „Kopia i import” w ustawieniach - cztery czynności --- */
 .plik__akcja {

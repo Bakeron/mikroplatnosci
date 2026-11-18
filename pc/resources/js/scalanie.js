@@ -30,5 +30,17 @@ export function scal(lokalne, zdalne) {
 
   const obecne = new Set(wynik.map((w) => w.id));
   const ulozono = zdalnaKolejnosc ? zdalne.ulozono : lokalne.ulozono || '';
-  return { wpisy: wynik, usuniete: [...usuniete.values()].filter((u) => !obecne.has(u.id)), ulozono };
+  return { wpisy: wynik, usuniete: [...usuniete.values()].filter((u) => !obecne.has(u.id)), ulozono, kategorie: scalKategorie(lokalne.kategorie, zdalne.kategorie) };
+}
+
+// Lista kategorii: rekord po kluczu, wygrywa nowsza zmiana (włączenie, odznaczenie, nazwa); kolejność z tego
+// urządzenia, kategorie dopisane tylko po drugiej stronie - na końcu. Brak listy po obu stronach - null.
+export function scalKategorie(lokalne, zdalne) {
+  if (!lokalne && !zdalne) return null;
+  const wynik = new Map();
+  for (const k of [...(lokalne ?? []), ...(zdalne ?? [])]) {
+    const jest = wynik.get(k.klucz);
+    if (!jest || czas(k.zmieniono) > czas(jest.zmieniono)) wynik.set(k.klucz, k);
+  }
+  return [...wynik.values()];
 }

@@ -3,7 +3,8 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { policz } from '../resources/js/podsumowanie.js';
-import { normalizuj } from '../resources/js/dane.js';
+import { normalizuj, ustawKategorie, pobierzKategorie, kategorieWyboru, kolejnoscKategorii, uzyteKategorie, nazwaKategorii, dodajKategorie, wlaczKategorie, zmienNazweKategorii, odczytajKategorie, odczytajDane, doZapisu } from '../resources/js/dane.js';
+import { scal } from '../resources/js/scalanie.js';
 import { poprawneFunkcje, ustawFunkcje, kategoriaWpisu, firmowa } from '../resources/js/funkcje.js';
 import { pustyFiltr, pasuje, poprawFiltr, czyPusty } from '../resources/js/filtr.js';
 import { doCsv, komorkaCsv } from '../resources/js/eksport.js';
@@ -206,4 +207,51 @@ test('E24: obcy plik (nie wyciąg) - null; jedna płatność - brak propozycji',
     { data: d.slice(0, 8) + '20', kwota: -19.99, waluta: 'PLN', opis: 'APPLE.COM/BILL iCloud' },
   ]);
   assert.deepEqual(znajdzPowtarzajace(apple).map((x) => [x.kwota, x.okres, x.coIle]), [[19.99, 'M', 1], [4.99, 'M', 1]]);
+});
+
+test('kategorie (autor 18.11.2026): gotowe i własne, odznaczanie, zmiana nazwy bez ruszania pozycji, kolory po kolei', () => {
+  ustawKategorie(null);
+  const wlaczone = () => pobierzKategorie().filter((r) => r.wl).map((r) => r.klucz);
+  assert.deepEqual(wlaczone(), ['rozrywka', 'praca', 'ai', 'dom', 'nauka', 'zdrowie', 'inne']);
+  const gry = dodajKategorie('  Gry ');
+  const kino = dodajKategorie('Kino');
+  assert.match(gry, /^w-[a-z0-9]+$/);
+  assert.deepEqual(pobierzKategorie().filter((r) => r.nazwa).map((r) => [r.nazwa, r.kolor]), [['Gry', 0], ['Kino', 1]]);
+  assert.equal(dodajKategorie('gry'), gry); // ta sama nazwa - ta sama kategoria
+  assert.equal(dodajKategorie('Praca'), 'praca'); // nazwa gotowej - gotowa
+  wlaczKategorie('rozrywka', false);
+  assert.deepEqual(kategorieWyboru(''), ['praca', 'ai', 'dom', 'nauka', 'zdrowie', 'inne', gry, kino]);
+  assert.deepEqual(kategorieWyboru('rozrywka')[0], 'rozrywka'); // odznaczona, ale tej pozycji
+  // Zmiana nazwy: pozycja trzyma klucz, więc zostaje przy kategorii; nazwa zajęta albo pusta - bez zmian.
+  const w = wpis({ kategoria: gry });
+  assert.equal(zmienNazweKategorii(gry, 'Gry planszowe'), true);
+  assert.deepEqual([w.kategoria, nazwaKategorii(w.kategoria)], [gry, 'Gry planszowe']);
+  assert.equal(zmienNazweKategorii(gry, 'kino'), false);
+  assert.equal(zmienNazweKategorii(gry, 'AI'), false);
+  assert.equal(zmienNazweKategorii(gry, '  '), false);
+  assert.equal(nazwaKategorii(gry), 'Gry planszowe');
+  assert.deepEqual(Object.fromEntries(uzyteKategorie([w, wpis({ kategoria: gry, anulowano: '2026-11-01' })])), { [gry]: 2 });
+  // Odznaczona własna zwalnia kolor dla następnej.
+  wlaczKategorie(kino, false);
+  const sport = dodajKategorie('Sport');
+  assert.equal(pobierzKategorie().find((r) => r.klucz === sport).kolor, 1);
+  assert.deepEqual(kolejnoscKategorii([kino, 'ai', gry]), ['ai', gry, kino]);
+  ustawKategorie(null);
+});
+
+test('kategorie w pliku i przy scalaniu z Dyskiem: złe rekordy wypadają, wygrywa nowsza zmiana, dopisane po obu stronach zostają', () => {
+  assert.equal(odczytajKategorie(undefined), null);
+  const z = odczytajKategorie([{ klucz: 'w-abcd1234', nazwa: ' Gry ', kolor: 99, zmieniono: '2026-11-10T10:00:00.000Z' }, { klucz: 'w-abcd1234', nazwa: 'drugi raz' },
+    { klucz: 'zly klucz', nazwa: 'x' }, { klucz: 'w-pusta1', nazwa: '  ' }, { klucz: 'praca', nazwa: 'ignorowana', wl: false }, null]);
+  assert.deepEqual(z.slice(0, 2), [{ klucz: 'w-abcd1234', nazwa: 'Gry', wl: true, kolor: 0, zmieniono: '2026-11-10T10:00:00.000Z' }, { klucz: 'praca', nazwa: '', wl: false, kolor: 0, zmieniono: '' }]);
+  assert.equal(z.length, 2 + 6); // pozostałe gotowe dochodzą
+  // Zapis i odczyt pliku z listą; zmiana nazwy na telefonie (nowsza) wygrywa, kategoria dopisana na PC zostaje.
+  const pc = [{ klucz: 'w-abcd1234', nazwa: 'Gry', wl: true, kolor: 0, zmieniono: '2026-11-10T10:00:00.000Z' }, { klucz: 'w-pc000001', nazwa: 'Kino', wl: true, kolor: 1, zmieniono: '2026-11-10T11:00:00.000Z' }];
+  const tel = [{ klucz: 'w-abcd1234', nazwa: 'Planszówki', wl: true, kolor: 0, zmieniono: '2026-11-10T12:00:00.000Z' }];
+  ustawKategorie(odczytajKategorie(pc));
+  assert.deepEqual(odczytajDane(JSON.parse(JSON.stringify(doZapisu({ wpisy: [], usuniete: [] })))).kategorie, odczytajKategorie(pc));
+  const wynik = scal({ wpisy: [], usuniete: [], kategorie: odczytajKategorie(pc) }, { wpisy: [], usuniete: [], kategorie: odczytajKategorie(tel) });
+  assert.deepEqual(wynik.kategorie.filter((r) => r.nazwa).map((r) => r.nazwa), ['Planszówki', 'Kino']);
+  assert.equal(scal({ wpisy: [], usuniete: [] }, { wpisy: [], usuniete: [] }).kategorie, null);
+  ustawKategorie(null);
 });

@@ -149,6 +149,8 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .t-filtr .zakladki__tylko { flex-wrap: wrap; }
 .t-filtr .zakladka { flex-shrink: 0; align-items: center; min-height: 44px; padding-inline: 12px; font-size: 12.5px; transform: none; }
 .t-filtr .zakladka--tylko { border-bottom: 1px solid var(--linia); border-top-width: 1px; border-radius: 5px; font-size: 13.5px; }
+.t-filtr .zakladki__etykieta { top: 0; } /* zakładki na telefonie nie są przesunięte w dół */
+.t-filtr .zakladki__wybor { justify-self: start; max-width: 100%; min-height: 44px; padding-block: 0; font-size: 12.5px; }
 .t-filtr .zakladki__licznik { margin-left: 0; font-size: 14px; }
 .t-filtr .zakladki__licznik:empty { display: none; }
 .t-filtr .zakladki__wyczysc { min-height: 44px; padding-inline: 6px; font-size: 14px; }
@@ -417,6 +419,9 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .ustawienia__waluty { gap: 0 18px; }
 .telefon .ustawienia__waluta { min-height: 44px; font-size: 15px; }
 .telefon .ustawienia__waluta input { width: 20px; height: 20px; }
+.telefon .ustawienia__dopisz .przycisk-tekst { min-height: 44px; }
+.telefon .ustawienia__waluta input.ustawienia__nazwa-kategorii { min-height: 44px; font-size: 15px; }
+.telefon .ustawienia__dopisz .ustawienia__nowa-kategoria { min-height: 44px; font-size: 15px; }
 .telefon .ustawienia__wiersz:hover .ustawienia__nazwa { text-decoration: none; } /* dotyk zostawia :hover po puszczeniu */
 .telefon .ustawienia__nazwa { font-size: 16px; }
 .telefon .ustawienia__opis { font-size: 14px; }

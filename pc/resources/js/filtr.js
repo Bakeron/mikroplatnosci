@@ -1,9 +1,11 @@
 // D17: filtr nad tabelą - zakładki indeksowe wystające znad kartki: kategorie (z liczbą pozycji)
 // i trzy „tylko …” (płacę sam, do wycofania, na firmę). Filtr tylko chowa wiersze - kolejność i dane
 // się nie zmieniają; nie jest zapamiętywany (po uruchomieniu widać wszystko).
+// Kategorie, które nie mieszczą się w jednym rzędzie (i zawsze na telefonie), zamieniają się w listę
+// rozwijaną (select) - autor 18.11.2026.
 
 import { element } from './dom.js';
-import { KATEGORIE } from './dane.js';
+import { kolejnoscKategorii, nazwaKategorii, oznaczKategorie } from './dane.js';
 import { funkcja, kategoriaWpisu, reczna, firmowa } from './funkcje.js';
 import { t, tekst } from './teksty.js';
 
@@ -57,8 +59,47 @@ function odswiezWMiejscu(kontener, nowe) {
   return true;
 }
 
-// wpisy: wiersze tabeli (bez anulowanych); widac: ile wierszy pokazuje filtr; naZmiane(nowyFiltr).
-export function renderujFiltr(kontener, wpisy, f, widac, naZmiane) {
+// Lista rozwijana zamiast zakładek kategorii: [klucz, napis, ile]; klucz null - wszystkie.
+function wyborKategorii(pozycje, f, naZmiane) {
+  const wybor = element('select', 'zakladki__wybor');
+  wybor.dataset.klucz = 'wybor';
+  wybor.setAttribute('aria-label', t('Kategoria'));
+  pozycje.forEach(([klucz, napis, ile], i) => {
+    const opcja = new Option(`${napis} (${ile})`, String(i)); // wartość = numer - nazwa własnej kategorii może być dowolna
+    opcja.selected = klucz === f.kategoria;
+    wybor.append(opcja);
+  });
+  if (f.kategoria !== null) oznaczKategorie(wybor, f.kategoria);
+  wybor.onchange = () => naZmiane({ ...f, kategoria: pozycje[Number(wybor.value)]?.[0] ?? null });
+  return wybor;
+}
+
+// Zakładki kategorii mieszczą się, gdy kategorie i „tylko …” stoją w jednym rzędzie (licznik może zejść niżej).
+// Pomiar tylko przy zmianie szerokości i po przerysowaniu - nie przy każdej zmianie wysokości.
+const szerokosci = new WeakMap();
+function dopasuj(kontener) {
+  const kategorie = kontener.querySelector('.zakladki__kategorie');
+  if (!kategorie || kontener.hidden || kontener.classList.contains('zakladki--zawsze-wybor')) return;
+  szerokosci.set(kontener, kontener.clientWidth);
+  kontener.classList.remove('zakladki--wybor');
+  const rzad = [...kontener.querySelectorAll('.zakladka')];
+  // Dół bez przesunięcia (transform) wciśniętej - zakładki stoją na jednej linii, ale różnią się wysokością.
+  const dol = (e) => e.offsetTop + e.offsetHeight;
+  const miesci = rzad.every((e) => Math.abs(dol(e) - dol(rzad[0])) < 6);
+  kontener.classList.toggle('zakladki--wybor', !miesci);
+}
+const obserwowane = new WeakSet();
+function obserwuj(kontener) {
+  if (obserwowane.has(kontener)) return;
+  obserwowane.add(kontener);
+  new ResizeObserver(() => {
+    if (kontener.clientWidth !== szerokosci.get(kontener)) dopasuj(kontener);
+  }).observe(kontener);
+}
+
+// wpisy: wiersze tabeli (bez anulowanych); widac: ile wierszy pokazuje filtr; naZmiane(nowyFiltr);
+// zawszeWybor - kategorie od razu w liście rozwijanej (telefon).
+export function renderujFiltr(kontener, wpisy, f, widac, naZmiane, { zawszeWybor = false } = {}) {
   const fokus = kontener.contains(document.activeElement) ? document.activeElement.dataset.klucz : null;
   kontener.hidden = !funkcja('kategorie') || !wpisy.length;
   if (kontener.hidden) {
@@ -76,14 +117,19 @@ export function renderujFiltr(kontener, wpisy, f, widac, naZmiane) {
   for (const w of wpisy) ile.set(kategoriaWpisu(w), (ile.get(kategoriaWpisu(w)) ?? 0) + 1);
   const kategorie = element('div', 'zakladki__kategorie');
   kategorie.append(zakladka('wszystkie', t('wszystkie'), wpisy.length, f.kategoria === null, 'zakladka--wszystkie', () => naZmiane({ ...f, kategoria: null })));
+  const pozycje = [[null, t('wszystkie'), wpisy.length]];
   // Tylko kategorie, które są w zeszycie (i wybrana, nawet gdy już pusta - żeby dało się ją odznaczyć).
-  for (const [klucz, nazwa] of [...KATEGORIE, ['', tekst('bez kategorii')]]) {
+  const klucze = kolejnoscKategorii([...ile.keys(), ...(f.kategoria ? [f.kategoria] : [])]);
+  for (const klucz of [...klucze, '']) {
     if (!ile.has(klucz) && f.kategoria !== klucz) continue;
     if (klucz === '' && ile.size < 2 && f.kategoria !== '') continue; // same „bez kategorii” - nic nie wnosi
-    const z = zakladka('k-' + klucz, t(nazwa), ile.get(klucz) ?? 0, f.kategoria === klucz, '', () => naZmiane({ ...f, kategoria: f.kategoria === klucz ? null : klucz }));
-    z.dataset.kategoria = klucz;
+    const napis = klucz ? nazwaKategorii(klucz) : t('bez kategorii');
+    pozycje.push([klucz, napis, ile.get(klucz) ?? 0]);
+    const z = zakladka('k-' + klucz, napis, ile.get(klucz) ?? 0, f.kategoria === klucz, '', () => naZmiane({ ...f, kategoria: f.kategoria === klucz ? null : klucz }));
+    oznaczKategorie(z, klucz);
     kategorie.append(z);
   }
+  kategorie.append(wyborKategorii(pozycje, f, naZmiane));
   const tylko = element('div', 'zakladki__tylko');
   tylko.append(element('span', 'zakladki__etykieta', t('tylko:')));
   for (const [klucz, nazwa, dostepne] of TYLKO) {
@@ -100,8 +146,12 @@ export function renderujFiltr(kontener, wpisy, f, widac, naZmiane) {
     wyczysc.addEventListener('click', () => naZmiane(pustyFiltr()));
     licznik.append(' ', wyczysc);
   }
+  kontener.classList.toggle('zakladki--zawsze-wybor', zawszeWybor);
   if (odswiezWMiejscu(kontener, [...kategorie.children, ...tylko.children].filter((e) => e.matches('.zakladka')))) {
     kontener.querySelector('.zakladki__licznik').replaceWith(licznik);
+    kontener.querySelector('.zakladki__wybor').replaceWith(kategorie.querySelector('.zakladki__wybor'));
   } else kontener.replaceChildren(kategorie, tylko, licznik);
+  dopasuj(kontener);
+  obserwuj(kontener);
   if (fokus && !kontener.contains(document.activeElement)) (kontener.querySelector(`[data-klucz="${CSS.escape(fokus)}"]`) ?? kontener.querySelector('.zakladka'))?.focus();
 }

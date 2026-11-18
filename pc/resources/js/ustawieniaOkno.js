@@ -5,7 +5,7 @@
 
 import { element, krzyzykOkna } from './dom.js';
 import { FUNKCJE } from './funkcje.js';
-import { formatujKoszt, parsujKoszt } from './dane.js';
+import { formatujKoszt, parsujKoszt, KATEGORIE, kolejnoscKategorii, nazwaKategorii, oznaczKategorie, pobierzKategorie, wlaczKategorie, dodajKategorie, zmienNazweKategorii, MAKS_KATEGORII, MAKS_NAZWY_KATEGORII } from './dane.js';
 import { t, tekst, JEZYKI } from './teksty.js';
 import { WALUTY } from './waluty.js';
 
@@ -89,14 +89,111 @@ function wyborWalut(stan, naWaluty) {
   return blok;
 }
 
-// stan: { telefon, funkcje, powiadomienia, wTle, jezyk, budzet, waluty, uzyteWaluty }; zdarzenia: naFunkcje(funkcje), naWaluty(lista), naJezyk(kod), naBudzet(kwota),
+// Kategorie do wyboru (autor 18.11.2026): gotowe propozycje do odznaczenia i własne - do dopisania, zmiany nazwy
+// (pozycje zostają przy niej) i odznaczenia. Lista jest w pliku danych (dane.js) - wspólna z drugim urządzeniem.
+// Kategorii z pozycji nie da się odznaczyć (stan.uzyteKategorie: klucz -> w ilu pozycjach); odznaczona własna
+// znika z listy przy następnym otwarciu okna. Po każdej zmianie - naKategorie() (zapis i odświeżenie).
+function wyborKategorii(stan, naKategorie) {
+  const uzyte = stan.uzyteKategorie ?? new Map();
+  const wlaczona = (klucz) => pobierzKategorie().some((r) => r.klucz === klucz && r.wl);
+  const pokazane = kolejnoscKategorii([...KATEGORIE.map(([k]) => k), ...pobierzKategorie().filter((r) => r.wl).map((r) => r.klucz), ...uzyte.keys()]);
+  const blok = element('div', 'ustawienia__wiersz ustawienia__wiersz--waluty ustawienia__wiersz--kategorie');
+  blok.setAttribute('role', 'group');
+  const nazwa = element('span', 'ustawienia__nazwa', t('Kategorie do wyboru'));
+  nazwa.id = 'ustawienia-kategorie';
+  blok.setAttribute('aria-labelledby', nazwa.id);
+  const teksty = element('span', 'ustawienia__teksty');
+  teksty.append(nazwa, element('span', 'ustawienia__opis', stan.telefon
+    ? t('Gotowe propozycje i własne - zaznaczone są do wyboru przy edycji pozycji. Nazwę własnej zmienisz, dotykając jej. Lista jest wspólna z komputerem (przez Google Dysk).')
+    : t('Gotowe propozycje i własne - zaznaczone są do wyboru w „⋯” przy pozycji. Nazwę własnej zmienisz, klikając w nią. Lista jest wspólna z telefonem (przez Google Dysk).')));
+  const lista = element('div', 'ustawienia__waluty');
+  const komunikat = element('p', 'ustawienia__stan ustawienia__stan--blad');
+  komunikat.setAttribute('aria-live', 'polite');
+  const kratki = new Map(); // klucz -> pole wyboru
+  function dodajKratke(klucz) {
+    const ile = uzyte.get(klucz) || 0;
+    const wlasna = !KATEGORIE.some(([k]) => k === klucz);
+    const pole = element('input');
+    pole.type = 'checkbox';
+    pole.checked = wlaczona(klucz) || ile > 0;
+    kratki.set(klucz, pole);
+    if (ile) {
+      pole.setAttribute('aria-disabled', 'true');
+      pole.addEventListener('click', (e) => e.preventDefault());
+    } else pole.addEventListener('change', () => {
+      wlaczKategorie(klucz, pole.checked);
+      naKategorie();
+    });
+    // Własna: nazwa w polu do poprawienia - etykieta (label) przejmowałaby kliknięcia w pole, więc zwykły element.
+    const etykieta = element(wlasna ? 'span' : 'label', 'ustawienia__waluta ustawienia__kategoria');
+    oznaczKategorie(etykieta, klucz);
+    if (wlasna) {
+      const nazwaPole = element('input', 'pole ustawienia__nazwa-kategorii');
+      nazwaPole.type = 'text';
+      nazwaPole.maxLength = MAKS_NAZWY_KATEGORII;
+      nazwaPole.value = nazwaKategorii(klucz);
+      nazwaPole.autocomplete = 'off';
+      nazwaPole.spellcheck = false;
+      const opisz = () => {
+        nazwaPole.setAttribute('aria-label', t('Nazwa kategorii {nazwa}', { nazwa: nazwaKategorii(klucz) }));
+        pole.setAttribute('aria-label', nazwaKategorii(klucz));
+      };
+      opisz();
+      nazwaPole.addEventListener('change', () => {
+        komunikat.textContent = '';
+        if (zmienNazweKategorii(klucz, nazwaPole.value)) {
+          opisz();
+          naKategorie();
+        } else komunikat.textContent = t('„{nazwa}” - taka kategoria już jest albo nazwa jest pusta.', { nazwa: nazwaPole.value.trim() });
+        nazwaPole.value = nazwaKategorii(klucz);
+      });
+      etykieta.append(pole, nazwaPole);
+    } else etykieta.append(pole, element('span', 'ustawienia__kod', nazwaKategorii(klucz)));
+    if (ile) {
+      etykieta.append(element('span', 'ustawienia__uzyta', t('w użyciu: {n}', { n: ile })));
+      etykieta.title = t('Pozycji w tej kategorii: {n} - nie da się jej wyłączyć, dopóki jej używają.', { n: ile });
+    }
+    lista.append(etykieta);
+  }
+  for (const klucz of pokazane) dodajKratke(klucz);
+
+  // Dopisanie własnej: nazwa gotowej (np. „praca”) albo już dopisanej - ta kategoria wraca na listę wyboru.
+  const dopisz = element('form', 'ustawienia__dopisz');
+  const pole = element('input', 'pole pole--male ustawienia__nowa-kategoria');
+  pole.type = 'text';
+  pole.maxLength = MAKS_NAZWY_KATEGORII;
+  pole.placeholder = t('własna kategoria');
+  pole.setAttribute('aria-label', t('Nazwa własnej kategorii'));
+  pole.autocomplete = 'off';
+  const dodaj = element('button', 'przycisk-tekst', t('+ dodaj'));
+  dodaj.type = 'submit';
+  dopisz.append(pole, dodaj);
+  dopisz.addEventListener('submit', (e) => {
+    e.preventDefault();
+    komunikat.textContent = '';
+    if (!pole.value.trim()) return;
+    const klucz = dodajKategorie(pole.value);
+    if (!klucz) {
+      komunikat.textContent = t('Najwyżej {n} kategorii.', { n: MAKS_KATEGORII });
+      return;
+    }
+    if (kratki.has(klucz)) kratki.get(klucz).checked = true;
+    else dodajKratke(klucz);
+    pole.value = '';
+    naKategorie();
+  });
+  blok.append(teksty, lista, dopisz, komunikat);
+  return blok;
+}
+
+// stan: { telefon, funkcje, powiadomienia, wTle, zasobnik, jezyk, budzet, waluty, uzyteWaluty, uzyteKategorie }; zdarzenia: naFunkcje(funkcje), naWaluty(lista), naKategorie(), naJezyk(kod), naBudzet(kwota),
 // naPowiadomienia(p) (może zwrócić Promise<false>: urządzenie nie pozwala na powiadomienia),
 // naWprowadzenie(), naWTle(wlacz) -> Promise<string> (pusty tekst = udało się, inaczej opis błędu),
 // sprawdzWTle() -> Promise<boolean|null>, naUstawieniaTelefonu() - telefon: strona aplikacji w ustawieniach Androida.
 // PC: czesci [{ klucz, nazwa, element }] - dalsze zakładki z gotowych części strony (synchronizacja, kopia),
 // dolCzesc - element do dolnego wiersza („o aplikacji”), schowek - tam części wracają po zamknięciu okna
 // (razem ze zdarzeniami), naZamkniecie(). Bez czesci (telefon) - dwie kolumny jak dotąd.
-export function pokazUstawienia(stan, { naFunkcje, naWaluty, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle, naUstawieniaTelefonu, czesci, dolCzesc, schowek, naZamkniecie }) {
+export function pokazUstawienia(stan, { naFunkcje, naWaluty, naKategorie, naPowiadomienia, naJezyk, naBudzet, naWprowadzenie, naWTle, sprawdzWTle, naZasobnik, naAutostart, sprawdzAutostart, naUstawieniaTelefonu, czesci, dolCzesc, schowek, naZamkniecie }) {
   // Stare okno (np. zmiana języka): sprzątanie jak przy zamknięciu (kod QR, nasłuchy), części przejdą niżej do nowego okna.
   const stare = document.getElementById('okno-ustawienia');
   if (stare) {
@@ -122,6 +219,7 @@ export function pokazUstawienia(stan, { naFunkcje, naWaluty, naPowiadomienia, na
   const sekcjaFunkcji = element('section', 'ustawienia__sekcja');
   sekcjaFunkcji.append(element('h3', 'ustawienia__naglowek', t('Co widać w zeszycie')));
   const zalezne = [];
+  let blokKategorii = null; // lista kategorii - tylko przy włączonych „Kategoriach i filtrze”
   for (const [klucz, nazwa, opis, zalezy] of FUNKCJE) {
     const w = wiersz(klucz, t(nazwa), t((stan.telefon && OPISY_TELEFONU[klucz]) || opis), funkcje[klucz] !== false, (wlacz) => {
       funkcje[klucz] = wlacz;
@@ -131,6 +229,7 @@ export function pokazUstawienia(stan, { naFunkcje, naWaluty, naPowiadomienia, na
     if (zalezy) zalezne.push([zalezy, w.pole, w.label]);
     sekcjaFunkcji.append(w.label);
     if (klucz === 'pauza' && naWaluty) sekcjaFunkcji.append(wyborWalut(stan, naWaluty)); // tam, gdzie był przełącznik „Waluty obce”
+    if (klucz === 'kategorie' && naKategorie) sekcjaFunkcji.append(blokKategorii = wyborKategorii(stan, naKategorie));
   }
   // Funkcja zależna (np. „Weekend i święta”) bez tej, od której zależy, nic nie robi - przygaszona.
   function odswiezZalezne() {
@@ -138,6 +237,7 @@ export function pokazUstawienia(stan, { naFunkcje, naWaluty, naPowiadomienia, na
       pole.disabled = funkcje[zalezy] === false;
       label.classList.toggle('ustawienia__wiersz--wylaczony', pole.disabled);
     }
+    if (blokKategorii) blokKategorii.hidden = funkcje.kategorie === false;
   }
   odswiezZalezne();
 
@@ -211,6 +311,38 @@ export function pokazUstawienia(stan, { naFunkcje, naWaluty, naPowiadomienia, na
       w.opisEl.append(' ', kwota);
     }
     sekcjaPowiadomien.append(w.label);
+  }
+
+  // Zasobnik (PC, zasobnik.js): krzyżyk chowa okno, aplikacja czuwa przy zegarze i dalej pokazuje powiadomienia.
+  // Start z Windows (zadanie w Harmonogramie zadań) - schowany w zasobniku, więc idzie w parze z zasobnikiem:
+  // włączenie startu włącza zasobnik, wyłączenie zasobnika wyłącza start.
+  if (naZasobnik) {
+    const zasobnik = wiersz('zasobnik', t('Krzyżyk chowa do zasobnika'), t('Zamknięte okno zostaje ikoną w zasobniku przy zegarze (na dole po prawej, czasem pod strzałką ^) i dalej pokazuje powiadomienia. Całkiem zamkniesz aplikację, klikając ikonę → „Zamknij”. Wyłączone - krzyżyk zamyka aplikację.'), stan.zasobnik === true, async (wlacz) => {
+      const blad = await naZasobnik(wlacz);
+      if (!wlacz && start.pole.checked) {
+        start.pole.checked = !!blad;
+        startStan.textContent = blad || t('start z Windows wyłączony razem z zasobnikiem');
+        startStan.classList.toggle('ustawienia__stan--blad', !!blad);
+      }
+    });
+    const start = wiersz('autostart', t('Uruchamiaj z Windows'), t('Po zalogowaniu do Windows aplikacja startuje sama, schowana w zasobniku przy zegarze, i przez cały dzień pilnuje powiadomień. Włącza też „Krzyżyk chowa do zasobnika”. Wyłączenie usuwa zadanie z Windows.'), false, async (wlacz, pole) => {
+      pole.disabled = true;
+      startStan.textContent = wlacz ? t('dodaję zadanie…') : t('usuwam zadanie…');
+      startStan.classList.remove('ustawienia__stan--blad');
+      const blad = await naAutostart(wlacz);
+      if (blad) pole.checked = !wlacz;
+      else if (wlacz) zasobnik.pole.checked = true;
+      startStan.textContent = blad || (pole.checked ? t('zadanie w Harmonogramie zadań: „Mikroplatnosci - start z Windows”') : t('zadanie usunięte'));
+      startStan.classList.toggle('ustawienia__stan--blad', !!blad);
+      pole.disabled = false;
+    });
+    const startStan = element('p', 'ustawienia__stan');
+    startStan.setAttribute('aria-live', 'polite');
+    sekcjaPowiadomien.append(zasobnik.label, start.label, startStan);
+    // Stan zadania w Windows (np. usunięte ręcznie) - przełącznik pokazuje prawdę.
+    sprawdzAutostart().then((jest) => {
+      if (jest !== null) start.pole.checked = jest;
+    }).catch(console.error);
   }
 
   // B10: także przy zamkniętej aplikacji - zadanie w Harmonogramie zadań Windows. Telefon planuje z wyprzedzeniem - tam tylko komunikat o zgodzie Androida.

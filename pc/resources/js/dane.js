@@ -9,7 +9,113 @@ export const KATEGORIE = [
   ['rozrywka', tekst('rozrywka')], ['praca', tekst('praca')], ['ai', tekst('AI')], ['dom', tekst('dom i rachunki')],
   ['nauka', tekst('nauka')], ['zdrowie', tekst('zdrowie i sport')], ['inne', tekst('inne')],
 ];
-export const nazwaKategorii = (klucz) => t(KATEGORIE.find(([k]) => k === klucz)?.[1] ?? '');
+// Lista kategorii (autor 18.11.2026) - w pliku danych, wspólna dla PC i telefonu (synchronizowana przez Dysk).
+// Rekord: { klucz, nazwa, wl, kolor, zmieniono }. Gotowa: klucz z KATEGORIE, nazwa pusta (tłumaczona przy
+// wyświetleniu). Własna: klucz „w-…” na stałe (pozycje trzymają klucz, więc zmiana nazwy ich nie rusza),
+// nazwa wpisana, kolor - numer z palety. wl: false - odznaczona (zostaje w pliku, żeby scalanie jej nie wskrzesiło).
+export const MAKS_NAZWY_KATEGORII = 40;
+export const MAKS_KATEGORII = 100; // rekordów razem z gotowymi i odznaczonymi
+export const PALETA_KATEGORII = 8; // kolory własnych (--kat-w0 … --kat-w7 w wyglad.css)
+const WLASNA = /^w-[a-z0-9]{4,40}$/;
+const gotowa = (klucz) => KATEGORIE.some(([k]) => k === klucz);
+const czystaNazwa = (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, MAKS_NAZWY_KATEGORII) : '');
+const domyslneKategorie = () => KATEGORIE.map(([klucz]) => ({ klucz, nazwa: '', wl: true, kolor: 0, zmieniono: '' }));
+const czasKategorii = (r) => new Date(Math.max(Date.now(), (Date.parse(r.zmieniono) || 0) + 1)).toISOString();
+let rejestr = domyslneKategorie();
+
+// Lista z pliku: tylko poprawne rekordy, bez powtórzeń; brakujące gotowe dochodzą jako włączone. null - plik sprzed listy.
+export function odczytajKategorie(lista) {
+  if (!Array.isArray(lista)) return null;
+  const wynik = [];
+  for (const r of lista.slice(0, MAKS_KATEGORII)) {
+    if (!r || typeof r.klucz !== 'string' || !(gotowa(r.klucz) || WLASNA.test(r.klucz)) || wynik.some((w) => w.klucz === r.klucz)) continue;
+    const nazwa = gotowa(r.klucz) ? '' : czystaNazwa(r.nazwa);
+    if (!gotowa(r.klucz) && !nazwa) continue;
+    const kolor = Number.isInteger(r.kolor) && r.kolor >= 0 && r.kolor < PALETA_KATEGORII ? r.kolor : 0;
+    wynik.push({ klucz: r.klucz, nazwa, wl: r.wl !== false, kolor, zmieniono: czasIso(r.zmieniono) });
+  }
+  for (const d of domyslneKategorie()) if (!wynik.some((w) => w.klucz === d.klucz)) wynik.push(d);
+  return wynik;
+}
+export const ustawKategorie = (lista) => { rejestr = lista ?? domyslneKategorie(); };
+export const pobierzKategorie = () => rejestr;
+const rekord = (klucz) => rejestr.find((r) => r.klucz === klucz);
+
+export const nazwaKategorii = (klucz) => {
+  const g = KATEGORIE.find(([k]) => k === klucz);
+  if (g) return t(g[1]);
+  return klucz ? rekord(klucz)?.nazwa || t('(bez nazwy)') : '';
+};
+// Kolor paska (CSS): gotowe po kluczu, własne po numerze z palety.
+export function oznaczKategorie(el, klucz) {
+  el.dataset.kategoria = klucz;
+  const r = !gotowa(klucz) && klucz ? rekord(klucz) : null;
+  if (r) el.dataset.kolor = String(r.kolor);
+  else delete el.dataset.kolor;
+}
+
+// Pozycja z pliku: klucz gotowej albo własnej; nazwa gotowej (np. z ręcznie poprawionego pliku) - jej klucz.
+export function kluczKategorii(v) {
+  if (typeof v !== 'string') return '';
+  if (gotowa(v) || WLASNA.test(v)) return v;
+  const male = czystaNazwa(v).toLocaleLowerCase();
+  return KATEGORIE.find(([k, n]) => k === male || n.toLocaleLowerCase() === male || t(n).toLocaleLowerCase() === male)?.[0] ?? '';
+}
+
+// Kategorie użyte w pozycjach (także anulowanych) -> ile pozycji. Takiej nie da się odznaczyć w ustawieniach.
+export function uzyteKategorie(wpisy) {
+  const ile = new Map();
+  for (const w of wpisy) if (w.kategoria) ile.set(w.kategoria, (ile.get(w.kategoria) || 0) + 1);
+  return ile;
+}
+// Kolejność wszędzie (wybór, filtr, paragon, ustawienia): gotowe jak w KATEGORIE, potem własne w kolejności dopisania.
+export function kolejnoscKategorii(klucze = rejestr.filter((r) => r.wl).map((r) => r.klucz)) {
+  const wlasne = [...rejestr.map((r) => r.klucz), ...klucze].filter((k, i, a) => k && !gotowa(k) && klucze.includes(k) && a.indexOf(k) === i);
+  return [...KATEGORIE.map(([k]) => k).filter((k) => klucze.includes(k)), ...wlasne];
+}
+// Do wyboru przy pozycji: włączone i jej własna (zostaje do zmiany, nawet gdy odznaczona).
+export const kategorieWyboru = (wlasna) => {
+  const wlaczone = rejestr.filter((r) => r.wl).map((r) => r.klucz);
+  return kolejnoscKategorii(wlasna && !wlaczone.includes(wlasna) ? [...wlaczone, wlasna] : wlaczone);
+};
+
+// Zmiany z ustawień - każda z czasem zmiany (przy scalaniu z Dyskiem wygrywa nowsza).
+export function wlaczKategorie(klucz, wl) {
+  const r = rekord(klucz);
+  if (r && r.wl !== wl) Object.assign(r, { wl, zmieniono: czasKategorii(r) });
+}
+// Nazwa, która już jest (gotowa albo własna, bez wielkości liter) - jej klucz.
+function kategoriaONazwie(nazwa, poza = '') {
+  const male = nazwa.toLocaleLowerCase();
+  const g = KATEGORIE.find(([k, n]) => k === male || n.toLocaleLowerCase() === male || t(n).toLocaleLowerCase() === male);
+  if (g) return g[0];
+  return rejestr.find((r) => r.klucz !== poza && r.nazwa.toLocaleLowerCase() === male)?.klucz ?? '';
+}
+// Dopisanie: nazwa, która już jest - ta kategoria włączona; nowa - z pierwszym wolnym kolorem palety.
+// Zwraca klucz albo '' (pusta nazwa, za dużo kategorii).
+export function dodajKategorie(nazwa) {
+  const czysta = czystaNazwa(nazwa);
+  if (!czysta) return '';
+  const jest = kategoriaONazwie(czysta);
+  if (jest) {
+    wlaczKategorie(jest, true);
+    return jest;
+  }
+  if (rejestr.length >= MAKS_KATEGORII) return '';
+  const zajete = rejestr.filter((r) => r.wl && !gotowa(r.klucz)).map((r) => r.kolor);
+  const wolny = [...Array(PALETA_KATEGORII).keys()].find((k) => !zajete.includes(k));
+  const klucz = 'w-' + noweId().replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 12);
+  rejestr.push({ klucz, nazwa: czysta, wl: true, kolor: wolny ?? zajete.length % PALETA_KATEGORII, zmieniono: new Date().toISOString() });
+  return klucz;
+}
+// Zmiana nazwy własnej - pozycje zostają przy niej (trzymają klucz). Zwraca false, gdy nazwa pusta albo zajęta.
+export function zmienNazweKategorii(klucz, nazwa) {
+  const r = rekord(klucz);
+  const czysta = czystaNazwa(nazwa);
+  if (!r || gotowa(klucz) || !czysta || kategoriaONazwie(czysta, klucz)) return false;
+  if (r.nazwa !== czysta) Object.assign(r, { nazwa: czysta, zmieniono: czasKategorii(r) });
+  return true;
+}
 
 // A1: gotowe okresy [okres, co ile, napis] - napis po polsku, tłumaczony przy wyświetleniu (t()).
 export const OKRESY = [['T', 1, tekst('tydzień')], ['T', 4, tekst('4 tygodnie')], ['M', 1, tekst('miesiąc')], ['M', 3, tekst('kwartał')], ['M', 6, tekst('pół roku')], ['R', 1, tekst('rok')], ['R', 2, tekst('2 lata')]];
@@ -141,7 +247,7 @@ export function normalizuj(w) {
     wstrzymanaDo: data(w.wstrzymanaDo), // pauza: dzień wznowienia (pierwsza płatność po przerwie)
     // Zakończone przerwy w płatnościach (poprzednie pauzy, czas po „nie” przed powrotem na „tak”) - do historii i terminów.
     przerwy: lista(w.przerwy, (p) => (p && data(p.do) ? { od: data(p.od), do: p.do } : null), MAKS_PRZERW),
-    kategoria: KATEGORIE.some(([k]) => k === w.kategoria) ? w.kategoria : '', // D17
+    kategoria: kluczKategorii(w.kategoria), // D17: klucz gotowej albo własnej („w-…”, nazwa w liście kategorii)
     firmowa: w.firmowa === true, // D18: koszt firmowy (osobna suma, „pobierz fakturę”)
     fakturaTermin: data(w.fakturaTermin), // D18: ostatnia płatność, za którą faktura już pobrana
     anulowano: data(w.anulowano), // C15: wykreślona - w „Anulowanych” pod tabelą (do przywrócenia), poza sumami i alarmami
@@ -229,7 +335,10 @@ export function odczytajDane(dane, zDysku = false, maks = zDysku ? MAKS_WPISOW_Z
   // Czas ostatniego ręcznego ułożenia (przesunięcia pozycji) - przy scalaniu wygrywa nowsza kolejność.
   let ulozono = czasIso(dane.ulozono);
   if (Date.parse(ulozono) > granica) ulozono = jutro;
-  return { wpisy, usuniete, ulozono };
+  // Lista kategorii (gotowe i własne); null - plik sprzed listy.
+  const kategorie = odczytajKategorie(dane.kategorie);
+  for (const k of kategorie ?? []) if (Date.parse(k.zmieniono) > granica) k.zmieniono = jutro;
+  return { wpisy, usuniete, ulozono, kategorie };
 }
 
 // Treść pliku danych (PC i telefon): pusty, nieczytelny albo obcy plik = błąd - wtedy aplikacja
@@ -263,6 +372,7 @@ export function zastapZKopii(stan, dane, teraz = new Date().toISOString()) {
   for (const w of dane.wpisy) w.zmieniono = teraz;
   stan.wpisy = dane.wpisy;
   stan.ulozono = teraz; // kolejność z kopii wygrywa na Dysku
+  ustawKategorie(dane.kategorie?.map((k) => ({ ...k, zmieniono: teraz })) ?? null); // lista kategorii z kopii też
 }
 
 // Ręczne przesunięcie pozycji (PC i telefon): czas ułożenia „teraz”, ale nie wcześniej niż poprzedni
@@ -347,8 +457,9 @@ export function zastosujFormularz(wpisy, edytowany, p) {
   return { wpis };
 }
 
-// Treść pliku danych w formacie wersja 4 (08.11.2026 wersja 3: ostatniTermin i przerwy; 10.11.2026 wersja 4:
+// Treść pliku danych w formacie wersja 5 (08.11.2026 wersja 3: ostatniTermin i przerwy; 10.11.2026 wersja 4:
 // walutaNastepna i waluta przy wpłatach i cenach - starsza wersja aplikacji zgubiłaby je, więc nie bierze
-// takich danych z Dysku ani z kopii); PC dokłada w dodatkach swoje ustawienia (motyw).
-export const WERSJA_DANYCH = 4;
-export const doZapisu = (stan, dodatki = {}) => ({ wersja: WERSJA_DANYCH, zapisano: new Date().toISOString(), ...dodatki, ...(stan.ulozono ? { ulozono: stan.ulozono } : {}), wpisy: stan.wpisy, usuniete: stan.usuniete });
+// takich danych z Dysku ani z kopii); 18.11.2026 wersja 5: lista kategorii (własne z kluczem „w-…” - starsza
+// wersja wyczyściłaby je w pozycjach); PC dokłada w dodatkach swoje ustawienia (motyw).
+export const WERSJA_DANYCH = 5;
+export const doZapisu = (stan, dodatki = {}) => ({ wersja: WERSJA_DANYCH, zapisano: new Date().toISOString(), ...dodatki, ...(stan.ulozono ? { ulozono: stan.ulozono } : {}), kategorie: pobierzKategorie(), wpisy: stan.wpisy, usuniete: stan.usuniete });

@@ -207,7 +207,7 @@ test('blokada: odświeżanie nie nadpisuje świeżej blokady innej kopii (po uś
 test('ustawienia: domyślnie zapis lokalny włączony; zapis i odczyt; śmieci = domyślne', async () => {
   const U = F + '/ustawienia.json';
   // Brak pliku - nowa osoba (dawneWalutyObce false); plik bez listy walut - „Waluty obce” były domyślnie włączone.
-  const domyslne = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, jezyk: '', wprowadzenie: false, kolejnosc: 'termin', budzet: 0, waluty: null, dawneWalutyObce: false };
+  const domyslne = { lokalnie: true, motyw: '', prowizja: 0, funkcje: poprawneFunkcje(), powiadomienia: null, wTle: false, zasobnik: false, jezyk: '', wprowadzenie: false, kolejnosc: 'termin', budzet: 0, waluty: null, dawneWalutyObce: false };
   const zPliku = { ...domyslne, dawneWalutyObce: true };
   assert.deepEqual(await wczytajUstawienia(U), { ...domyslne, uszkodzone: false });
   await zapiszUstawienia(U, { lokalnie: false, motyw: 'jasny', prowizja: 2.5 });
@@ -232,6 +232,12 @@ test('ustawienia: domyślnie zapis lokalny włączony; zapis i odczyt; śmieci =
     pliki.set(U, JSON.stringify({ budzet: zly }));
     assert.equal((await wczytajUstawienia(U)).budzet, 0);
   }
+  // Zasobnik (PC): domyślnie wyłączony, w pliku tylko włączenie; telefon go nie podaje - plik bez pola.
+  await zapiszUstawienia(U, { lokalnie: true, zasobnik: true });
+  assert.equal((await wczytajUstawienia(U)).zasobnik, true);
+  await zapiszUstawienia(U, { lokalnie: true });
+  assert.equal(JSON.parse(pliki.get(U)).zasobnik, undefined);
+  assert.equal((await wczytajUstawienia(U)).zasobnik, false);
 });
 
 test('ustawienia: funkcje, rodzaje powiadomień i „w tle” - zapis i odczyt; telefon zapisuje tylko „lokalnie”', async () => {

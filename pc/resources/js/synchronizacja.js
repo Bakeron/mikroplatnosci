@@ -3,7 +3,7 @@
 // zmian z drugiego urządzenia. Obie aplikacje mają te same id elementów (dysk-*, okno-dysk*, okno-google*).
 
 import { scal } from './scalanie.js';
-import { odczytajDane, doZapisu, WERSJA_DANYCH } from './dane.js';
+import { odczytajDane, doZapisu, WERSJA_DANYCH, pobierzKategorie, ustawKategorie } from './dane.js';
 import { t, tn, godzina } from './teksty.js';
 import { czyBladSieci, czyPolaczony, czySkonfigurowany, czyWpisany, wpisanyProjekt, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
 import { trescKodu, CZAS_POKAZU } from './kodQr.js';
@@ -128,8 +128,10 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
       }
     }
     if (zdalne) {
-      const przed = JSON.stringify([stan.wpisy, stan.usuniete, stan.ulozono]);
-      const wynik = scal(stan, zdalne);
+      // Lista kategorii (dane.js) scalana razem z pozycjami.
+      const stanTeraz = () => JSON.stringify([stan.wpisy, stan.usuniete, stan.ulozono, pobierzKategorie()]);
+      const przed = stanTeraz();
+      const { kategorie, ...wynik } = scal({ wpisy: stan.wpisy, usuniete: stan.usuniete, ulozono: stan.ulozono, kategorie: pobierzKategorie() }, zdalne);
       // Dysk usuwa z urządzenia kilka pozycji naraz (podmieniony plik, zegar drugiego urządzenia
       // mocno do przodu) - tylko po potwierdzeniu.
       const zostaja = new Set(wynik.wpisy.map((w) => w.id));
@@ -138,8 +140,9 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
         throw new Error(t('przerwano - dane na tym urządzeniu bez zmian'));
       }
       Object.assign(stan, wynik);
+      ustawKategorie(kategorie);
       // Zapis i odświeżenie widoku tylko, gdy Dysk coś zmienił (zwykle nic - pobranie przy każdym starcie telefonu).
-      if (JSON.stringify([stan.wpisy, stan.usuniete, stan.ulozono]) !== przed) await poScaleniu();
+      if (stanTeraz() !== przed) await poScaleniu();
     }
     if (wyslij) {
       pokaz(t('wysyłam na Dysk…'));

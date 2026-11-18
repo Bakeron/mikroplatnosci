@@ -4,7 +4,7 @@ import { zbierzAlarmy, formatujDate, parsujDate, dzis, przeniesNastepnaCene, iso
 import { renderujPodsumowanie } from './podsumowanie.js';
 import { utworzWiersz, odswiezWiersze, numeruj, przeciaganieWierszy } from './tabela.js';
 import { renderujMiarke, ulozTory } from './miarka.js';
-import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc, zastapZKopii, dodajPrzyklad, nicDoStracenia, czasZmiany, oznaczUlozenie, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH } from './dane.js';
+import { nowyWpis, doZapisu, usun, nazwaWpisu, noweId, normalizuj, odczytajTresc, zastapZKopii, dodajPrzyklad, nicDoStracenia, czasZmiany, oznaczUlozenie, MAKS_WPISOW_Z_DYSKU, WERSJA_DANYCH, ustawKategorie, uzyteKategorie } from './dane.js';
 import { wypelnijListe } from './spisy.js';
 import { przygotujDysk, czyPolaczony } from './dysk.js';
 import { polaczSynchronizacje, OPOZNIENIE_WYSYLKI, poWymianie } from './synchronizacja.js';
@@ -17,7 +17,7 @@ import { wczytajUstawienia, zapiszUstawienia, poprawnyBudzet } from './ustawieni
 import { pokazOAplikacji } from './oAplikacji.js';
 import { funkcja, ustawFunkcje, pobierzFunkcje, anulowana, ustawWaluty, pobierzWaluty, uzyteWaluty, walutyNaStart } from './funkcje.js';
 import { pokazUstawienia } from './ustawieniaOkno.js';
-import { ARG_TLA, czyZadanie, dodajZadanie, usunZadanie } from './harmonogram.js';
+import { ARG_TLA, czyZadanie, dodajZadanie, usunZadanie, ARG_ZASOBNIKA, dodajStart, usunStart, czyStart } from './harmonogram.js';
 import { renderujAnulowane } from './anulowane.js';
 import { podepnijPomocStrony, przetlumaczPomoc } from './pomoc.js';
 import { pustyFiltr, pasuje, poprawFiltr, renderujFiltr } from './filtr.js';
@@ -26,6 +26,7 @@ import { dekoduj, odczytajWyciag, znajdzPowtarzajace } from './wyciag.js';
 import { pokazWyciag } from './wyciagOkno.js';
 import { pokazPlynnie, trescObokKrzyzyka, zamienPlynnie } from './dom.js';
 import { pokazPierwszeKroki } from './pierwszeKroki.js';
+import { ustawIkone, pokazOkno, schowajOkno, obserwujProsby, poprosOPokazanie } from './zasobnik.js';
 import { t, tn, ustawJezyk, jezyk, przetlumaczStrone, dataDluga, godzina, liczba, liczbaKrotka } from './teksty.js';
 
 const NAZWA_PLIKU = 'mikroplatnosci.json';
@@ -61,6 +62,8 @@ const stan = {
   folder: '', // %APPDATA%\Mikroplatnosci
   powiadomienia: { ...DOMYSLNE_RODZAJE }, // rodzaje powiadomień z „Ustawień”
   wTle: false, // B10: powiadomienia przy zamkniętej aplikacji (zadanie w Harmonogramie zadań)
+  zasobnik: false, // krzyżyk chowa okno do zasobnika przy zegarze (zasobnik.js)
+  ikona: false, // ikona w zasobniku już jest
   jezyk: '', // F27: wybrany w „Ustawieniach”; pusty - język systemu
   wprowadzenie: false, // F25: dymki „pierwsze kroki” do obejrzenia (po „Pomiń” / „Gotowe” - false)
   budzet: 0, // D19: budżet miesięczny w zł (0 = bez limitu)
@@ -122,6 +125,7 @@ async function wczytaj() {
   const plik = await wczytajNaStart(stan.plik, stan.folderKopii);
   if (!plik) {
     stan.wpisy = [];
+    ustawKategorie(null);
     return null;
   }
   const { odczytane } = plik;
@@ -129,6 +133,7 @@ async function wczytaj() {
   stan.wpisy = odczytane.wpisy;
   stan.usuniete = odczytane.usuniete;
   stan.ulozono = odczytane.ulozono;
+  ustawKategorie(odczytane.kategorie);
   return plik.kopia;
 }
 
@@ -232,7 +237,7 @@ function odswiezMiejsceZapisu() {
 }
 
 const zapiszMojeUstawienia = () => zapiszUstawienia(stan.plikUstawien, {
-  lokalnie: stan.lokalnie, motyw: stan.motyw, prowizja: pobierzProwizje(), funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, wTle: stan.wTle,
+  lokalnie: stan.lokalnie, motyw: stan.motyw, prowizja: pobierzProwizje(), funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, wTle: stan.wTle, zasobnik: stan.zasobnik,
   jezyk: stan.jezyk, wprowadzenie: stan.wprowadzenie, budzet: stan.budzet, waluty: pobierzWaluty(),
 }).catch(console.error);
 
@@ -309,6 +314,7 @@ async function usunZKomputera() {
   stan.wpisy = [];
   stan.usuniete = [];
   stan.ulozono = '';
+  ustawKategorie(null);
   renderujTabele();
   odswiezDodatki();
   pokazStatus(t('dane usunięte z komputera'));
@@ -821,6 +827,25 @@ function zastosujWaluty(lista) {
   odswiezKursy(); // kursy, jeśli dziś jeszcze nie pobrane
 }
 
+// Kategorie do wyboru (zakładka „Zeszyt”, pod „Kategorie i filtr”): lista jest w pliku danych (dane.js) -
+// zapis i wysyłka na Dysk jak po każdej zmianie pozycji.
+function zastosujKategorie() {
+  renderujTabele();
+  akcjeWiersza.onZmiana();
+}
+
+// Ikona w zasobniku (zasobnik.js) - przy starcie z włączonym ustawieniem i po jego włączeniu; po zmianie języka
+// napisy w menu od nowa. Wyłączenie ustawienia nie zdejmuje ikony (Neutralino tego nie umie) - zostaje do zamknięcia
+// aplikacji, a krzyżyk okna znowu zamyka.
+function pokazIkone() {
+  ustawIkone().then(() => { stan.ikona = true; }).catch((e) => {
+    console.error(e);
+    pokazOkno().catch(console.error); // bez ikony schowane okno (start z Windows) nie miałoby jak wrócić
+  });
+}
+// Start z Windows (zadanie z harmonogram.js): okno schowane od początku, czuwa ikona w zasobniku.
+const zAutostartu = Array.isArray(window.NL_ARGS) && window.NL_ARGS.includes(ARG_ZASOBNIKA);
+
 // F27: język strony - teksty z index.html (teksty.js) i wszystko, co rysuje kod, od nowa.
 function zastosujJezyk() {
   ustawJezyk(stan.jezyk);
@@ -844,15 +869,17 @@ function zmienJezyk(j) {
   pokazProwizje();
   dysk.odswiez();
   if (!stan.zablokowany) pokazStatus(t('pozycji: {n}', { n: widoczne().length }));
+  if (stan.ikona) pokazIkone(); // menu ikony w nowym języku
   otworzUstawienia(); // okno ustawień od razu w nowym języku
   document.querySelector('#okno-ustawienia select')?.focus();
 }
 
 const otworzUstawienia = () => pokazUstawienia(
-  { funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, wTle: stan.wTle, jezyk: jezyk(), budzet: stan.budzet, waluty: pobierzWaluty(), uzyteWaluty: uzyteWaluty(stan.wpisy) },
+  { funkcje: pobierzFunkcje(), powiadomienia: stan.powiadomienia, wTle: stan.wTle, zasobnik: stan.zasobnik, jezyk: jezyk(), budzet: stan.budzet, waluty: pobierzWaluty(), uzyteWaluty: uzyteWaluty(stan.wpisy), uzyteKategorie: uzyteKategorie(stan.wpisy) },
   {
     naFunkcje: zastosujFunkcje,
     naWaluty: zastosujWaluty,
+    naKategorie: stan.zablokowany ? undefined : zastosujKategorie, // zapis zablokowany - zmiany listy by przepadły
     naJezyk: zmienJezyk,
     naBudzet(kwota) {
       stan.budzet = poprawnyBudzet(kwota);
@@ -875,6 +902,25 @@ const otworzUstawienia = () => pokazUstawienia(
       zapiszMojeUstawienia();
       sprawdzPowiadomienia();
     },
+    // Wyłączenie zasobnika wyłącza też start z Windows (schowane okno bez ikony nie miałoby jak wrócić).
+    // Zwraca opis błędu usuwania zadania startu albo pusty tekst.
+    async naZasobnik(wlacz) {
+      stan.zasobnik = wlacz;
+      await zapiszMojeUstawienia();
+      if (wlacz && !stan.ikona && !stan.zablokowany) pokazIkone();
+      return wlacz ? '' : usunStart();
+    },
+    // Start z Windows schowany w zasobniku - włącza też „Krzyżyk chowa do zasobnika”.
+    async naAutostart(wlacz) {
+      const blad = wlacz ? await dodajStart(stan.folder) : await usunStart();
+      if (!blad && wlacz && !stan.zasobnik) {
+        stan.zasobnik = true;
+        await zapiszMojeUstawienia();
+        if (!stan.ikona && !stan.zablokowany) pokazIkone();
+      }
+      return blad;
+    },
+    sprawdzAutostart: () => czyStart(),
     async naWTle(wlacz) {
       if (wlacz && !stan.lokalnie) return t('Działa tylko z włączonym „Zapisuj lokalnie” (zakładka „Synchronizacja”) - bez pliku na komputerze nie ma czego sprawdzić.');
       const blad = wlacz ? await dodajZadanie(stan.folder) : await usunZadanie();
@@ -1135,8 +1181,9 @@ async function start() {
     await przygotujFolder();
     if (!(await zajmijBlokadeOkna())) {
       stan.zablokowany = true;
+      poprosOPokazanie(stan.folder).catch(console.error); // tamto okno wychodzi na wierzch, także z zasobnika
       ustawJezyk((await wczytajUstawienia(stan.plikUstawien)).jezyk); // komunikat w języku aplikacji
-      pokazBlad(t('Mikropłatności są już otwarte w innym oknie (sprawdź pasek zadań). To okno zaraz się zamknie. Jeśli żadnego okna nie ma (aplikacja się zawiesiła), uruchom ją ponownie za 2 minuty.'));
+      pokazBlad(t('Mikropłatności są już otwarte - pokazuję tamto okno (mogło być schowane w zasobniku przy zegarze). To okno zaraz się zamknie. Jeśli żadne okno się nie pojawi (aplikacja się zawiesiła), uruchom ją ponownie za 2 minuty.'));
       $('dodaj').disabled = true;
       setTimeout(() => Neutralino.app.exit(), 4000);
       return;
@@ -1158,7 +1205,14 @@ async function start() {
   stan.jezyk = ustawienia.jezyk || '';
   stan.wprowadzenie = ustawienia.wprowadzenie === true;
   stan.budzet = poprawnyBudzet(ustawienia.budzet);
+  stan.zasobnik = ustawienia.zasobnik === true;
   zastosujJezyk();
+  if (!stan.zablokowany) {
+    if (stan.zasobnik) pokazIkone();
+    else if (zAutostartu) pokazOkno().catch(console.error); // start z Windows bez zasobnika (stare zadanie) - zwykłe okno
+    // Druga kopia (np. uruchomiona z menu Start przy oknie schowanym w zasobniku) prosi o pokazanie tego okna.
+    obserwujProsby(stan.folder, pokazOkno).catch(console.error);
+  }
 
   let kopia = null;
   if (!stan.zablokowany && stan.lokalnie) {
@@ -1253,16 +1307,44 @@ async function startWTle() {
 
 const wTle = Array.isArray(window.NL_ARGS) && window.NL_ARGS.includes(ARG_TLA);
 Neutralino.events.on('ready', wTle ? startWTle : start);
-Neutralino.events.on('windowClose', async () => {
+// Krzyżyk okna: przy zasobniku okno się chowa, a aplikacja działa dalej (zapis, Dysk, powiadomienia).
+// Okno, które nie zapisuje (druga kopia, błąd odczytu), zamyka się jak dawniej.
+Neutralino.events.on('windowClose', () => {
+  if (stan.zasobnik && stan.ikona && !stan.zablokowany) {
+    schowajOkno().catch(console.error);
+    zapiszTeraz().catch(console.error);
+  } else zakoncz();
+});
+Neutralino.events.on('trayMenuItemClicked', (e) => {
+  if (e.detail?.id === 'pokaz') pokazOkno().catch(console.error);
+  if (e.detail?.id === 'zamknij') zakoncz();
+});
+
+let konczenie = false;
+async function zakoncz() {
+  if (konczenie) return;
+  konczenie = true;
+  try {
+    await zakonczAplikacje();
+  } finally {
+    konczenie = false;
+  }
+}
+// Pytanie przy zamykaniu z zasobnika - najpierw widoczne okno, inaczej okienko pytania nie miałoby gdzie się pokazać.
+async function zapytaj(tekst) {
+  await pokazOkno().catch(console.error);
+  return confirm(tekst);
+}
+async function zakonczAplikacje() {
   await zapiszTeraz();
   // Zapis się nie udał (plik zajęty, pełny dysk) - zamknięcie nie gubi zmian po cichu.
-  if (stan.niezapisane && czyZapisywac(stan) && !confirm(t('Nie udało się zapisać ostatnich zmian. Zamknąć mimo to? Te zmiany przepadną.'))) return;
+  if (stan.niezapisane && czyZapisywac(stan) && !await zapytaj(t('Nie udało się zapisać ostatnich zmian. Zamknąć mimo to? Te zmiany przepadną.'))) return;
   // Bez zapisu lokalnego niewysłane zmiany idą na Dysk przed zamknięciem (najwyżej 15 s) - także gdy
   // akurat trwa inna wymiana z Dyskiem (wtedy wysyłka zaraz po niej, a nie dopiero za 3 s).
   if (stan.doWyslania) await Promise.race([poWymianie(stan).then(wyslijZaleglosci), new Promise((r) => setTimeout(r, LIMIT_WYSYLKI_PRZY_ZAMKNIECIU))]);
   // Wysyłka się nie udała (np. brak internetu), a zmian nie ma na komputerze - bez pytania przepadłyby po cichu.
-  if (stan.doWyslania && !stan.lokalnie && !confirm(t('Nie udało się wysłać zmian na Google Dysk (brak internetu?). Zamknąć mimo to? Te zmiany przepadną.'))) return;
+  if (stan.doWyslania && !stan.lokalnie && !await zapytaj(t('Nie udało się wysłać zmian na Google Dysk (brak internetu?). Zamknąć mimo to? Te zmiany przepadną.'))) return;
   await zwolnijBlokade(); // druga kopia (bez zajętej blokady) niczego nie usuwa
   Neutralino.app.exit();
-});
+}
 Neutralino.init();
