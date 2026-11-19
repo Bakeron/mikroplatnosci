@@ -87,7 +87,7 @@ W pracy obowiązywały wspólne zasady moich projektów. Zmiany są minimalne, a
 
 Kod regularnie sprawdzają audyty Claude Code uruchamiane jak polecenia. To narzędzia pracy, a nie część aplikacji, więc nie ma ich w repozytorium. Cztery powstały dla tego projektu. Są to `/code-review` (poprawność), `/simplify` (uproszczenia), `/better` (wydajność) i `/bezpieczenstwo` (uprawnienia Neutralino, CSP, dane). Cztery kolejne są wspólne dla moich projektów i sprawdzają interfejs, teksty, sprawy techniczne oraz gotowość do publikacji. Poprawki, które nie wymagają decyzji, trafiają do kodu od razu, z testami i zrzutem ekranu. Sprawy do decyzji (zmiana założeń, koszt, prywatność) czekają na mnie.
 
-Testy w `pc/testy/` sprawdzają format danych, scalanie i przebieg synchronizacji. Google Dysk jest testowany na udawanym serwerze, a terminy i powiadomienia ze stałą datą. Testy obejmują też kursy NBP, ochronę przed złośliwymi linkami i kompletność plików telefonu. Uruchamiają się w GitHub Actions przy każdym pushu.
+Testy w `pc/testy/` sprawdzają format danych, scalanie i przebieg synchronizacji. Rozmowę z Google Dyskiem automatyczne testy sprawdzają na udawanym serwerze Google, bo nie mogą logować się na prawdziwe konto. Na prawdziwym koncie Google synchronizację sprawdzałem sam. Terminy i powiadomienia testy sprawdzają ze stałą datą. Testy obejmują też kursy NBP, ochronę przed złośliwymi linkami i kompletność plików telefonu. Uruchamiają się w GitHub Actions przy każdym pushu.
 
 ## Stan projektu (19.11.2026)
 
