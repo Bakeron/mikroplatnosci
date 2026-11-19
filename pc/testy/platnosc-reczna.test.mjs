@@ -2,7 +2,7 @@
 // zostaje aż do „✓ zapłacone”, cofnięcie, powiadomienia „Zapłać” (powiadomienia.js) i pola w pliku (dane.js).
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, termin, dniPlatnosci, dzis, dodajMiesiace, isoDnia as iso, DNI_DO_ZAPLATY } from '../resources/js/alarmy.js';
+import { doZaplaty, terminZaplaty, oplacone, cofnijZaplate, doPlatnosci, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, termin, dniPlatnosci, dzis, dodajMiesiace, isoDnia as iso, DNI_DO_ZAPLATY } from '../resources/js/alarmy.js';
 import * as P from '../resources/js/powiadomienia.js';
 import { normalizuj, zastosujFormularz } from '../resources/js/dane.js';
 
@@ -37,14 +37,54 @@ test('niezapłacony termin po czasie zostaje - licznik rośnie, aż do zaznaczen
   assert.equal(oznaczZaplate(w), true);
   assert.equal(w.zaplaconyTermin, iso(za(-5)));
   assert.equal(iso(termin(w).data), iso(dodajMiesiace(za(-5), 1)));
-  assert.equal(doZaplaty(w), null, 'zapłacone - zwykłe odliczanie, bez napisu „zapłacone”');
+  assert.equal(doZaplaty(w), null, 'zapłacone - zwykłe odliczanie');
+  assert.equal(oplacone(w), null, 'zaległość zapłacona po terminie - bez „opłacone”');
 });
 
-test('zapłacone przed terminem - od razu zwykłe odliczanie do następnego (bez napisu „zapłacone”)', () => {
+test('zapłacone przed terminem - bez czerwieni, „opłacone” do tego terminu (autor 19.11.2026), potem następny', () => {
   const w = prad(3);
   assert.equal(oznaczZaplate(w), true);
   assert.equal(doZaplaty(w), null);
+  assert.equal(iso(oplacone(w)), iso(za(3)));
   assert.equal(iso(termin(w).data), iso(dodajMiesiace(za(3), 1)));
+});
+
+test('zapłacone wcześniej niż tydzień przed terminem: „opłacone” do opłaconego terminu (autor 19.11.2026)', () => {
+  // „Dziś” w testach: 10.11.2026. Energa do końca miesiąca: termin 30.11 - 20 dni, jeszcze bez czerwieni.
+  const w = { id: 'e', nazwa: 'Energa', koszt: 200, waluta: 'PLN', okres: 'M', przedluzac: 'tak', platnoscReczna: true, koniecMiesiaca: true, od: '2026-10-31', zaplaconyTermin: '2026-10-31' };
+  assert.equal(doZaplaty(w), null);
+  assert.equal(iso(terminZaplaty(w).data), '2026-11-30', 'pole „zapłacone” jest zawsze');
+  assert.equal(oplacone(w), null);
+  assert.equal(oznaczZaplate(w), true);
+  assert.equal(w.zaplaconyTermin, '2026-11-30');
+  assert.equal(iso(oplacone(w)), '2026-11-30', 'do 30.11 napis „opłacone”');
+  assert.equal(iso(termin(w).data), '2026-12-31', 'następny termin - koniec grudnia');
+  assert.deepEqual(w.historia.map((h) => [h.termin, h.dnia, h.kwota]), [['2026-11-30', '2026-11-10', 200]]);
+  // Termin opłacony już minął (od 1. dnia następnego miesiąca) - zwykłe odliczanie.
+  assert.equal(oplacone({ ...w, zaplaconyTermin: '2026-11-09' }), null);
+  // Opłacony termin dziś - jeszcze „opłacone”.
+  assert.equal(iso(oplacone({ ...w, zaplaconyTermin: '2026-11-10' })), '2026-11-10');
+  // „Pobiera się sama”, „nie przedłużać”, pauza - bez „opłacone”.
+  assert.equal(oplacone({ ...w, platnoscReczna: false }), null);
+  assert.equal(oplacone({ ...w, przedluzac: 'nie' }), null);
+  assert.equal(doPlatnosci(w).dni, 51, 'samo odliczanie liczy do następnego terminu');
+});
+
+test('odznaczone „opłacone” cofa zapłatę - w tej sesji w całości, po ponownym uruchomieniu termin i wpłatę', () => {
+  const w = prad(20, { prognoza: 210, historia: [{ termin: '2026-10-30', dnia: '2026-10-28', kwota: 180 }] });
+  const przed = structuredClone(w);
+  assert.equal(oznaczZaplate(w), true);
+  assert.equal(w.koszt, 210, 'cena następna stała się zapłaconą');
+  assert.equal(cofnijZaplate(w), true);
+  assert.deepEqual(w, przed);
+  assert.equal(cofnijZaplate(w), false, 'nic opłaconego z góry');
+  // Po ponownym uruchomieniu (inny obiekt z pliku): termin znowu do zapłaty, wpłata zdjęta z historii.
+  oznaczZaplate(w);
+  const zPliku = structuredClone(w);
+  assert.equal(cofnijZaplate(zPliku), true);
+  assert.equal(iso(termin(zPliku).data), iso(za(20)));
+  assert.deepEqual(zPliku.historia, przed.historia);
+  assert.equal(oplacone(zPliku), null);
 });
 
 test('„termin do końca miesiąca”: ostatni dzień miesiąca, także po zapłacie', () => {

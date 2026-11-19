@@ -272,7 +272,6 @@ button { cursor: pointer; }
 
 .kartka { flex: 1; overflow: auto; margin-top: 24px; padding: 0 28px 48px; }
 /* w wąskim oknie poziomy pasek przewijania ma tylko tabela, reszta kartki stoi w miejscu */
-.zeszyt-ramka { overflow-x: auto; }
 
 /* stała szerokość: kolumny mają z góry ustalone szerokości, resztę miejsca dostaje „Nazwa i opis” */
 .zeszyt { width: 100%; min-width: 1000px; border-collapse: collapse; table-layout: fixed; }
@@ -281,20 +280,11 @@ button { cursor: pointer; }
 .zeszyt .kol-link { width: 160px; }
 .zeszyt .kol-wiecej { width: 44px; text-align: center; }
 
-/* nagłówek przyklejany przy przewijaniu skryptem (main.js) - position: sticky nie działa w .zeszyt-ramka;
-   z-index nad wierszami, które mają własne elementy z pozycją (lont, pola) */
-.zeszyt thead { position: relative; z-index: 2; }
-/* Przesunięcie nagłówka = przewinięcie kartki ponad początek tabeli (zakres ustawia main.js). Bez przejść -
-   wyjątek od „nic skokiem” (autor 11.11.2026): każde opóźnienie odsłaniało wiersze nad nagłówkiem. */
-.kartka { scroll-timeline: --kartka y; }
-@supports (animation-timeline: scroll()) {
-  .zeszyt thead {
-    animation: przyklej-naglowek linear both;
-    animation-timeline: --kartka;
-    animation-range: var(--przyklej-od, 0px) var(--przyklej-do, 1px);
-  }
-}
-@keyframes przyklej-naglowek { from { transform: none; } to { transform: translateY(var(--przyklej-maks, 0px)); } }
+/* Nagłówek przyklejony do góry kartki przez samą przeglądarkę (sticky) - bez animacji i skryptu, nic nad nim
+   nie prześwituje (autor 19.11.2026; przesuwanie animacją związaną z przewijaniem w aplikacji odstawało).
+   Dlatego .zeszyt-ramka nie ma własnego paska przewijania (inaczej sticky liczy się od niej) - w wąskim
+   oknie poziomo przewija się cała kartka. z-index nad wierszami, które mają własne elementy z pozycją (lont, pola). */
+.zeszyt thead { position: sticky; top: 0; z-index: 2; }
 .zeszyt th {
   position: relative;
   z-index: 1;
@@ -565,6 +555,10 @@ tr:hover .uchwyt::before,
 /* ☐ zapłacone - pole do zaznaczenia (nie informacja o stanie); po zaznaczeniu wiersz wraca do normy */
 .zaplac__pole { display: inline-flex; align-items: center; gap: 4px; color: var(--atrament); font: 600 11.5px var(--f-liczby); white-space: nowrap; cursor: pointer; }
 .zaplac__pole input { width: 14px; height: 14px; margin: 0; accent-color: var(--czerwony); cursor: pointer; }
+/* dalej niż tydzień przed terminem - pole jest, ale ciche; opłacone z góry - zielone (autor 19.11.2026) */
+.zaplac--wczesnie .zaplac__pole { color: var(--olowek); font-weight: 400; }
+.zaplac--wczesnie .zaplac__pole input { accent-color: var(--olowek); }
+.zaplac--oplacone .zaplac__pole input { accent-color: var(--zielony); }
 /* kwota za każdym razem inna: „ile? [230,00] PLN zapisz” po zaznaczeniu „zapłacone” */
 .zaplac__kwota[hidden] { display: none; }
 .zaplac__kwota { display: flex; align-items: center; gap: 4px; width: 100%; }
@@ -770,6 +764,9 @@ tr.wykreslany td:not(.kol-akcje) { opacity: 0.55; }
 .lont--minal .lont__ogien::after { display: none; }
 /* płatność ręczna po terminie - nie przygasa jak zwykły „minęło”, tylko zostaje czerwona */
 .lont--zalegle .lont__liczba { color: var(--czerwony); font-weight: 700; white-space: nowrap; }
+/* opłacone z góry: zamiast liczby dni zielone „opłacone”, bez paska (odliczanie wraca po opłaconym terminie) */
+.lont--oplacone .lont__liczba { color: var(--zielony); font-weight: 700; }
+.lont--oplacone .lont__tor { display: none; }
 .lont__po-terminie { font-size: 11.5px; font-weight: 800; letter-spacing: 0.02em; }
 
 .pusto { margin: 0; padding: 30px 8px; color: var(--olowek); font: italic 17px var(--f-tytul); text-align: center; }

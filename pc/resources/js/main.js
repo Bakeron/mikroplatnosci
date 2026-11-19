@@ -1020,37 +1020,6 @@ for (const x of document.querySelectorAll('dialog > .okno__x')) {
   trescObokKrzyzyka(x.closest('dialog'), x);
 }
 
-// Nagłówek tabeli zostaje na górze przy przewijaniu kartki w pionie. Samo position: sticky tu nie
-// działa, bo tabela ma własny poziomy pasek przewijania (.zeszyt-ramka). Przesuwa go animacja związana
-// z przewijaniem kartki (wyglad.css) - liczona razem z przewinięciem, więc nagłówek nie zostaje w tyle
-// i nic nie prześwituje (skrypt przy zdarzeniu „scroll” spóźniał się o klatkę). Tu tylko zakres:
-// od miejsca tabeli w kartce do jej końca.
-const kartka = document.querySelector('.kartka');
-const ramkaTabeli = document.querySelector('.zeszyt-ramka');
-const naglowekTabeli = document.querySelector('.zeszyt thead');
-const przewijanieWCss = CSS.supports('animation-timeline: scroll()');
-function przyklejNaglowekTabeli() {
-  const od = ramkaTabeli.getBoundingClientRect().top - kartka.getBoundingClientRect().top + kartka.scrollTop;
-  const maks = Math.max(ramkaTabeli.clientHeight - naglowekTabeli.offsetHeight, 0); // nie niżej niż koniec tabeli
-  if (przewijanieWCss) {
-    naglowekTabeli.style.setProperty('--przyklej-od', `${od}px`);
-    naglowekTabeli.style.setProperty('--przyklej-do', `${od + Math.max(maks, 1)}px`);
-    naglowekTabeli.style.setProperty('--przyklej-maks', `${maks}px`);
-    // Edge/Chromium zostawia czasem zakres z pierwszego ustawienia (nagłówek przyklejał się o „od” za wysoko
-    // i nad nim prześwitywały wiersze) - animacja od nowa bierze aktualne liczby.
-    naglowekTabeli.style.animationName = 'none';
-    void naglowekTabeli.offsetWidth;
-    naglowekTabeli.style.animationName = '';
-    return;
-  }
-  const y = Math.min(Math.max(kartka.scrollTop - od, 0), maks);
-  naglowekTabeli.style.transform = y ? `translateY(${y}px)` : '';
-}
-if (przewijanieWCss) {
-  const obserwator = new ResizeObserver(przyklejNaglowekTabeli);
-  for (const el of [kartka, ramkaTabeli, $('filtr')]) obserwator.observe(el);
-} else kartka.addEventListener('scroll', przyklejNaglowekTabeli, { passive: true });
-
 let timerMiarki = null;
 window.addEventListener('resize', () => {
   clearTimeout(timerMiarki);

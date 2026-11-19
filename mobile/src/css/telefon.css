@@ -107,6 +107,10 @@
   font: 600 15px var(--f-tekst);
 }
 .karta-zaplac input { width: 22px; height: 22px; margin: 0; accent-color: var(--czerwony); }
+/* dalej niż tydzień przed terminem - ciche; opłacone z góry - zielone (jak na PC) */
+.karta-zaplac--wczesnie { color: var(--olowek); font-weight: 400; }
+.karta-zaplac--wczesnie input { accent-color: var(--olowek); }
+.karta-zaplac--oplacone input { accent-color: var(--zielony); }
 /* wiersze pod kartą: „odbierz po …” i „ile?” przy kwocie za każdym razem innej */
 .karta-zaplac--wiersz { position: static; flex-shrink: 0; }
 .karta-zaplac--wiersz input { accent-color: var(--zielony); }

@@ -1,7 +1,7 @@
 // Mikropłatności na telefonie: lista, terminy, paragon, dodawanie i edycja, synchronizacja z Google Dyskiem.
 // Obliczenia i format danych wspólne z aplikacją PC (pliki kopiowane z pc/resources/js przy budowaniu).
 
-import { termin, doPlatnosci, dniTekst, kiedyTekst, formatujDate, parsujDate, zbierzAlarmy, czyZakonczona, czyWstrzymana, dzis, isoDnia, doZaplaty, oznaczZaplate, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, ostatniaPlatnosc } from './alarmy.js';
+import { termin, doPlatnosci, dniTekst, kiedyTekst, formatujDate, parsujDate, zbierzAlarmy, czyZakonczona, czyWstrzymana, dzis, isoDnia, doZaplaty, terminZaplaty, oplacone, oznaczZaplate, cofnijZaplate, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, ostatniaPlatnosc } from './alarmy.js';
 import { waluta, naPln, formatujKwote, wczytajZapamietane, odswiezZNbp, czyAktualne, ustawProwizje, pobierzProwizje, poprawnaProwizja } from './waluty.js';
 import { renderujPodsumowanie, policz } from './podsumowanie.js';
 import { wypelnijListe } from './spisy.js';
@@ -283,8 +283,15 @@ function utworzKarte(wpis) {
   const dp = doPlatnosci(wpis);
   const data = termin(wpis).data;
   const wstrzymana = czyWstrzymana(wpis);
+  // Opłacone z góry (jak na PC): zielone „opłacone” zamiast liczby dni, aż opłacony termin minie.
+  const dz = doZaplaty(wpis);
+  const opl = !dz && oplacone(wpis);
   if (wstrzymana) {
     dol.append(element('span', 'pauza', t('wstrzymana')));
+  } else if (opl) {
+    const lont = element('span', 'lont karta__lont lont--oplacone');
+    lont.append(element('span', 'lont__liczba', t('opłacone')), element('span', 'lont__tor'));
+    dol.append(lont);
   } else if (dp) {
     const lont = element('span', 'lont karta__lont');
     const liczba = element('span', 'lont__liczba');
@@ -310,7 +317,6 @@ function utworzKarte(wpis) {
     dol.append(element('span', 'karta__brak', wpis.od && !wpis.okres ? t('brak okresu - uzupełnij') : t('brak daty zakupu - uzupełnij')));
   }
   // Płatność ręczna blisko terminu - czerwony margines i „zapłać do …” (jak na PC); „☐ zapłacone” obok karty.
-  const dz = doZaplaty(wpis);
   const recznie = reczna(wpis) && !jednorazowa && !dz && !wstrzymana ? ' · ' + t('ręcznie') : '';
   // Pauza: pod spodem dzień wznowienia (jak na PC).
   dol.append(element('span', 'karta__termin', wstrzymana ? t('wraca {data}', { data: formatujDate(parsujDate(wpis.wstrzymanaDo)) }) : (data ? formatujDate(data) + ' · ' : '') + okresTekst(wpis) + recznie));
@@ -326,20 +332,31 @@ function utworzKarte(wpis) {
     // Ostatnia linijka karty - obok niej stoi pole „☐ zapłacone”. B8: termin w dzień wolny - ostatni dzień roboczy przed nim.
     karta.append(element('span', 'karta__zaplac', t('zapłać do {data}', { data: jezyk() === 'pl' ? formatujDate(dz.doDnia).slice(0, 5) : dz.doDnia.toLocaleDateString(region(), { day: 'numeric', month: 'short' }) })));
   }
+  // Dalej od terminu albo opłacone - pusta linijka na pole „☐ zapłacone” (pole zawsze, jak na PC, autor 19.11.2026).
+  const zt = terminZaplaty(wpis);
+  if (zt && !dz) karta.append(element('span', 'karta__zaplac'));
 
   karta.addEventListener('click', () => otworzArkusz(wpis));
   ramka.append(karta);
   // „☐ zapłacone” od razu przy karcie (jak na PC) - osobne pole obok karty, bo karta sama jest przyciskiem.
-  // Zaznaczenie = zapłacone: karta wraca do zwykłego odliczania do następnego terminu.
-  if (dz) {
+  // Zaznaczenie przed terminem = „opłacone” do opłaconego terminu, potem odliczanie do następnego;
+  // odznaczenie „opłacone” cofa zapłatę.
+  if (zt) {
     ramka.classList.add('karta-z-zaplata');
     const pole = element('input');
     pole.type = 'checkbox';
-    pole.setAttribute('aria-label', t('Zapłacone: {nazwa}, termin {data}', { nazwa: nazwaWpisu(wpis), data: formatujDate(dz.data) }));
-    const etykieta = element('label', 'karta-zaplac');
+    pole.checked = !!opl;
+    pole.setAttribute('aria-label', opl ? t('Opłacone: {nazwa}, termin {data}. Odznacz, aby cofnąć.', { nazwa: nazwaWpisu(wpis), data: formatujDate(opl) }) : t('Zapłacone: {nazwa}, termin {data}', { nazwa: nazwaWpisu(wpis), data: formatujDate(zt.data) }));
+    const etykieta = element('label', 'karta-zaplac' + (opl ? ' karta-zaplac--oplacone' : dz ? '' : ' karta-zaplac--wczesnie'));
     etykieta.append(pole, ' ' + t('zapłacone'));
     ramka.append(etykieta);
-    if (zmiennaKwota(wpis)) li.append(pytanieOKwote(wpis, pole));
+    if (opl) {
+      pole.addEventListener('change', async () => {
+        if (pole.checked || !cofnijZaplate(wpis)) return;
+        wpis.zmieniono = czasZmiany(wpis);
+        await poZmianie();
+      });
+    } else if (zmiennaKwota(wpis)) li.append(pytanieOKwote(wpis, pole));
     else {
       pole.addEventListener('change', async () => {
         if (!pole.checked || !oznaczZaplate(wpis)) return;

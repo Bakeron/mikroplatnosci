@@ -325,26 +325,46 @@ export const MAKS_CEN = 100;
 // „Weekend i święta” włączona) - ostatni dzień roboczy przed nim.
 export const zaplacDo = (data) => (funkcja('weekend') ? dzienRoboczyPrzed(data) : data);
 
-// Termin do zapłacenia ręcznie - { data (termin), doDnia (zapłać do), dni (do „zapłać do”), zalegle }
-// albo null (płaci się samo, nie przedłużamy, brak daty albo „zapłać do” dalej niż DNI_DO_ZAPLATY).
-// Niezapłacony termin po czasie zostaje (zalegle, dni < 0) - aż do zaznaczenia „zapłacone”; potem wiersz
-// wraca do zwykłego odliczania do następnego.
-export function doZaplaty(wpis) {
+// Najbliższy niezapłacony termin płatności ręcznej - { data (termin), doDnia (zapłać do), dni (do „zapłać do”),
+// zalegle } albo null (płaci się samo, nie przedłużamy, pauza, brak daty). Bez progu DNI_DO_ZAPLATY - pole
+// „zapłacone” jest zawsze, bo rachunek (np. Energa) przychodzi w różne dni (autor 19.11.2026).
+export function terminZaplaty(wpis) {
   if (!reczna(wpis) || wpis.przedluzac === 'nie' || czyWstrzymana(wpis)) return null;
   const data = termin(wpis).data;
   if (!data) return null;
   const doDnia = zaplacDo(data);
-  const dni = roznicaDni(dzis(), doDnia);
-  if (dni > DNI_DO_ZAPLATY) return null;
-  return { data, doDnia, dni, zalegle: data < dzis() };
+  return { data, doDnia, dni: roznicaDni(dzis(), doDnia), zalegle: data < dzis() };
 }
+
+// Termin do zapłacenia ręcznie (czerwony wiersz, „zapłać do …”) - jak terminZaplaty, ale null, gdy
+// „zapłać do” dalej niż DNI_DO_ZAPLATY. Niezapłacony termin po czasie zostaje (zalegle, dni < 0) - aż do
+// zaznaczenia „zapłacone”.
+export function doZaplaty(wpis) {
+  const dz = terminZaplaty(wpis);
+  return dz && dz.dni <= DNI_DO_ZAPLATY ? dz : null;
+}
+
+// Opłacone z góry: zaznaczony termin jeszcze nie minął - zamiast odliczania zielone „✓ opłacone” (autor
+// 19.11.2026). Odliczanie do następnego terminu wraca dzień po opłaconym (przy „termin do końca miesiąca” -
+// od 1. dnia następnego miesiąca). Zwraca opłacony termin albo null.
+export function oplacone(wpis) {
+  if (!reczna(wpis) || wpis.przedluzac === 'nie' || czyWstrzymana(wpis)) return null;
+  const d = parsujDate(wpis.zaplaconyTermin);
+  return d && d >= dzis() ? d : null;
+}
+
+// Stan pozycji sprzed ostatniego zaznaczenia „zapłacone” - odznaczenie przywraca go w całości (także cenę
+// następną, która przy tej zapłacie stała się zapłaconą). Tylko w pamięci, do zamknięcia aplikacji.
+const przedZaplata = new WeakMap();
+const POLA_ZAPLATY = ['zaplaconyTermin', 'historia', 'koszt', 'waluta', 'ceny', 'prognoza', 'prognozaOd', 'walutaNastepna'];
 
 // Zaznaczone „zapłacone”: zapamiętany jest zapłacony termin - liczy się następny - i wpłata w historii
 // (dzień zapłaty i kwota). Bez podanej kwoty: cena od następnej płatności, jeśli wpisana, inaczej koszt.
 // Kwota zmienna („za każdym razem inna”): podana kwota staje się zapłaconą (kolumna „Koszt”).
 export function oznaczZaplate(wpis, kwota) {
-  const dz = doZaplaty(wpis);
+  const dz = terminZaplaty(wpis);
   if (!dz) return false;
+  przedZaplata.set(wpis, structuredClone(Object.fromEntries(POLA_ZAPLATY.filter((p) => p in wpis).map((p) => [p, wpis[p]]))));
   wpis.zaplaconyTermin = isoDnia(dz.data);
   // Cena od następnej płatności obowiązuje od swojego terminu - zapłata starszej zaległości jest jeszcze po starej cenie.
   const nowaCena = cenaNastepna(wpis) !== null && (!wpis.prognozaOd || wpis.zaplaconyTermin >= wpis.prognozaOd);
@@ -358,6 +378,28 @@ export function oznaczZaplate(wpis, kwota) {
     if (wpis.historia.length > MAKS_HISTORII) wpis.historia.splice(0, wpis.historia.length - MAKS_HISTORII);
   }
   if (zmiennaKwota(wpis) && typeof kwota === 'number') wpis.koszt = kwota;
+  przedZaplata.get(wpis).po = wpis.zaplaconyTermin;
+  return true;
+}
+
+// Odznaczone „opłacone” (pomyłka): opłacony termin znowu do zapłaty. Zaznaczone w tej sesji - wszystko
+// jak przed zaznaczeniem; inaczej (po ponownym uruchomieniu) termin i jego wpłata w historii.
+export function cofnijZaplate(wpis) {
+  const d = oplacone(wpis);
+  if (!d) return false;
+  const przed = przedZaplata.get(wpis);
+  przedZaplata.delete(wpis);
+  if (przed?.po === wpis.zaplaconyTermin) {
+    for (const p of POLA_ZAPLATY) {
+      if (p in przed) wpis[p] = przed[p];
+      else delete wpis[p];
+    }
+    return true;
+  }
+  if (Array.isArray(wpis.historia) && wpis.historia.at(-1)?.termin === wpis.zaplaconyTermin) wpis.historia.pop();
+  // Wczoraj, jak przy włączeniu „płacę sam”: między wczoraj a opłaconym terminem (dziś albo później) innego
+  // terminu nie ma, więc do zapłaty jest znowu ten opłacony, a „opłacone” znika.
+  wpis.zaplaconyTermin = isoDnia(dzienPrzed(dzis()));
   return true;
 }
 

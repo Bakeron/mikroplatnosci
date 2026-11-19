@@ -37,7 +37,10 @@
     wpis('d14', null, null, 'Bez dat', 'uzupełnij datę zakupu', 10, 'PLN', '', ''),
     wpis('d15', -34, -3, 'Energia elektryczna', 'płacę przelewem, kwota co miesiąc inna', 186.4, 'PLN', '', 'tak', { reczna: true, zmiennaKwota: true, kategoria: 'dom' }),
     wpis('d16', -29, 2, 'Internet domowy', 'faktura co miesiąc', 69, 'PLN', '', 'tak', { reczna: true, prognoza: 79, kategoria: 'dom' }),
+    // Paid in advance (the due date in 5 days is ticked) - green "opłacone" instead of the day count.
     wpis('d17', -26, 5, 'Czynsz', 'przelew do spółdzielni', 640, 'PLN', '', 'tak', { reczna: true, zaplacony: poMiesiacu(-26), kategoria: 'dom' }),
+    // Due at the end of the month, more than a week away - the "zapłacone" box is already there, greyed out.
+    wpis('d23', -10, null, 'Gaz', 'rachunek przychodzi w różne dni', 132.5, 'PLN', '', 'tak', { reczna: true, koniecMiesiaca: true, kategoria: 'dom' }),
     wpis('d18', -3, 4, 'Lekcje gitary', 'co tydzień, płatne z góry', 60, 'PLN', '', 'tak', { okres: 'T', coIle: 1, kategoria: 'nauka' }),
     wpis('d19', -61, 31, 'Ubezpieczenie auta', 'rata co kwartał', 210, 'PLN', '', 'tak', { okres: 'M', coIle: 3, kategoria: 'dom' }),
     wpis('d20', -70, null, 'Basen', 'karnet - przerwa wakacyjna', 120, 'PLN', '', 'tak', { kategoria: 'zdrowie', wstrzymanaOd: dzien(-10), wstrzymanaDo: dzien(40) }),

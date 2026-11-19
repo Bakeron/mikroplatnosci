@@ -1,6 +1,6 @@
 // Tabela mikropłatności: wiersze z edycją w komórkach i przesuwaniem.
 
-import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, ustawPrzedluzanie, doZaplaty, oznaczZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
+import { termin, formatujDate, parsujDate, doPlatnosci, dniTekst, kiedyTekst, ustawPrzedluzanie, doZaplaty, terminZaplaty, oplacone, oznaczZaplate, cofnijZaplate, ustawPoczatekZaplaty, czerwienZaplaty, przeniesNastepnaCene, nazwaOkresu, czyWstrzymana, ostatniaPlatnosc, isoDnia, dzis } from './alarmy.js';
 import { waluta, przeliczNaPln, formatujKwote } from './waluty.js';
 import { bezpiecznyLink, formatujKoszt, parsujKoszt, nazwaWpisu, zapiszZmianeCeny, kategorieWyboru, oznaczKategorie, OKRESY, nazwaKategorii, ustawPauze, wznowDzis, usunPauze, bezZaleglegoOdbioru, czasZmiany } from './dane.js';
 import { element, pokazPlynnie, trescObokKrzyzyka, zamienPoKolei } from './dom.js';
@@ -136,8 +136,9 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   lont.append(lontLiczba, lontTor);
   const uwaga = element('div', 'dopisek dopisek--uwaga');
 
-  // Płatność ręczna: „zapłać do …” i pole ☐ zapłacone pod lontem, gdy termin blisko albo minął.
-  // Zaznaczenie = zapłacone: wiersz wraca do zwykłego odliczania do następnego terminu (bez napisu „zapłacone”).
+  // Płatność ręczna: pole ☐ zapłacone pod lontem zawsze (dalej niż tydzień przed terminem - szare), „zapłać do …”,
+  // gdy termin blisko albo minął. Zaznaczenie przed terminem = zielone „opłacone” zamiast liczby dni, aż termin
+  // minie; odznaczenie cofa zapłatę (autor 19.11.2026).
   const zaplac = element('div', 'zaplac');
   const zaplacTekst = element('span', 'zaplac__tekst');
   const zaplacPole = element('input');
@@ -471,14 +472,21 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     tr.classList.toggle('po-terminie', poTerminie);
     if (dz || zakonczona) tr.style.setProperty('--czerwien', czerwienZaplaty(zakonczona ? -1 : dz.dni) + '%');
     else tr.style.removeProperty('--czerwien');
-    pokazPlynnie(zaplac, !!dz);
-    if (!dz) pokazPlynnie(zaplacKwota, false);
+    const zt = terminZaplaty(wpis);
+    const opl = !dz && oplacone(wpis);
+    pokazPlynnie(zaplac, !!zt);
+    if (!zt) pokazPlynnie(zaplacKwota, false);
+    zaplac.classList.toggle('zaplac--wczesnie', !!zt && !dz && !opl);
+    zaplac.classList.toggle('zaplac--oplacone', !!opl);
+    zaplacTekst.hidden = !dz;
     if (dz) {
       zaplacTekst.textContent = t('zapłać do {data}', { data: jezyk() === 'pl' ? formatujDate(dz.doDnia).slice(0, 5) : dz.doDnia.toLocaleDateString(region(), { day: 'numeric', month: 'short' }) });
       // B8: termin w dzień wolny - „zapłać do” to ostatni dzień roboczy przed nim.
       zaplacTekst.title = dz.doDnia < dz.data ? t('Termin {termin} wypada w dzień wolny - przelew zleć najpóźniej {data}', { termin: formatujDate(dz.data), data: formatujDate(dz.doDnia) }) : '';
-      zaplacPole.checked = !zaplacKwota.hidden; // otwarte pytanie „ile?” - pole zostaje zaznaczone
-      zaplacPole.setAttribute('aria-label', t('Zapłacone - termin {data}', { data: formatujDate(dz.data) }));
+    }
+    if (zt) {
+      zaplacPole.checked = !!opl || !zaplacKwota.hidden; // otwarte pytanie „ile?” - pole zostaje zaznaczone
+      zaplacPole.setAttribute('aria-label', opl ? t('Opłacone z góry - termin {data}. Odznacz, aby cofnąć.', { data: formatujDate(opl) }) : t('Zapłacone - termin {data}', { data: formatujDate(zt.data) }));
       zaplacKwotaWaluta.textContent = kod;
     }
     // Wyłączone „Płacę sam” - bez wyboru płatności (wszystko liczone jak „pobiera się sama”).
@@ -546,9 +554,13 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
     }
 
     lont.hidden = !dp || wstrzymana;
+    lont.classList.toggle('lont--oplacone', !!opl);
     lont.classList.toggle('lont--minal', !!dp?.minal);
     lont.classList.toggle('lont--zalegle', poTerminie); // po terminie (zaległa płatność, zakończona jednorazowa) - na czerwono
-    if (dp?.minal) {
+    lont.title = opl ? t('Opłacony termin {data} - odliczanie do następnego wróci następnego dnia', { data: formatujDate(opl) }) : '';
+    if (opl) {
+      lontLiczba.textContent = t('opłacone');
+    } else if (dp?.minal) {
       // „2 dni po terminie” w jednej linii - „po terminie” mniejszym pismem (kolumna jest wąska).
       if (poTerminie) lontLiczba.replaceChildren(dniTekst(-dp.dni), element('span', 'lont__po-terminie', ' ' + t('po terminie')));
       else lontLiczba.textContent = t('minęło {dni}', { dni: dniTekst(-dp.dni) });
@@ -693,6 +705,14 @@ export function utworzWiersz(wpis, { onZmiana: zglosZmiane, onUsun, onOtworz, on
   // Zaznaczone „zapłacone” zapamiętuje termin - następny okres znowu do zapłaty; zaległość zdejmuje tylko to.
   // Kwota za każdym razem inna - najpierw pytanie „ile?” (Enter zapisuje, Esc albo odznaczenie - rezygnacja).
   zaplacPole.addEventListener('change', () => {
+    // Odznaczone „opłacone” - zapłata cofnięta (pomyłka).
+    if (!zaplacPole.checked && zaplacKwota.hidden) {
+      if (cofnijZaplate(wpis)) {
+        odswiez();
+        onZmiana();
+      }
+      return;
+    }
     if (zmiennaKwota(wpis)) {
       pokazPlynnie(zaplacKwota, zaplacPole.checked);
       if (zaplacPole.checked) {
