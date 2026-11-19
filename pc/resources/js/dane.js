@@ -3,6 +3,7 @@
 import { okresZDat, ustawPoczatekZaplaty, ustawPrzedluzanie, dodajPrzerwe, isoDnia, dzis, dopiszCene, parsujDate, czyWstrzymana, ostatniaPlatnosc, dodajMiesiace, MAKS_HISTORII, MAKS_CEN, MAKS_PRZERW } from './alarmy.js';
 import { WALUTY } from './waluty.js';
 import { t, tekst, jezyk } from './teksty.js';
+import { oznaczPola } from './scalanie.js';
 
 // D17: kategorie pozycji [klucz, nazwa] - nazwa po polsku, tłumaczona przy wyświetleniu (t()).
 export const KATEGORIE = [
@@ -212,7 +213,7 @@ export function normalizuj(w) {
   const tekst = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
   const data = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
   const kwota = (v) => (Number.isFinite(v) && v >= 0 ? v : null);
-  return {
+  const wynik = {
     id: typeof w.id === 'string' && w.id ? w.id.slice(0, 64) : idZTresci(w),
     od: data(w.od),
     do: data(w.do),
@@ -253,6 +254,19 @@ export function normalizuj(w) {
     anulowano: data(w.anulowano), // C15: wykreślona - w „Anulowanych” pod tabelą (do przywrócenia), poza sumami i alarmami
     zmieniono: czasIso(w.zmieniono),
   };
+  wynik.pola = odczytajPola(w.pola, wynik);
+  return wynik;
+}
+
+// Czasy zmian pól wpisu (scalanie.js, oznaczPola): tylko pola, które wpis ma, ze skrótem i poprawnym czasem.
+function odczytajPola(pola, wpis) {
+  const wynik = {};
+  if (!pola || typeof pola !== 'object') return wynik;
+  for (const pole of Object.keys(wpis)) {
+    const p = Object.hasOwn(pola, pole) ? pola[pole] : null;
+    if (p && typeof p.h === 'string' && /^[0-9a-z]{1,8}$/.test(p.h) && typeof p.t === 'string') wynik[pole] = { h: p.h, t: czasIso(p.t) };
+  }
+  return wynik;
 }
 
 // Zmiana zapłaconej ceny zapamiętana w historii cen (od dziś) - do wykresu wydatków i zmian cen.
@@ -330,7 +344,10 @@ export function odczytajDane(dane, zDysku = false, maks = zDysku ? MAKS_WPISOW_Z
   const usuniete = odczytajUsuniete(dane.usuniete);
   const granica = Date.now() + 86400000;
   const jutro = new Date(granica).toISOString();
-  for (const w of wpisy) if (Date.parse(w.zmieniono) > granica) w.zmieniono = jutro;
+  for (const w of wpisy) {
+    if (Date.parse(w.zmieniono) > granica) w.zmieniono = jutro;
+    for (const p of Object.values(w.pola)) if (Date.parse(p.t) > granica) p.t = jutro;
+  }
   for (const u of usuniete) if (Date.parse(u.kiedy) > granica) u.kiedy = jutro;
   // Czas ostatniego ręcznego ułożenia (przesunięcia pozycji) - przy scalaniu wygrywa nowsza kolejność.
   let ulozono = czasIso(dane.ulozono);
@@ -369,7 +386,8 @@ export function zastapZKopii(stan, dane, teraz = new Date().toISOString()) {
   const wKopii = new Set(dane.wpisy.map((w) => w.id));
   for (const w of [...stan.wpisy]) if (!wKopii.has(w.id)) usun(stan, w);
   stan.usuniete = stan.usuniete.filter((u) => !wKopii.has(u.id));
-  for (const w of dane.wpisy) w.zmieniono = teraz;
+  // Bez zapamiętanych czasów pól - przy najbliższym zapisie każde pole dostaje czas „teraz”.
+  for (const w of dane.wpisy) Object.assign(w, { zmieniono: teraz, pola: {} });
   stan.wpisy = dane.wpisy;
   stan.ulozono = teraz; // kolejność z kopii wygrywa na Dysku
   ustawKategorie(dane.kategorie?.map((k) => ({ ...k, zmieniono: teraz })) ?? null); // lista kategorii z kopii też
@@ -462,4 +480,5 @@ export function zastosujFormularz(wpisy, edytowany, p) {
 // takich danych z Dysku ani z kopii); 18.11.2026 wersja 5: lista kategorii (własne z kluczem „w-…” - starsza
 // wersja wyczyściłaby je w pozycjach); PC dokłada w dodatkach swoje ustawienia (motyw).
 export const WERSJA_DANYCH = 5;
-export const doZapisu = (stan, dodatki = {}) => ({ wersja: WERSJA_DANYCH, zapisano: new Date().toISOString(), ...dodatki, ...(stan.ulozono ? { ulozono: stan.ulozono } : {}), kategorie: pobierzKategorie(), wpisy: stan.wpisy, usuniete: stan.usuniete });
+// Przed każdym zapisem (plik na urządzeniu i Dysk) - czasy zmienionych pól do scalania (scalanie.js).
+export const doZapisu = (stan, dodatki = {}) => (oznaczPola(stan.wpisy), { wersja: WERSJA_DANYCH, zapisano: new Date().toISOString(), ...dodatki, ...(stan.ulozono ? { ulozono: stan.ulozono } : {}), kategorie: pobierzKategorie(), wpisy: stan.wpisy, usuniete: stan.usuniete });

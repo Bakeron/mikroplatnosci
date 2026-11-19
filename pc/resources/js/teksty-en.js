@@ -480,6 +480,7 @@ export default {
   "Google Dysk odpowiedział błędem {kod}": "Google Drive returned error {kod}",
   "Google nie odpowiada - spróbuj za chwilę": "Google is not responding - try again in a moment",
   "plik na Dysku jest za duży": "the file on Drive is too large",
+  "plik na Dysku zmienił się w trakcie wysyłki - spróbuj jeszcze raz": "the file on Drive changed while sending - try again",
   "brak połączenia z Google - sprawdź internet": "no connection to Google - check your internet",
   "{n} pozycję": ["{n} item","{n} items"],
   "pobieram z Dysku…": "downloading from Drive…",

@@ -24,7 +24,7 @@ Lista i edycja pozycji na telefonie. Zrzuty pochodzą z [instrukcji](https://mik
 - **Miarka 3 miesięcy** - najbliższe terminy rozłożone na osi czasu.
 - **Cena od następnej płatności** - przydaje się, gdy kończy się promocja albo serwis zapowiedział podwyżkę. Aplikacja pokazuje, o ile będzie drożej lub taniej.
 - **Płatność ręczna** - dla rachunków, które nie schodzą same z konta (np. prąd). Tydzień przed terminem pojawia się czerwony margines i przypomnienie. Zapłatę zaznacza się polem „☐ zapłacone”, także przed terminem.
-- **Synchronizacja z Google Dyskiem** - zmiany z telefonu trafiają na komputer i odwrotnie. Są scalane wiersz po wierszu. Telefon wysyła i pobiera dane sam, a komputer z zapisem lokalnym robi to przyciskami „↓ Pobierz z Dysku” i „↑ Wyślij na Dysk”.
+- **Synchronizacja z Google Dyskiem** - zmiany z telefonu trafiają na komputer i odwrotnie. Są scalane pole po polu, więc gdy dwie osoby zmienią w tej samej pozycji różne rzeczy, zostają obie zmiany. Telefon wysyła i pobiera dane sam, a komputer z zapisem lokalnym robi to przyciskami „↓ Pobierz z Dysku” i „↑ Wyślij na Dysk”.
 - **Wspólne dane dla kilku osób** (np. domowników z telefonami) - wszystkie urządzenia korzystają z jednego pliku na Dysku właściciela danych i widzą te same pozycje. Właściciel potwierdza dostęp swoim kontem Google, wpisując na stronie Google kod pokazany w aplikacji. Druga osoba nie poznaje jego hasła, a aplikacja nie widzi poczty, zdjęć ani innych plików.
 - **Gdzie trzymać dane** - na urządzeniu, na Google Dysku albo w obu miejscach. Przyciski „Usuń z komputera” i „Usuń z Dysku” kasują dane z jednego miejsca. Nie trzeba zakładać konta.
 - **Powiadomienia** - przypominają o pozycjach oznaczonych „Przedłużać: nie”, zanim się odnowią.
@@ -110,7 +110,7 @@ Mikropłatności ("micropayments") is a tracker for subscriptions and small paym
 - A "fuse" bar next to each item burns down to the renewal date.
 - A receipt with monthly and yearly totals in PLN.
 - Reminders for manually paid bills and for subscriptions to cancel.
-- Optional sync between devices through one file in the user's Google Drive, merged row by row, with no own server.
+- Optional sync between devices through one file in the user's Google Drive, merged field by field, with no own server.
 
 Built with Neutralinojs (Windows), Capacitor (Android), plain JavaScript and the Node.js test runner.
 

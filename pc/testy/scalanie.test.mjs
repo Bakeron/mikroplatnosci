@@ -1,7 +1,8 @@
 // Scalanie danych z dwóch urządzeń wiersz po wierszu (scalanie.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scal } from '../resources/js/scalanie.js';
+import { scal, oznaczPola } from '../resources/js/scalanie.js';
+import { normalizuj, doZapisu, zastapZKopii } from '../resources/js/dane.js';
 
 const T = (h) => `2026-10-30T${h}:00.000Z`;
 const w = (id, h, nazwa = id) => ({ id, zmieniono: h ? T(h) : '', nazwa });
@@ -64,4 +65,68 @@ test('bez czasu ułożenia (starsza wersja aplikacji) - kolejność z tego urzą
   assert.equal(r.ulozono, '');
   const r2 = scal({ wpisy: [w('b', '01:00'), w('a', '01:00')], usuniete: [], ulozono: T('01:00') }, { wpisy: [w('a', '01:00'), w('b', '01:00')], usuniete: [] });
   assert.deepEqual(r2.wpisy.map((x) => x.id), ['b', 'a']);
+});
+
+// Pozycja zsynchronizowana o 09:00 na obu urządzeniach (z czasami pól), potem zmieniana osobno.
+const wspolna = () => {
+  const x = normalizuj({ id: 'n', nazwa: 'Netflix', koszt: 43, od: '2026-01-05', okres: 'M', zmieniono: T('09:00') });
+  oznaczPola([x]);
+  return structuredClone(x);
+};
+
+test('ta sama pozycja, różne pola (mąż cenę, żona datę) - zostają obie zmiany', () => {
+  const maz = wspolna();
+  Object.assign(maz, { koszt: 49, zmieniono: T('10:00') });
+  const zona = wspolna();
+  Object.assign(zona, { od: '2026-01-12', zmieniono: T('11:00') });
+  for (const [L, Z] of [[maz, zona], [zona, maz]]) {
+    const [x] = scal({ wpisy: [structuredClone(L)], usuniete: [] }, { wpisy: [structuredClone(Z)], usuniete: [] }).wpisy;
+    assert.equal(x.koszt, 49);
+    assert.equal(x.od, '2026-01-12');
+    assert.equal(x.nazwa, 'Netflix');
+    assert.equal(x.zmieniono, T('11:00'));
+    assert.equal(x.pola.koszt.t, T('10:00'));
+    assert.equal(x.pola.od.t, T('11:00'));
+  }
+});
+
+test('ta sama pozycja, to samo pole - wygrywa nowsza zmiana; wynik powtarzalny', () => {
+  const maz = wspolna();
+  Object.assign(maz, { koszt: 49, nazwa: 'Netflix HD', zmieniono: T('12:00') });
+  const zona = wspolna();
+  Object.assign(zona, { koszt: 55, zmieniono: T('11:00') });
+  const L = { wpisy: [maz], usuniete: [] };
+  const Z = { wpisy: [zona], usuniete: [] };
+  const r = scal(L, Z);
+  assert.equal(r.wpisy[0].koszt, 49);
+  assert.equal(r.wpisy[0].nazwa, 'Netflix HD');
+  assert.deepEqual(scal(structuredClone(r), Z), r);
+  assert.deepEqual(scal(structuredClone(r), structuredClone(r)), r);
+});
+
+test('druga strona bez czasów pól (starsza wersja aplikacji) - cały wiersz z nowszej zmiany', () => {
+  const nowa = wspolna();
+  Object.assign(nowa, { koszt: 49, zmieniono: T('10:00') });
+  const stara = normalizuj({ id: 'n', nazwa: 'Netflix', koszt: 43, od: '2026-01-12', okres: 'M', zmieniono: T('11:00') });
+  stara.pola = {};
+  const [x] = scal({ wpisy: [nowa], usuniete: [] }, { wpisy: [stara], usuniete: [] }).wpisy;
+  assert.equal(x.koszt, 43);
+  assert.equal(x.od, '2026-01-12');
+});
+
+test('czasy pól: zapis oznacza zmienione pole czasem wiersza, plik z błędnymi czasami pól - pominięte', () => {
+  const stan = { wpisy: [wspolna()], usuniete: [] };
+  Object.assign(stan.wpisy[0], { koszt: 50, zmieniono: T('13:00') });
+  const plik = doZapisu(stan);
+  assert.equal(plik.wpisy[0].pola.koszt.t, T('13:00'));
+  assert.equal(plik.wpisy[0].pola.nazwa.t, T('09:00'));
+  const x = normalizuj(JSON.parse('{"id":"n","nazwa":"a","pola":{"nazwa":{"h":"abc","t":"wczoraj"},"koszt":{"h":"<b>","t":"2026-10-30T01:00:00.000Z"},"obce":{"h":"a","t":"2026-10-30T01:00:00.000Z"},"__proto__":{"h":"a"}}}'));
+  assert.deepEqual(x.pola, { nazwa: { h: 'abc', t: '' } });
+});
+
+test('wczytanie kopii zapasowej - każde pole z czasem „teraz” (wygrywa na Dysku)', () => {
+  const stan = { wpisy: [], usuniete: [] };
+  zastapZKopii(stan, { wpisy: [wspolna()], kategorie: null }, T('15:00'));
+  doZapisu(stan);
+  assert.ok(Object.values(stan.wpisy[0].pola).every((p) => p.t === T('15:00')));
 });

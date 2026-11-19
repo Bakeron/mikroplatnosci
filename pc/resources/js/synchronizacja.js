@@ -2,7 +2,7 @@
 // na urządzeniu, „Wyślij” robi to samo, a wynik zapisuje na Dysku - wysłanie nigdy nie kasuje
 // zmian z drugiego urządzenia. Obie aplikacje mają te same id elementów (dysk-*, okno-dysk*, okno-google*).
 
-import { scal } from './scalanie.js';
+import { scal, oznaczPola } from './scalanie.js';
 import { odczytajDane, doZapisu, WERSJA_DANYCH, pobierzKategorie, ustawKategorie } from './dane.js';
 import { t, tn, godzina } from './teksty.js';
 import { czyBladSieci, czyPolaczony, czySkonfigurowany, czyWpisany, wpisanyProjekt, ustawIdentyfikator, zacznijLogowanie, rozlacz, pobierzZDysku, wyslijNaDysk, usunZDysku, STRONA_KODU } from './dysk.js';
@@ -23,6 +23,8 @@ const opisBledu = (e) => (czyBladSieci(e) && !e.siec ? t('brak połączenia z Go
 // Chwilowy brak sieci (start aplikacji albo powrót z tła, zanim Android odda jej sieć): kolejne próby
 // po tych przerwach, zanim pojawi się komunikat o błędzie.
 export const PONOWIENIA = [3000, 6000, 10000];
+// Ile razy najwyżej wymiana zaczyna się od nowa, gdy drugie urządzenie zmieniło plik na Dysku w trakcie wysyłki.
+export const PROBY_PO_ZMIANIE = 3;
 // „1 pozycję”, „3 pozycje”, „5 pozycji”, „22 pozycje” (polska liczba mnoga w bierniku).
 function ilePozycji(n) {
   return tn(n, '{n} pozycję', '{n} pozycje', '{n} pozycji');
@@ -91,11 +93,17 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
     odswiez();
     pokaz(t('pobieram z Dysku…'));
     try {
+      let zmianyNaDysku = 0;
       for (let proba = 0; ; proba++) {
         try {
           return await wymiana(wyslij, klikniete);
         } catch (e) {
           console.error(e);
+          // Plik na Dysku zmienił się od pobrania: od razu jeszcze raz pobranie, scalenie i wysyłka.
+          if (e.zmianaNaDysku && ++zmianyNaDysku < PROBY_PO_ZMIANIE) {
+            proba--;
+            continue;
+          }
           if (czyBladSieci(e) && proba < PONOWIENIA.length) {
             await new Promise((r) => setTimeout(r, PONOWIENIA[proba]));
             pokaz(t('pobieram z Dysku…'));
@@ -130,6 +138,8 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
     if (zdalne) {
       // Lista kategorii (dane.js) scalana razem z pozycjami.
       const stanTeraz = () => JSON.stringify([stan.wpisy, stan.usuniete, stan.ulozono, pobierzKategorie()]);
+      // Czasy pól przed porównaniem - same nowe czasy (dane sprzed scalania pól) to nie zmiana z Dysku.
+      oznaczPola(stan.wpisy);
       const przed = stanTeraz();
       const { kategorie, ...wynik } = scal({ wpisy: stan.wpisy, usuniete: stan.usuniete, ulozono: stan.ulozono, kategorie: pobierzKategorie() }, zdalne);
       // Dysk usuwa z urządzenia kilka pozycji naraz (podmieniony plik, zegar drugiego urządzenia

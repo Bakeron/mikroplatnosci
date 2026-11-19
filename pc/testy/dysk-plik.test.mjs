@@ -136,3 +136,42 @@ test('„Usuń z Dysku” szuka w „Moim dysku” i kasuje każdą kopię', asy
   assert.equal(new URL(zapytania.find(lista).adres).searchParams.get('spaces'), 'drive');
   assert.deepEqual(zapytania.filter((z) => z.metoda === 'DELETE').map((z) => z.adres.split('/').at(-1)), ['P1', 'P2']);
 });
+
+test('plik zmienił się na Dysku od pobrania - wysyłka przerwana (zmianaNaDysku), bez nadpisania; bez zmiany - nadpisanie', async () => {
+  let wersja = '7';
+  serwer = (z) => {
+    if (token(z)) return tokenOk;
+    if (lista(z)) return [200, { files: [{ id: 'P', size: '2', version: '7' }] }];
+    if (z.adres.includes('/files/P?alt=media')) return [200, '{}'];
+    if (z.adres.endsWith('/drive/v3/files/P?fields=version')) return [200, { version: wersja }];
+    if (z.metoda === 'PATCH') return [200, { version: '8' }];
+    return [500, {}];
+  };
+  await D.pobierzZDysku();
+  wersja = '8'; // drugie urządzenie wysłało swoje zmiany
+  await assert.rejects(D.wyslijNaDysk('{}'), (e) => e.zmianaNaDysku === true && /zmienił się/.test(e.message));
+  assert.equal(zapytania.some((z) => z.metoda === 'PATCH'), false);
+  await D.pobierzZDysku();
+  wersja = '7';
+  await D.wyslijNaDysk('{"a":1}');
+  const patch = zapytania.find((z) => z.metoda === 'PATCH');
+  assert.equal(patch.tresc, '{"a":1}');
+  // Po wysyłce zapamiętana nowa wersja - następna wysyłka sprawdza już ją.
+  wersja = '8';
+  await D.wyslijNaDysk('{"a":2}');
+  assert.equal(zapytania.filter((z) => z.metoda === 'PATCH').length, 2);
+});
+
+test('przy pobraniu pliku nie było, a przed wysyłką już jest (drugie urządzenie) - bez zakładania drugiego pliku', async () => {
+  let pliku = [];
+  serwer = (z) => {
+    if (token(z)) return tokenOk;
+    if (lista(z)) return [200, { files: pliku }];
+    if (z.metoda === 'POST') return [200, { id: 'NOWY' }];
+    return [500, {}];
+  };
+  assert.equal(await D.pobierzZDysku(), null);
+  pliku = [{ id: 'Z-TELEFONU' }];
+  await assert.rejects(D.wyslijNaDysk('{}'), (e) => e.zmianaNaDysku === true);
+  assert.equal(zapytania.some((z) => z.metoda === 'POST' && z.adres.includes('/upload/')), false);
+});

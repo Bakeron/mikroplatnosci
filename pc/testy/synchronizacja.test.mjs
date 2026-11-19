@@ -40,6 +40,8 @@ globalThis.Neutralino = {
 
 // Udawany Google: plik na Dysku = tekst w zmiennej naDysku; wysłane treści zapisywane.
 let naDysku;
+let wersjaNaDysku; // pole version pliku (undefined - Google go nie podaje)
+let przedWysylka = () => {}; // drugie urządzenie zmienia plik tuż przed wysyłką tego
 let wyslane;
 let zapytan;
 let usuniete;
@@ -50,8 +52,13 @@ globalThis.fetch = async (adres, o = {}) => {
   if (o.method === 'DELETE') { usuniete.push(a); return odp(204, {}); }
   if (a.startsWith('https://oauth2.googleapis.com/revoke')) return odp(200, {});
   if (a.startsWith('https://oauth2.googleapis.com/token')) return odp(200, { access_token: 'A1', expires_in: 3600 });
-  if (a.includes('/upload/')) { wyslane.push(o.body); return odp(200, { id: 'P1' }); }
-  if (a.includes('/drive/v3/files?')) return odp(200, { files: naDysku === null ? [] : [{ id: 'P1', size: String(naDysku.length) }] });
+  if (a.includes('/upload/')) {
+    wyslane.push(o.body);
+    if (wersjaNaDysku) { naDysku = o.body; wersjaNaDysku = String(Number(wersjaNaDysku) + 1); }
+    return odp(200, { id: 'P1', version: wersjaNaDysku });
+  }
+  if (a.includes('/drive/v3/files?')) return odp(200, { files: naDysku === null ? [] : [{ id: 'P1', size: String(naDysku.length), version: wersjaNaDysku }] });
+  if (a.endsWith('/files/P1?fields=version')) { przedWysylka(); return odp(200, { version: wersjaNaDysku }); }
   if (a.includes('alt=media')) return odp(200, naDysku);
   return odp(500, {});
 };
@@ -75,6 +82,8 @@ beforeEach(() => {
   zapisow = 0;
   pytania = [];
   wyslane = [];
+  wersjaNaDysku = undefined;
+  przedWysylka = () => {};
   zapytan = 0;
   odpowiedz = true;
   sync = polaczSynchronizacje({
@@ -248,4 +257,30 @@ test('chwilowy brak sieci (start, powrót z tła) - kolejne próby, zanim pojawi
     globalThis.fetch = zwykly;
     PONOWIENIA.splice(0, PONOWIENIA.length, ...przerwy);
   }
+});
+
+test('drugie urządzenie wysłało zmiany w trakcie wysyłki - pobranie i scalenie jeszcze raz, obie zmiany na Dysku', async () => {
+  naDysku = JSON.stringify({ wersja: 2, wpisy: stan.wpisy, usuniete: [] });
+  wersjaNaDysku = '1';
+  let raz = true;
+  przedWysylka = () => {
+    if (!raz) return;
+    raz = false;
+    naDysku = JSON.stringify({ wersja: 2, wpisy: [...JSON.parse(naDysku).wpisy, w('z-telefonu', '12:00')], usuniete: [] });
+    wersjaNaDysku = '2';
+  };
+  stan.wpisy.push(odczytajDane({ wpisy: [w('z-komputera', '11:00')], usuniete: [] }).wpisy[0]);
+  assert.equal(await sync.synchronizuj(true, true), true);
+  assert.equal(wyslane.length, 1);
+  assert.deepEqual(JSON.parse(wyslane[0]).wpisy.map((x) => x.id), ['a', 'b', 'c', 'd', 'z-komputera', 'z-telefonu']);
+  assert.match(stanDysku().textContent, /wysłano na Dysk/);
+});
+
+test('plik na Dysku zmienia się przy każdej próbie - po kilku próbach komunikat, bez nadpisania', async () => {
+  naDysku = JSON.stringify({ wersja: 2, wpisy: stan.wpisy, usuniete: [] });
+  wersjaNaDysku = '1';
+  przedWysylka = () => { wersjaNaDysku = String(Number(wersjaNaDysku) + 1); };
+  assert.equal(await sync.synchronizuj(true, true), false);
+  assert.equal(wyslane.length, 0);
+  assert.match(stanDysku().textContent, /zmienił się w trakcie wysyłki/);
 });

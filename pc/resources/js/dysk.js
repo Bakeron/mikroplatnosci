@@ -17,7 +17,8 @@ export const WZOR_SEKRETU = /^[\w-]{10,100}$/;
 const MAKS_BLEDOW_SIECI = 3; // pod rząd, przy czekaniu na zgodę w Google (aplikacja na ekranie)
 
 // wpisane: identyfikator pochodzi z aplikacji (zapisywany w google.json), nie ze zmiennych.
-const dysk = { id: '', sekret: '', wpisane: false, plikDostepu: '', odswiezajacy: '', dostep: '', wazneDo: 0, idPliku: '' };
+// wersjaPliku - numer wersji pliku na Dysku (pole version) z ostatniego pobrania albo wysyłki.
+const dysk = { id: '', sekret: '', wpisane: false, plikDostepu: '', odswiezajacy: '', dostep: '', wazneDo: 0, idPliku: '', wersjaPliku: '' };
 
 // Identyfikator aplikacji wbudowany przy budowaniu (js/google.js z instaluj.ps1 albo przygotuj.mjs,
 // ze zmiennych autora MIKROPLATNOSCI_GOOGLE_*). To identyfikator aplikacji, nie konta - każdy
@@ -180,7 +181,7 @@ function przerwa(ms) {
 }
 
 async function zapomnij() {
-  Object.assign(dysk, { odswiezajacy: '', dostep: '', wazneDo: 0, idPliku: '' });
+  Object.assign(dysk, { odswiezajacy: '', dostep: '', wazneDo: 0, idPliku: '', wersjaPliku: '' });
   await zapiszPlik().catch(console.error);
 }
 
@@ -228,13 +229,13 @@ const SZUKAJ = 'https://www.googleapis.com/drive/v3/files?spaces=drive&q='
 
 // Treść pliku z Dysku albo null, gdy jeszcze go tam nie ma. Kilka plików (np. skopiowany) - najnowszy.
 export async function pobierzZDysku() {
-  const lista = await (await zapytanie(`${SZUKAJ}&fields=files(id,size)`)).json();
+  const lista = await (await zapytanie(`${SZUKAJ}&fields=files(id,size,version)`)).json();
   const plik = Array.isArray(lista.files) ? lista.files[0] : null;
   if (!plik || typeof plik.id !== 'string') {
-    dysk.idPliku = '';
+    Object.assign(dysk, { idPliku: '', wersjaPliku: '' });
     return null;
   }
-  dysk.idPliku = plik.id;
+  Object.assign(dysk, { idPliku: plik.id, wersjaPliku: wersja(plik) });
   if (Number(plik.size) > MAKS_ROZMIAR) throw new Error(t('plik na Dysku jest za duży'));
   const tekst = await (await zapytanie(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(plik.id)}?alt=media`)).text();
   if (tekst.length > MAKS_ROZMIAR) throw new Error(t('plik na Dysku jest za duży'));
@@ -247,24 +248,42 @@ export async function usunZDysku() {
   for (const plik of Array.isArray(lista.files) ? lista.files : []) {
     if (typeof plik?.id === 'string') await zapytanie(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(plik.id)}`, { method: 'DELETE' });
   }
-  dysk.idPliku = '';
+  Object.assign(dysk, { idPliku: '', wersjaPliku: '' });
 }
 
-// Nadpisuje plik znaleziony przy ostatnim pobraniu albo zakłada nowy w „Moim dysku”.
+const wersja = (plik) => (typeof plik?.version === 'string' ? plik.version : '');
+
+// Plik na Dysku zmienił się od pobrania (drugie urządzenie wysłało swoje zmiany w tej samej chwili) -
+// synchronizacja pobiera go jeszcze raz, scala i dopiero wtedy wysyła. Bez tego wysyłka nadpisałaby
+// zmiany drugiego urządzenia, których to urządzenie jeszcze nie widziało.
+function zmianaNaDysku() {
+  const blad = new Error(t('plik na Dysku zmienił się w trakcie wysyłki - spróbuj jeszcze raz'));
+  blad.zmianaNaDysku = true;
+  return blad;
+}
+
+// Nadpisuje plik znaleziony przy ostatnim pobraniu albo zakłada nowy w „Moim dysku” - w obu
+// przypadkach tylko wtedy, gdy plik na Dysku jest dalej taki jak przy pobraniu.
 export async function wyslijNaDysk(tekst) {
   if (dysk.idPliku) {
-    await zapytanie(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(dysk.idPliku)}?uploadType=media`, {
+    const adres = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(dysk.idPliku)}`;
+    if (dysk.wersjaPliku && wersja(await (await zapytanie(`${adres}?fields=version`)).json()) !== dysk.wersjaPliku) throw zmianaNaDysku();
+    const odp = await zapytanie(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(dysk.idPliku)}?uploadType=media&fields=version`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: tekst,
     });
+    dysk.wersjaPliku = wersja(await odp.json().catch(() => null));
     return;
   }
+  // Przy pobraniu pliku nie było - a jeśli drugie urządzenie właśnie go założyło, drugi plik by go zasłonił.
+  const lista = await (await zapytanie(`${SZUKAJ}&fields=files(id)`)).json();
+  if (Array.isArray(lista.files) && lista.files.length) throw zmianaNaDysku();
   const granica = 'mikroplatnosci-' + Math.random().toString(36).slice(2);
   const opis = JSON.stringify({ name: NAZWA_PLIKU });
   const cialo = `--${granica}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${opis}\r\n`
     + `--${granica}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${tekst}\r\n--${granica}--`;
-  const odp = await zapytanie('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+  const odp = await zapytanie('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,version', {
     method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${granica}` }, body: cialo,
   });
-  const { id } = await odp.json();
-  if (typeof id === 'string') dysk.idPliku = id;
+  const nowy = await odp.json();
+  if (typeof nowy?.id === 'string') Object.assign(dysk, { idPliku: nowy.id, wersjaPliku: wersja(nowy) });
 }
