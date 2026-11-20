@@ -246,7 +246,11 @@ button { cursor: pointer; }
 .naglowek__przyciski { grid-area: p; justify-content: flex-end; }
 .naglowek__stan { grid-area: s; justify-content: flex-end; }
 .naglowek > div > * { margin-left: 0; }
-.naglowek__kursy:not(:has(> :not([hidden], [popover]))), .naglowek__stan:not(:has(> :not(:empty))) { display: none; }
+.naglowek__kursy:not(:has(> :not([hidden], [popover]))), .naglowek__stan:not(:has(> :not(:empty), > [data-miejsce])) { display: none; }
+/* Stałe miejsce na zwykły napis stanu (data-miejsce: „zapisano ✓ 20:08” z main.js, „wysłano na Dysk ✓ 20:08”
+   z synchronizacja.js) - „zapisuję…” → „zapisano ✓ 18:17” ani pierwszy zapis nie przesuwają nagłówka (autor 20.11.2026). */
+.naglowek .status { display: inline-flex; flex-direction: column; font-variant-numeric: tabular-nums; line-height: 18px; /* „✓” z innej czcionki nie podwyższa wiersza */ }
+.naglowek .status[data-miejsce]::after { content: attr(data-miejsce); height: 0; overflow: hidden; visibility: hidden; white-space: nowrap; }
 .naglowek--1 { grid-template: "t k p s" / max-content minmax(0, 1fr) max-content max-content; }
 .naglowek--1 .naglowek__kursy { justify-content: flex-end; }
 .naglowek--2 { grid-template: "t t t" "k p s" / minmax(0, 1fr) max-content max-content; }

@@ -856,6 +856,8 @@ function zastosujJezyk() {
   przetlumaczStrone();
   przetlumaczPomoc();
   pokazWersje();
+  $('status').dataset.miejsce = t('zapisano ✓ {godzina}', { godzina: godzina(new Date(2000, 0, 1, 20, 8)) }); // wyglad.css - stałe miejsce
+  if ($('dysk-stan').dataset.miejsce) $('dysk-stan').dataset.miejsce = t('wysłano na Dysk ✓ {godzina}', { godzina: godzina(new Date(2000, 0, 1, 20, 8)) });
   ustawMotyw(stan.motyw);
 }
 
@@ -1099,7 +1101,7 @@ new ResizeObserver(() => {
   szerokoscNaglowka = naglowek.clientWidth;
   ulozNaglowek();
 }).observe(naglowek);
-new MutationObserver(ulozNaglowek).observe(naglowek, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+new MutationObserver(ulozNaglowek).observe(naglowek, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'data-miejsce'] });
 
 // Kursy NBP: przy każdym uruchomieniu (wymus) i raz dziennie, gdy okno jest długo otwarte.
 // Bez internetu nic się nie zmienia - zostają ostatnie zapamiętane kursy.

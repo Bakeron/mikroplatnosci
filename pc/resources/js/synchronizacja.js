@@ -67,6 +67,10 @@ export function polaczSynchronizacje({ stan, poScaleniu, klasaBledu, czyLokalnie
       el.title = tekst; // pełny tekst, gdy u góry strony jest skrócony
       el.classList.toggle(klasaBledu, blad);
     }
+    // PC: stałe miejsce u góry strony (wyglad.css) na „wysłano na Dysk ✓ 20:08”, póki Dysk jest w użyciu.
+    const gora = $('dysk-stan')?.dataset ? $('dysk-stan') : null;
+    if (gora && tekst) gora.dataset.miejsce = t('wysłano na Dysk ✓ {godzina}', { godzina: godzina(new Date(2000, 0, 1, 20, 8)) });
+    else if (gora) delete gora.dataset.miejsce;
   }
 
   function odswiez() {
