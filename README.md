@@ -4,7 +4,7 @@
 
 *[English summary below](#in-english)*
 
-Pilnuje subskrypcji i drobnych płatności. Pokazuje, ile naprawdę kosztują miesięcznie (po kursie NBP) i kiedy wypada odnowienie. Działa na Windowsie i Androidzie na tych samych danych.
+Pokazuje faktyczny koszt danego okresu (po kursie NBP) i termin odnowienia. Działa na Windowsie i Androidzie na tych samych danych.
 
 **[Wypróbuj w przeglądarce](https://mikro.szymonbakonis.pl)** (wersja demonstracyjna z wymyślonymi danymi, komputer i telefon) · **[Instrukcja ze zrzutami](https://mikro.szymonbakonis.pl/instrukcja/)**
 
@@ -105,7 +105,7 @@ Projekt jest udostępniony na licencji MIT (plik `LICENSE`). Kod można dowolnie
 
 ## In English
 
-Mikropłatności ("micropayments") is a tracker for subscriptions and small payments on Windows and Android. It shows what they really cost per month (converted at the Polish central bank rate) and when each one renews.
+Mikropłatności ("micropayments") shows the actual cost of a given period (converted at the Polish central bank rate) and the renewal date. It runs on Windows and Android on the same data.
 
 - A "fuse" bar next to each item burns down to the renewal date.
 - A receipt with monthly and yearly totals in PLN.
@@ -116,4 +116,4 @@ Built with Neutralinojs (Windows), Capacitor (Android), plain JavaScript and the
 
 All code was written by Claude Code. I set the requirements, made the decisions, oversaw tests and audits, and reviewed every change.
 
-[Try the demo in the browser](https://mikro.szymonbakonis.pl). The full description above is in Polish.
+[Try the demo in the browser](https://mikro.szymonbakonis.pl/?lang=en). The full description above is in Polish.

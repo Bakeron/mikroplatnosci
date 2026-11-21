@@ -5,10 +5,14 @@
 // notes in the corner of the page, saved files go to the browser's Downloads.
 (() => {
   const TELEFON = document.documentElement.dataset.demo === 'telefon';
+  // "?lang=en" / "?lang=pl" (e.g. the link in the English README) - the demo starts in that language; other values are ignored.
+  const JEZYK_Z_ADRESU = ['pl', 'en'].find((j) => j === new URLSearchParams(location.search).get('lang')) || '';
+  // Links between the demo versions keep the language chosen in the address (the current one, after a change in Settings).
+  const zJezykiem = (adres, j) => (JEZYK_Z_ADRESU ? adres + (adres.includes('?') ? '&' : '?') + 'lang=' + j : adres);
 
   // Narrow screen (phone opening the demo window) - the phone version; "?pc" keeps the computer version.
   if (!TELEFON && window.innerWidth < 760 && !/[?&]pc\b/.test(location.search)) {
-    location.replace('/telefon/');
+    location.replace(zJezykiem('/telefon/', JEZYK_Z_ADRESU));
     return;
   }
 
@@ -17,6 +21,10 @@
 
   // --- files in memory -------------------------------------------------
   const pliki = new Map(Object.entries(window.__demo.pliki()));
+  if (JEZYK_Z_ADRESU) {
+    const ustawienia = JSON.parse(pliki.get('Mikroplatnosci/ustawienia.json'));
+    pliki.set('Mikroplatnosci/ustawienia.json', JSON.stringify({ ...ustawienia, jezyk: JEZYK_Z_ADRESU }));
+  }
   const foldery = new Set(['', 'Mikroplatnosci', 'Mikroplatnosci/kopie']);
   const POBRANE = 'Pobrane/';
   const norm = (s) => String(s).replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
@@ -165,8 +173,8 @@
           : 'Wersja demonstracyjna - dane są wymyślone, a zmiany znikają po odświeżeniu strony.');
       inna.textContent = TELEFON ? (ang() ? 'computer version' : 'wersja na komputer') : (ang() ? 'phone version' : 'wersja na telefon');
       instrukcja.textContent = ang() ? 'user guide (Polish)' : 'instrukcja';
+      inna.href = zJezykiem(TELEFON ? '/?pc' : '/telefon/', ang() ? 'en' : 'pl');
     };
-    inna.href = TELEFON ? '/?pc' : '/telefon/';
     const instrukcja = document.createElement('a');
     instrukcja.className = 'demo-pasek__link';
     instrukcja.href = '/instrukcja/';

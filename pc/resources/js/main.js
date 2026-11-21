@@ -614,7 +614,7 @@ for (const typ of ['dragover', 'drop']) {
 }
 
 // Kursy NBP od nowa - przy starcie i przyciskiem „odśwież” (bez restartu aplikacji).
-async function odswiezWszystko() {
+async function odswiezWszystko(ponawiaj = false) {
   const przycisk = $('odswiez');
   if (przycisk.disabled) return;
   przycisk.disabled = true;
@@ -623,7 +623,7 @@ async function odswiezWszystko() {
   przycisk.setAttribute('aria-busy', 'true');
   const obrot = new Promise((r) => setTimeout(r, 700));
   try {
-    await odswiezKursy(true);
+    await odswiezKursy(true, ponawiaj ? 0 : PONOWNE_KURSY.length);
   } finally {
     await obrot;
     przycisk.classList.remove('odswiez--pobiera');
@@ -775,7 +775,7 @@ function ustawMotyw(motyw) {
   $('motyw').setAttribute('aria-label', motyw === 'ciemny' ? t('Tło ciemne - przełącz na jasne') : t('Tło jasne - przełącz na ciemne'));
 }
 
-$('odswiez').addEventListener('click', odswiezWszystko);
+$('odswiez').addEventListener('click', () => odswiezWszystko());
 
 // Prowizja banku za przewalutowanie (ustawienie tego komputera): zmienia „≈ zł”, paragon i historię.
 function pokazProwizje() {
@@ -873,7 +873,7 @@ function zmienJezyk(j) {
   if (!stan.zablokowany) pokazStatus(t('pozycji: {n}', { n: widoczne().length }));
   if (stan.ikona) pokazIkone(); // menu ikony w nowym języku
   otworzUstawienia(); // okno ustawień od razu w nowym języku
-  document.querySelector('#okno-ustawienia select')?.focus();
+  document.querySelector('#okno-ustawienia .jezyk-suwak input:checked')?.focus();
 }
 
 const otworzUstawienia = () => pokazUstawienia(
@@ -1054,6 +1054,7 @@ function renderujKursy() {
       czesci.push(k);
     }
     const zrodlo = document.createElement('span');
+    zrodlo.className = 'kursy__zrodlo';
     zrodlo.textContent = 'NBP ' + formatujDate(parsujDate(kursy.data));
     czesci.push(zrodlo);
   }
@@ -1065,7 +1066,17 @@ function renderujKursy() {
     nbp: kursy ? t('błąd serwera NBP - kurs zapamiętany') : t('brak kursów - błąd serwera NBP'),
     zapis: t('kurs pobrany, ale nie zapisał się na dysku'),
   };
-  if (uwagi[stan.kursyStatus]) {
+  // Są zapamiętane kursy - uwaga bez dopisanego napisu (przesuwał cały nagłówek): data NBP na pomarańczowo
+  // z falką pod spodem, treść w dymku i dla czytnika ekranu.
+  if (kursy && uwagi[stan.kursyStatus]) {
+    const zrodlo = czesci.at(-1);
+    zrodlo.classList.add('kursy__zrodlo--uwaga');
+    zrodlo.title = uwagi[stan.kursyStatus];
+    const dlaCzytnika = document.createElement('span');
+    dlaCzytnika.className = 'sr';
+    dlaCzytnika.textContent = ' - ' + uwagi[stan.kursyStatus];
+    zrodlo.append(dlaCzytnika);
+  } else if (uwagi[stan.kursyStatus]) {
     const uwaga = document.createElement('span');
     uwaga.className = 'kursy__uwaga' + (stan.kursyStatus !== 'pobieram' ? ' kursy__uwaga--offline' : '');
     uwaga.textContent = uwagi[stan.kursyStatus];
@@ -1105,10 +1116,16 @@ new MutationObserver(ulozNaglowek).observe(naglowek, { subtree: true, childList:
 
 // Kursy NBP: przy każdym uruchomieniu (wymus) i raz dziennie, gdy okno jest długo otwarte.
 // Bez internetu nic się nie zmienia - zostają ostatnie zapamiętane kursy.
-async function odswiezKursy(wymus = false) {
+// Nieudane pobranie (sieć po wybudzeniu komputera jeszcze nie wstała, NBP zerwał połączenie) - po cichu
+// jeszcze dwie próby, uwaga dopiero po nich. Przycisk „odśwież” bez ponawiania - wynik od razu.
+const PONOWNE_KURSY = [10_000, 60_000];
+async function odswiezKursy(wymus = false, proba = 0) {
   if (!stan.plikKursow || !uzywaWalut() || (!wymus && czyAktualne())) return;
-  stan.kursyStatus = 'pobieram';
-  renderujKursy();
+  // Z zapamiętanymi kursami bez „pobieram” - poprzednia uwaga nie gaśnie i nie wraca w trakcie pobierania.
+  if (!pobierzKursy()) {
+    stan.kursyStatus = 'pobieram';
+    renderujKursy();
+  }
   try {
     const zmiana = await odswiezZNbp(stan.plikKursow);
     stan.kursyStatus = 'ok';
@@ -1118,6 +1135,11 @@ async function odswiezKursy(wymus = false) {
       odswiezDodatki();
     }
   } catch (e) {
+    if (e?.rodzaj !== 'zapis' && proba < PONOWNE_KURSY.length) {
+      console.warn(e);
+      setTimeout(() => odswiezKursy(true, proba + 1), PONOWNE_KURSY[proba]);
+      return;
+    }
     // Bez sieci - „offline”; zła odpowiedź NBP albo nieudany zapis kursy.json - osobny napis.
     stan.kursyStatus = e?.rodzaj === 'nbp' || e?.rodzaj === 'zapis' ? e.rodzaj : 'offline';
     if (e?.rodzaj === 'zapis' && e.zmiana) {
@@ -1238,7 +1260,7 @@ async function start() {
   dysk.odswiez();
   // Bez zapisu lokalnego dane są tylko na Dysku - pobierane przy każdym starcie.
   if (!stan.lokalnie && !stan.zablokowany) dysk.synchronizuj(false);
-  odswiezWszystko();
+  odswiezWszystko(true);
 }
 
 // B10: uruchomienie z Harmonogramu zadań (harmonogram.js) - bez okna. Pokazuje zaległe powiadomienia

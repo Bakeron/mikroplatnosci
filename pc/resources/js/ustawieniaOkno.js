@@ -461,13 +461,39 @@ export function pokazUstawienia(stan, { naFunkcje, naWaluty, naKategorie, naPowi
     okno.append(kolumny);
   }
 
-  // F27: język - nazwy języków zawsze w ich własnym języku („English”, „Polski”).
-  const jezykPole = element('label', 'ustawienia__jezyk');
-  const jezykWybor = element('select', 'pole pole--wybor');
-  jezykWybor.append(...JEZYKI.map(([kod, nazwa]) => new Option(nazwa, kod)));
-  jezykWybor.value = stan.jezyk;
-  jezykWybor.addEventListener('change', () => naJezyk(jezykWybor.value));
-  jezykPole.append(element('span', 'ustawienia__nazwa', t('Język') + (stan.jezyk === 'en' ? '' : ' / Language')), jezykWybor);
+  // F27: język - przesuwak „Polski | English” (autor 21.11.2026, zamiast listy); nazwy języków zawsze
+  // w ich własnym języku. Prawdziwe pola radio - strzałki lewo / prawo i czytnik ekranu działają same.
+  // Podkładka pod wybranym językiem przesuwa się (--wybrany), a dopiero po niej okno przechodzi na nowy język.
+  const jezykPole = element('div', 'ustawienia__jezyk');
+  const jezykNapis = element('span', 'ustawienia__nazwa', t('Język') + (stan.jezyk === 'en' ? '' : ' / Language'));
+  jezykNapis.id = 'jezyk-napis';
+  const suwak = element('div', 'jezyk-suwak');
+  suwak.setAttribute('role', 'radiogroup');
+  suwak.setAttribute('aria-labelledby', jezykNapis.id);
+  suwak.style.setProperty('--ile', JEZYKI.length);
+  const podkladka = element('span', 'jezyk-suwak__podkladka');
+  podkladka.setAttribute('aria-hidden', 'true');
+  suwak.append(podkladka);
+  JEZYKI.forEach(([kod, nazwa], i) => {
+    const opcja = element('label', 'jezyk-suwak__opcja');
+    const radio = element('input');
+    radio.type = 'radio';
+    radio.name = 'jezyk';
+    radio.value = kod;
+    radio.lang = kod;
+    radio.checked = kod === stan.jezyk;
+    if (radio.checked) suwak.style.setProperty('--wybrany', i);
+    radio.addEventListener('change', () => {
+      suwak.style.setProperty('--wybrany', i);
+      const bezRuchu = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setTimeout(() => naJezyk(kod), bezRuchu ? 0 : 200);
+    });
+    const tekstOpcji = element('span', '', nazwa);
+    tekstOpcji.lang = kod;
+    opcja.append(radio, tekstOpcji);
+    suwak.append(opcja);
+  });
+  jezykPole.append(jezykNapis, suwak);
 
   const przyciski = element('div', 'okno__przyciski');
   // F25: notatki „pierwsze kroki” jeszcze raz - np. gdy z aplikacji ma korzystać ktoś nowy.

@@ -436,7 +436,7 @@ li:has(> .t-dopisek, > .t-ile:not([hidden])) .karta { border-bottom: 0; }
 .telefon .ustawienia__do-telefonu { min-height: 44px; font-size: 15.5px; }
 .telefon .okno--ustawienia .okno__przyciski .przycisk-tekst { min-height: 44px; }
 .telefon .ustawienia__jezyk { flex-basis: 100%; margin-right: 0; }
-.telefon .ustawienia__jezyk .pole { min-height: 44px; font-size: 16px; }
+.telefon .jezyk-suwak__opcja { min-height: 40px; padding: 0 20px; font-size: 15px; } /* z rowkiem i obwódką cel dotyku 44+ px */
 /* Okno ustawień: od góry i od dołu taki sam odstęp jak po bokach (16 px, poza paskami Androida) i stała
    wysokość. Tytuł, zakładki i „×” stoją na górze (ustawienia__gora), przewija się tylko treść pod nimi.
    „×” nie wystaje za róg jak na PC - pod paskiem stanu trudno go trafić - tylko stoi w wierszu tytułu. */

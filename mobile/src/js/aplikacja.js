@@ -943,6 +943,7 @@ function zmienJezyk(j) {
   dysk.odswiez();
   zaplanujPowiadomienia(); // zaplanowane powiadomienia w nowym języku
   otworzUstawienia(); // okno ustawień od razu w nowym języku
+  document.querySelector('#okno-ustawienia .jezyk-suwak input:checked')?.focus();
 }
 
 // F25: dymki „pierwsze kroki” (pierwszeKroki.js) i przykładowa pozycja do wykreślenia.
