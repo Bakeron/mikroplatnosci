@@ -53,11 +53,11 @@
   <h2>2. Ekran główny (komputer)</h2>
   <figure><img src="zrzuty/pc-glowny.webp" alt="Nagłówek aplikacji z kursami walut, prowizją banku, przełącznikiem noc / dzień, zębatką i zakładkami kategorii" loading="lazy"></figure>
   <ol class="punkty">
-    <li><b>Kursy NBP</b> - kurs średni dolara, euro i innych walut z Twoich pozycji, z datą tabeli. Pobierane same; bez internetu zostaje ostatni zapamiętany kurs.</li>
+    <li><b>Kursy NBP</b> - kurs średni dolara, euro i innych walut z Twoich pozycji, z datą tabeli. Pobierane same. Gdy nowych nie da się pobrać (brak internetu, błąd serwera NBP), zostaje ostatni zapamiętany kurs, a jego data robi się pomarańczowa i podkreślona falką - dymek po najechaniu mówi, co się stało.</li>
     <li><b>Prowizja banku</b> - ile Twój bank dolicza do kursu przy płatności kartą w obcej walucie (zwykle 2-4%). Zmienia wszystkie „≈ zł” i sumy.</li>
     <li><b>Odśwież</b> - pobiera kursy od nowa.</li>
     <li><b>Noc / dzień</b> - ciemne albo jasne tło.</li>
-    <li><b>Zębatka</b> - ustawienia aplikacji (rozdział 11). Obok stan zapisu: „zapisano ✓” z godziną - każda zmiana zapisuje się sama.</li>
+    <li><b>Zębatka</b> - ustawienia aplikacji (rozdział 11). Obok stan zapisu: „zapisano ✓” z godziną - każda zmiana zapisuje się sama. Przy synchronizacji z Google Dyskiem także „wysłano na Dysk ✓”.</li>
     <li><b>Zakładki kategorii</b> - pokazują tylko pozycje z jednej kategorii (z liczbą pozycji). Po prawej „tylko:” - <i>płacę sam</i>, <i>do wycofania</i>, <i>na firmę</i>. „Wszystkie” pokazuje znowu cały zeszyt.</li>
   </ol>
 </section>
@@ -99,7 +99,7 @@
     <li><b>Płatność</b> - <i>pobiera się sama</i> (karta, subskrypcja) albo <i>płacę sam</i> (przelew, rachunek - rozdział 6).</li>
     <li><b>Przedłużać</b> - „nie” dla okresów próbnych i usług do anulowania: pozycja dostaje <b>!</b>, trafia do listy „Do wycofania” i do powiadomień, a na paragonie jest poza sumą.</li>
     <li><b>Na firmę</b> - przy terminie przypomnienie „pobierz fakturę”, na paragonie osobna suma firmowa.</li>
-    <li><b>Kategoria</b> - rozrywka, praca, AI, dom i rachunki, nauka, zdrowie i sport, inne. Od niej zależą zakładki nad tabelą i sumy na paragonie.</li>
+    <li><b>Kategoria</b> - gotowe (rozrywka, praca, AI, dom i rachunki, nauka, zdrowie i sport, inne) i własne, dopisane w ustawieniach (rozdział 11). Od niej zależą zakładki nad tabelą i sumy na paragonie.</li>
     <li><b>Okres</b> - tydzień, 4 tygodnie, miesiąc, kwartał, pół roku, rok, 2 lata albo dowolne „co N tygodni / miesięcy”.</li>
     <li><b>Dzielę koszt</b> - na ile osób (Ty też) i kto oddaje. W sumach liczy się tylko Twoja część, a przy terminie przypomnienie „odbierz po … zł” z imionami i polem „oddane”.</li>
     <li><b>Pauza</b> - „wstrzymana do” (dzień wznowienia): bez alarmów i poza sumami do tego dnia. Historia zapłaconych okresów zostaje.</li>
@@ -156,12 +156,12 @@
 
 <section id="ustawienia">
   <h2>11. Ustawienia aplikacji</h2>
-  <p>Zębatka u góry otwiera okno z czterema zakładkami. Na dole okna: język (polski / angielski), „o aplikacji” z licencjami i „Pokaż pierwsze kroki”.</p>
+  <p>Zębatka u góry otwiera okno z czterema zakładkami. Na dole okna: przesuwak języka „Polski | English”, „o aplikacji” z licencjami i „Pokaż pierwsze kroki”.</p>
   <h3>Zeszyt</h3>
-  <p>Co widać w zeszycie. Każdą funkcję można wyłączyć - znika z ekranu, a to, co wpisane, zostaje w pliku i wraca po włączeniu. Tu też waluty do wyboru przy kwocie, budżet miesięczny i „Krzywe elementy” (pieczątki, paragon i numery w kółkach lekko przekrzywione, domyślnie wyłączone).</p>
+  <p>Co widać w zeszycie. Każdą funkcję można wyłączyć - znika z ekranu, a to, co wpisane, zostaje w pliku i wraca po włączeniu. Tu też <b>kategorie do wyboru</b> (gotowe można odznaczyć, własne dopisać albo zmienić im nazwę - lista jest wspólna z telefonem przez Google Dysk), waluty do wyboru przy kwocie, budżet miesięczny i „Krzywe elementy” (pieczątki, paragon i numery w kółkach lekko przekrzywione, domyślnie wyłączone).</p>
   <figure><img src="zrzuty/pc-ust-zeszyt.webp" alt="Zakładka Zeszyt: przełączniki funkcji i wybór walut" loading="lazy"></figure>
   <h3>Powiadomienia</h3>
-  <p><b>Wycofaj</b> (przed odnowieniem pozycji „nie przedłużaj”), <b>Zapłać</b> (przed terminem płatności ręcznej), <b>Przygotuj pieniądze</b> (tydzień przed większą płatnością, próg w złotych) i <b>Podwyżka</b>. Na komputerze także „przy zamkniętej aplikacji” - raz dziennie przez Harmonogram zadań Windows. Na telefonie powiadomienia przychodzą także przy zamkniętej aplikacji.</p>
+  <p><b>Wycofaj</b> (przed odnowieniem pozycji „nie przedłużaj”), <b>Zapłać</b> (przed terminem płatności ręcznej), <b>Przygotuj pieniądze</b> (tydzień przed większą płatnością, próg w złotych) i <b>Podwyżka</b>. Na komputerze także „przy zamkniętej aplikacji” - raz dziennie przez Harmonogram zadań Windows. <b>Krzyżyk chowa do zasobnika</b> - zamknięte okno zostaje ikoną przy zegarze i dalej pilnuje powiadomień (całkiem zamyka je „Zamknij” w menu ikony). <b>Uruchamiaj z Windows</b> - po zalogowaniu aplikacja startuje sama, schowana w zasobniku. Na telefonie powiadomienia przychodzą także przy zamkniętej aplikacji.</p>
   <figure><img src="zrzuty/pc-ust-powiadomienia.webp" alt="Zakładka Powiadomienia z przełącznikami rodzajów powiadomień" loading="lazy"></figure>
   <h3>Synchronizacja</h3>
   <p>Gdzie są dane: <b>Zapisuj lokalnie</b> (plik na komputerze z 5 kopiami zapasowymi) i <b>Synchronizuj z Google Dyskiem</b> - rozdział 14. „Usuń z komputera” kasuje dane z tego urządzenia.</p>
@@ -186,7 +186,7 @@
     <figure class="waski"><img src="zrzuty/tel-edycja.webp" alt="Telefon: arkusz edycji pozycji Netflix" loading="lazy"><figcaption>Edycja pozycji</figcaption></figure>
   </div>
   <ol class="punkty">
-    <li><b>Koszt na miesiąc i na rok</b> - jak „razem” na paragonie.</li>
+    <li><b>Koszt na miesiąc i na rok</b> - po lewej suma płatności miesięcznych, po prawej rocznych (jak „Suma / mies.” i „Suma / rok” na paragonie). Łączne „razem” jest na paragonie.</li>
     <li><b>Zębatka</b> - ustawienia, te same zakładki co na komputerze.</li>
     <li><b>Kolejność</b> - według terminu albo własna. <b>↑↓ Ułóż</b> przesuwa pozycje strzałkami; przy synchronizacji ta sama kolejność jest na komputerze.</li>
     <li><b>Filtr</b> - kategorie i „tylko: płacę sam / do wycofania / na firmę”.</li>
@@ -205,7 +205,7 @@
   <h2>14. Gdzie są dane i Google Dysk</h2>
   <ul class="lista">
     <li><b>Na urządzeniu</b> - plik danych na komputerze albo w telefonie, zapisywany przez plik tymczasowy (zanik prądu nie zostawia uciętego pliku), z 5 kopiami zapasowymi. Gdy pliku nie da się odczytać, aplikacja niczego nie nadpisuje i podpowiada, jak wczytać kopię.</li>
-    <li><b>Google Dysk</b> - włącz „Synchronizuj z Google Dyskiem”, otwórz google.com/device i wpisz kod pokazany w aplikacji. Na Twoim Dysku powstaje jeden plik „mikroplatnosci.json” - aplikacja widzi tylko pliki, które sama utworzyła, nie Twoje dokumenty ani zdjęcia. Zmiany z telefonu i komputera są łączone pozycja po pozycji.</li>
+    <li><b>Google Dysk</b> - włącz „Synchronizuj z Google Dyskiem”, otwórz google.com/device i wpisz kod pokazany w aplikacji. Na Twoim Dysku powstaje jeden plik „mikroplatnosci.json” - aplikacja widzi tylko pliki, które sama utworzyła, nie Twoje dokumenty ani zdjęcia. Zmiany z telefonu i komputera są łączone pole po polu: gdy na telefonie zmienisz cenę, a na komputerze datę tej samej pozycji, zostają obie zmiany, a przy tym samym polu wygrywa nowsza.</li>
     <li><b>Wspólne dane dla kilku osób</b> (np. domownicy) - każda osoba włącza synchronizację u siebie, a kod wpisuje właściciel danych swoim kontem Google. Wszyscy widzą te same pozycje, a druga osoba nie poznaje hasła właściciela.</li>
     <li><b>Bez śledzenia</b> - autor aplikacji nie dostaje żadnych Twoich danych, bez reklam. Do sieci aplikacja łączy się tylko po kursy NBP i - gdy włączysz - z Twoim Google Dyskiem.</li>
   </ul>

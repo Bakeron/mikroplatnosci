@@ -1122,10 +1122,9 @@ const PONOWNE_KURSY = [10_000, 60_000];
 async function odswiezKursy(wymus = false, proba = 0) {
   if (!stan.plikKursow || !uzywaWalut() || (!wymus && czyAktualne())) return;
   // Z zapamiętanymi kursami bez „pobieram” - poprzednia uwaga nie gaśnie i nie wraca w trakcie pobierania.
-  if (!pobierzKursy()) {
-    stan.kursyStatus = 'pobieram';
-    renderujKursy();
-  }
+  // Zapamiętane kursy widać od razu, także gdy pobieranie po cichu ponawia próby.
+  if (!pobierzKursy()) stan.kursyStatus = 'pobieram';
+  renderujKursy();
   try {
     const zmiana = await odswiezZNbp(stan.plikKursow);
     stan.kursyStatus = 'ok';
